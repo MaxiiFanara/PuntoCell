@@ -1,0 +1,9 @@
+# Ignorar archivo de variables de entorno
+.env
+
+# Ignorar dependencias de Node.js
+node_modules/
+
+sistemaViejo/
+
+GUIA_TESTING_ENDPOINTS
