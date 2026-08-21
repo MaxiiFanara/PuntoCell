@@ -9,18 +9,22 @@ import { createAuthModule } from '../../modules/auth/auth.module.js';
 import { createEstadisticasModule } from '../../modules/estadisticas/estadisticas.module.js';
 import { createVentasModule } from '../../modules/ventas/ventas.module.js';
 import { createFinanzasModule } from '../../modules/finanzas/finanzas.module.js';
+import { createAuditoriaModule } from '../../modules/auditoria/auditoria.module.js';
 
 export function createContainer() {
   const usuarioDAO = new UsuarioDAO(models.Usuario);
+  // Crear módulo de auditoría primero para pasar su servicio a otros módulos
+  const auditoriaModule = createAuditoriaModule();
 
   return {
-    usuariosEmpresa: createUsuariosEmpresaModule(usuarioDAO),
+    usuariosEmpresa: createUsuariosEmpresaModule(usuarioDAO, auditoriaModule.bitacoraService),
     reparaciones: createReparacionesModule(usuarioDAO),
     compras: createComprasModule(),
     auth: createAuthModule(usuarioDAO),
-    inventario: createInventarioModule(),
+    inventario: createInventarioModule(auditoriaModule.bitacoraService),
     estadisticas: createEstadisticasModule(),
-    ventas: createVentasModule(),
-    finanzas: createFinanzasModule()
+    ventas: createVentasModule(auditoriaModule.bitacoraService),
+    finanzas: createFinanzasModule(),
+    auditoria: auditoriaModule
   };
 }

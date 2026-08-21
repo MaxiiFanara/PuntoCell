@@ -1,6 +1,9 @@
+import { registerAudit } from '../../../core/utils/audit.util.js';
+
 export default class DetalleVentaService {
-  constructor(detalleDAO) {
+  constructor(detalleDAO, bitacoraService = null) {
     this.detalleDAO = detalleDAO;
+    this.bitacoraService = bitacoraService;
     this.ATTRIBUTES = {};
   }
 
@@ -9,9 +12,19 @@ export default class DetalleVentaService {
     return await this.detalleDAO.getAll({ page, limit, attributes: this.ATTRIBUTES });
   }
 
-  async getById(id) {
+  async getById(id, auditContext = null) {
     const item = await this.detalleDAO.getById(id, { attributes: this.ATTRIBUTES });
-    if (!item) throw new Error('DetalleVenta no encontrado');
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `DetalleVenta no encontrado (Id=${id})`,
+        Accion: 'Obtener DetalleVenta',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('DetalleVenta no encontrado');
+    }
     return item;
   }
 
@@ -19,7 +32,7 @@ export default class DetalleVentaService {
   // `VentaService.create()` (que ya descuenta stock en su propia transacción) — así que acá
   // también hace falta verificar/descontar Stock, para no vender dos veces la misma unidad
   // (mismo IMEI) si alguien pega directo a este endpoint en vez de usar POST /ventas.
-  async create(data) {
+  async create(data, auditContext = null) {
     const sequelize = this.detalleDAO.model.sequelize;
     const { Inventario } = sequelize.models;
     const t = await sequelize.transaction();
@@ -36,22 +49,76 @@ export default class DetalleVentaService {
       await inv.update({ Stock: inv.Stock - data.Cantidad }, { transaction: t });
       const detalle = await this.detalleDAO.create(data, { transaction: t });
       await t.commit();
+      await registerAudit(this.bitacoraService, {
+        detalle: `DetalleVenta creado Id=${detalle.Id || detalle.id || ''}`,
+        Accion: 'Crear DetalleVenta',
+        IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+        IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
       return detalle;
     } catch (err) {
       await t.rollback();
+      await registerAudit(this.bitacoraService, {
+        detalle: `Error creando detalle venta - ${err.message}`,
+        Accion: 'Crear DetalleVenta',
+        IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+        IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
       throw err;
     }
   }
 
-  async update(id, data) {
+  async update(id, data, auditContext = null) {
     const item = await this.detalleDAO.getById(id);
-    if (!item) throw new Error('DetalleVenta no encontrado');
-    return await this.detalleDAO.update(id, data);
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `DetalleVenta no encontrado (Id=${id})`,
+        Accion: 'Actualizar DetalleVenta',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('DetalleVenta no encontrado');
+    }
+    const updated = await this.detalleDAO.update(id, data);
+    await registerAudit(this.bitacoraService, {
+      detalle: `DetalleVenta actualizado Id=${id}`,
+      Accion: 'Actualizar DetalleVenta',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return updated;
   }
 
-  async remove(id) {
+  async remove(id, auditContext = null) {
     const item = await this.detalleDAO.getById(id);
-    if (!item) throw new Error('DetalleVenta no encontrado');
-    return await this.detalleDAO.remove(id);
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `DetalleVenta no encontrado (Id=${id})`,
+        Accion: 'Eliminar DetalleVenta',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('DetalleVenta no encontrado');
+    }
+    const removed = await this.detalleDAO.remove(id);
+    await registerAudit(this.bitacoraService, {
+      detalle: `DetalleVenta eliminado Id=${id}`,
+      Accion: 'Eliminar DetalleVenta',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return removed;
   }
 }

@@ -11,6 +11,7 @@ import estadisticasRoutes from '../modules/estadisticas/estadisticas.routes.js';
 import ventasRoutes from '../modules/ventas/ventas.routes.js';
 import finanzasRoutes from '../modules/finanzas/finanzas.routes.js';
 import catalogoRoutes from '../modules/catalogo/catalogo.routes.js';
+import auditoriaRoutes from '../modules/auditoria/auditoria.routes.js';
 
 export default (container) => {
   const router = Router();
@@ -30,6 +31,7 @@ export default (container) => {
   router.use('/estadisticas', estadisticasRoutes(container));
   router.use('/ventas', ventasRoutes(container));
   router.use('/finanzas', finanzasRoutes(container));
+  router.use('/auditoria', auditoriaRoutes(container));
 
   return router;
 };

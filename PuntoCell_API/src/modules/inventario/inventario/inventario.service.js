@@ -1,8 +1,10 @@
 import { Op } from 'sequelize';
+import { registerAudit } from '../../../core/utils/audit.util.js';
 
 export default class InventarioService {
-  constructor(inventarioDAO) {
+  constructor(inventarioDAO, bitacoraService = null) {
     this.inventarioDAO = inventarioDAO;
+    this.bitacoraService = bitacoraService;
     // Sin exclude: React necesita el Id como key
     this.ATTRIBUTES = {};
   }
@@ -20,7 +22,7 @@ export default class InventarioService {
   // No hay columna "plan canje" en la BD: se identifica por este proveedor placeholder.
   static PROVEEDOR_CANJE = 'canje de clientes';
 
-  async getAll(query = {}) {
+  async getAll(query = {}, auditContext = null) {
     const { page, limit, IdSucursal, soloVendibles, soloRepuestos, soloCanje, IMEI } = query;
     const { Sucursal, Articulo, EstadoInventario, Proveedor } = this._getRelatedModels();
     const sequelize = this.inventarioDAO.model.sequelize;
@@ -64,7 +66,7 @@ export default class InventarioService {
     });
   }
 
-  async getById(id) {
+  async getById(id, auditContext = null) {
     const { Sucursal, Articulo, EstadoInventario } = this._getRelatedModels();
     const sequelize = this.inventarioDAO.model.sequelize;
     const { Color, Memoria, ModeloArticulo } = sequelize.models;
@@ -86,7 +88,17 @@ export default class InventarioService {
       ]
     });
 
-    if (!item) throw new Error('Inventario no encontrado');
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Inventario no encontrado (Id=${id})`,
+        Accion: 'Obtener Inventario',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Inventario no encontrado');
+    }
     return item;
   }
 
@@ -121,38 +133,117 @@ export default class InventarioService {
     throw err;
   }
 
-  async create(data) {
+  async create(data, auditContext = null) {
     const { Sucursal, Articulo, EstadoInventario } = this._getRelatedModels();
     const suc = await Sucursal.findByPk(data.IdSucursal);
-    if (!suc) throw new Error('Sucursal no encontrada');
+    if (!suc) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Sucursal no encontrada Id=${data.IdSucursal}`,
+        Accion: 'Crear Inventario',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Sucursal no encontrada');
+    }
     const art = await Articulo.findByPk(data.IdArticulo);
-    if (!art) throw new Error('Articulo no encontrado');
+    if (!art) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Articulo no encontrado Id=${data.IdArticulo}`,
+        Accion: 'Crear Inventario',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Articulo no encontrado');
+    }
     const est = await EstadoInventario.findByPk(data.IdEstadoInventario);
-    if (!est) throw new Error('EstadoInventario no encontrado');
+    if (!est) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `EstadoInventario no encontrado Id=${data.IdEstadoInventario}`,
+        Accion: 'Crear Inventario',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('EstadoInventario no encontrado');
+    }
 
     await this._validarIMEI(data.IMEI);
     this._validarStockSerializado(art, data.Stock);
 
-    return await this.inventarioDAO.create(data);
+    const created = await this.inventarioDAO.create(data);
+    await registerAudit(this.bitacoraService, {
+      detalle: `Inventario creado Id=${created.Id || created.id || ''}`,
+      Accion: 'Crear Inventario',
+      IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+      IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return created;
   }
 
-  async update(id, data) {
+  async update(id, data, auditContext = null) {
     const item = await this.inventarioDAO.getById(id);
-    if (!item) throw new Error('Inventario no encontrado');
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Inventario no encontrado (Id=${id})`,
+        Accion: 'Actualizar Inventario',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Inventario no encontrado');
+    }
     const { Sucursal, Articulo, EstadoInventario } = this._getRelatedModels();
 
     if (data.IdSucursal !== undefined) {
       const suc = await Sucursal.findByPk(data.IdSucursal);
-      if (!suc) throw new Error('Sucursal no encontrada');
+      if (!suc) {
+        await registerAudit(this.bitacoraService, {
+          detalle: `Sucursal no encontrada Id=${data.IdSucursal}`,
+          Accion: 'Actualizar Inventario',
+          IdEmpleado: auditContext?.IdEmpleado,
+          IdSucursal: auditContext?.IdSucursal,
+          IpAddress: auditContext?.Ip,
+          Fecha: new Date()
+        }).catch(() => {});
+        throw new Error('Sucursal no encontrada');
+      }
     }
     let art = null;
     if (data.IdArticulo !== undefined) {
       art = await Articulo.findByPk(data.IdArticulo);
-      if (!art) throw new Error('Articulo no encontrado');
+      if (!art) {
+        await registerAudit(this.bitacoraService, {
+          detalle: `Articulo no encontrado Id=${data.IdArticulo}`,
+          Accion: 'Actualizar Inventario',
+          IdEmpleado: auditContext?.IdEmpleado,
+          IdSucursal: auditContext?.IdSucursal,
+          IpAddress: auditContext?.Ip,
+          Fecha: new Date()
+        }).catch(() => {});
+        throw new Error('Articulo no encontrado');
+      }
     }
     if (data.IdEstadoInventario !== undefined) {
       const est = await EstadoInventario.findByPk(data.IdEstadoInventario);
-      if (!est) throw new Error('EstadoInventario no encontrado');
+      if (!est) {
+        await registerAudit(this.bitacoraService, {
+          detalle: `EstadoInventario no encontrado Id=${data.IdEstadoInventario}`,
+          Accion: 'Actualizar Inventario',
+          IdEmpleado: auditContext?.IdEmpleado,
+          IdSucursal: auditContext?.IdSucursal,
+          IpAddress: auditContext?.Ip,
+          Fecha: new Date()
+        }).catch(() => {});
+        throw new Error('EstadoInventario no encontrado');
+      }
     }
 
     if (data.IMEI !== undefined) {
@@ -164,12 +255,40 @@ export default class InventarioService {
       this._validarStockSerializado(articuloActual, data.Stock);
     }
 
-    return await this.inventarioDAO.update(id, data);
+    const updated = await this.inventarioDAO.update(id, data);
+    await registerAudit(this.bitacoraService, {
+      detalle: `Inventario actualizado Id=${id}`,
+      Accion: 'Actualizar Inventario',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return updated;
   }
 
-  async remove(id) {
+  async remove(id, auditContext = null) {
     const item = await this.inventarioDAO.getById(id);
-    if (!item) throw new Error('Inventario no encontrado');
-    return await this.inventarioDAO.remove(id);
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Inventario no encontrado (Id=${id})`,
+        Accion: 'Eliminar Inventario',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Inventario no encontrado');
+    }
+    const removed = await this.inventarioDAO.remove(id);
+    await registerAudit(this.bitacoraService, {
+      detalle: `Inventario eliminado Id=${id}`,
+      Accion: 'Eliminar Inventario',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return removed;
   }
 }

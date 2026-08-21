@@ -1,7 +1,10 @@
+import { registerAudit } from '../../../core/utils/audit.util.js';
+
 export default class DevolucionVentaService {
-  constructor(devolucionDAO, detalleDAO) {
+  constructor(devolucionDAO, detalleDAO, bitacoraService = null) {
     this.devolucionDAO = devolucionDAO;
     this.detalleDAO = detalleDAO;
+    this.bitacoraService = bitacoraService;
     this.ATTRIBUTES = {};
   }
 
@@ -10,15 +13,25 @@ export default class DevolucionVentaService {
     return await this.devolucionDAO.getAll({ page, limit, attributes: this.ATTRIBUTES });
   }
 
-  async getById(id) {
+  async getById(id, auditContext = null) {
     const sequelize = this.devolucionDAO.model.sequelize;
     const Detalle = sequelize.models.DetalleDevolucionVenta;
     const item = await this.devolucionDAO.getById(id, { attributes: this.ATTRIBUTES, include: [ { model: Detalle, as: 'detalles' } ] });
-    if (!item) throw new Error('DevolucionVenta no encontrada');
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `DevolucionVenta no encontrada (Id=${id})`,
+        Accion: 'Obtener DevolucionVenta',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('DevolucionVenta no encontrada');
+    }
     return item;
   }
 
-  async create(data) {
+  async create(data, auditContext = null) {
     const sequelize = this.devolucionDAO.model.sequelize;
     const t = await sequelize.transaction();
     let devolData = null;
@@ -76,25 +89,80 @@ export default class DevolucionVentaService {
       await t.commit();
 
       const Detalle = sequelize.models.DetalleDevolucionVenta;
-      return await this.devolucionDAO.getById(devolId, { include: [ { model: Detalle, as: 'detalles' } ] });
+      const created = await this.devolucionDAO.getById(devolId, { include: [ { model: Detalle, as: 'detalles' } ] });
+      await registerAudit(this.bitacoraService, {
+        detalle: `DevolucionVenta creada Id=${devolId}`,
+        Accion: 'Crear DevolucionVenta',
+        IdEmpleado: devolData?.IdEmpleado || auditContext?.IdEmpleado,
+        IdSucursal: devolData?.IdSucursal || auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      return created;
     } catch (err) {
       await t.rollback();
       console.error('Error creando devolucion transactional:', err && (err.stack || err.message || err));
       if (err.original) console.error('SQL Error detail:', err.original);
       const message = (err.original && (err.original.message || err.original.sqlMessage)) || err.message || 'Error al crear devolucion';
+      await registerAudit(this.bitacoraService, {
+        detalle: `Error creando devolucion - ${message}`,
+        Accion: 'Crear DevolucionVenta',
+        IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+        IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
       throw new Error(message);
     }
   }
 
-  async update(id, data) {
+  async update(id, data, auditContext = null) {
     const item = await this.devolucionDAO.getById(id);
-    if (!item) throw new Error('DevolucionVenta no encontrada');
-    return await this.devolucionDAO.update(id, data);
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `DevolucionVenta no encontrada (Id=${id})`,
+        Accion: 'Actualizar DevolucionVenta',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('DevolucionVenta no encontrada');
+    }
+    const updated = await this.devolucionDAO.update(id, data);
+    await registerAudit(this.bitacoraService, {
+      detalle: `DevolucionVenta actualizada Id=${id}`,
+      Accion: 'Actualizar DevolucionVenta',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return updated;
   }
 
-  async remove(id) {
+  async remove(id, auditContext = null) {
     const item = await this.devolucionDAO.getById(id);
-    if (!item) throw new Error('DevolucionVenta no encontrada');
-    return await this.devolucionDAO.remove(id);
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `DevolucionVenta no encontrada (Id=${id})`,
+        Accion: 'Eliminar DevolucionVenta',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('DevolucionVenta no encontrada');
+    }
+    const removed = await this.devolucionDAO.remove(id);
+    await registerAudit(this.bitacoraService, {
+      detalle: `DevolucionVenta eliminada Id=${id}`,
+      Accion: 'Eliminar DevolucionVenta',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return removed;
   }
 }

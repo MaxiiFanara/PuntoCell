@@ -1,19 +1,22 @@
 import { hashPassword } from '../../../core/utils/bcrypt.js';
 import { models } from '../../../models/index.js';
+import { registerAudit } from '../../../core/utils/audit.util.js';
 
 export default class UsuarioService {
-  constructor(usuarioDAO, notificacionService) {
+  constructor(usuarioDAO, notificacionService, bitacoraService = null) {
     this.usuarioDAO = usuarioDAO;
     this.notificacionService = notificacionService;
+    this.bitacoraService = bitacoraService;
     this.ATTRIBUTES = { exclude: ['Pwd'] };
   }
 
-  async #validarRelaciones(data) {
+  async #validarRelaciones(data, auditContext = {}) {
     if (data.IdRol) {
       const rol = await models.Rol.findByPk(data.IdRol);
       if (!rol) {
         const err = new Error('El Rol especificado no existe en el sistema.');
         err.statusCode = 400;
+        try { await registerAudit(this.bitacoraService, { detalle: `Validación fallida al crear/actualizar usuario: Rol ${data.IdRol} inexistente`, Accion: 'Validar Usuario', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
         throw err;
       }
     }
@@ -22,6 +25,7 @@ export default class UsuarioService {
       if (!sucursal) {
         const err = new Error('La Sucursal especificada no existe en el sistema.');
         err.statusCode = 400;
+        try { await registerAudit(this.bitacoraService, { detalle: `Validación fallida al crear/actualizar usuario: Sucursal ${data.IdSucursal} inexistente`, Accion: 'Validar Usuario', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
         throw err;
       }
     }
@@ -30,20 +34,27 @@ export default class UsuarioService {
       if (!localidad) {
         const err = new Error('La Localidad especificada no existe en el sistema.');
         err.statusCode = 400;
+        try { await registerAudit(this.bitacoraService, { detalle: `Validación fallida al crear/actualizar usuario: Localidad ${data.IdLocalidad} inexistente`, Accion: 'Validar Usuario', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
         throw err;
       }
     }
   }
 
-  async #validarEmailUnico(email, excludeId = null) {
+  async #validarEmailUnico(email, excludeId = null, auditContext = {}) {
     const existe = await this.usuarioDAO.findOne({ where: { Email: email } });
-    if (existe && existe.Id !== excludeId) throw new Error('El correo electrónico ya está registrado');
+    if (existe && existe.Id !== excludeId) {
+      try { await registerAudit(this.bitacoraService, { detalle: `Validación fallida: Email ${email} ya registrado`, Accion: 'Validar Usuario', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
+      throw new Error('El correo electrónico ya está registrado');
+    }
   }
 
-  async #validarDNIUnico(dni, excludeId = null) {
+  async #validarDNIUnico(dni, excludeId = null, auditContext = {}) {
     if (!dni) return;
     const existe = await this.usuarioDAO.findOne({ where: { DNI: dni } });
-    if (existe && existe.Id !== excludeId) throw new Error('El DNI ya está registrado');
+    if (existe && existe.Id !== excludeId) {
+      try { await registerAudit(this.bitacoraService, { detalle: `Validación fallida: DNI ${dni} ya registrado`, Accion: 'Validar Usuario', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
+      throw new Error('El DNI ya está registrado');
+    }
   }
 
   #generarPasswordAleatoria(longitud = 8) {
@@ -91,28 +102,30 @@ export default class UsuarioService {
     });
   }
 
-  async getById(id) {
+  async getById(id, auditContext = {}) {
     const usuario = await this.usuarioDAO.getById(id, {
       attributes: this.ATTRIBUTES
     });
     if (!usuario) {
       const err = new Error('Usuario no encontrado');
       err.statusCode = 404;
+      try { await registerAudit(this.bitacoraService, { detalle: `Consulta de usuario fallida: Usuario ${id} no encontrado`, Accion: 'Consultar Usuario', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
       throw err;
     }
     return usuario;
   }
 
-  async create(data) {
-    await this.#validarRelaciones(data);
-    await this.#validarEmailUnico(data.Email);
-    if (data.DNI) await this.#validarDNIUnico(data.DNI);
+  async create(data, auditContext = {}) {
+    await this.#validarRelaciones(data, auditContext);
+    await this.#validarEmailUnico(data.Email, null, auditContext);
+    if (data.DNI) await this.#validarDNIUnico(data.DNI, null, auditContext);
 
     const esCliente = Boolean(data.EsCliente);
 
     if (esCliente) {
       const creado = await this.usuarioDAO.create({ ...data, Pwd: null, UsuarioEmpleado: null });
       const { Pwd, ...resultado } = creado.toJSON();
+      try { await registerAudit(this.bitacoraService, { detalle: `Registro de usuario cliente exitoso: ${resultado.Email}`, Accion: 'Registrar Usuario', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
       return resultado;
     }
 
@@ -134,34 +147,39 @@ export default class UsuarioService {
     );
 
     const { Pwd, ...resultado } = creado.toJSON();
+    try { await registerAudit(this.bitacoraService, { detalle: `Registro de usuario empleado exitoso: ${resultado.Email}`, Accion: 'Registrar Usuario', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
     return resultado;
   }
 
-  async update(id, data) {
+  async update(id, data, auditContext = {}) {
     const usuario = await this.usuarioDAO.getById(id);
     if (!usuario) {
       const err = new Error('Usuario no encontrado');
       err.statusCode = 404;
+      try { await registerAudit(this.bitacoraService, { detalle: `Modificación de usuario fallida: Usuario ${id} no encontrado`, Accion: 'Modificar Usuario', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
       throw err;
     }
 
-    await this.#validarRelaciones(data);
-    if (data.Email) await this.#validarEmailUnico(data.Email, parseInt(id));
-    if (data.DNI) await this.#validarDNIUnico(data.DNI, parseInt(id));
+    await this.#validarRelaciones(data, auditContext);
+    if (data.Email) await this.#validarEmailUnico(data.Email, parseInt(id), auditContext);
+    if (data.DNI) await this.#validarDNIUnico(data.DNI, parseInt(id), auditContext);
     if (data.Pwd) data.Pwd = await hashPassword(data.Pwd);
 
     const actualizado = await this.usuarioDAO.update(id, data);
     const { Pwd, ...resultado } = actualizado.toJSON();
+    try { await registerAudit(this.bitacoraService, { detalle: `Modificación de usuario exitosa: Usuario ${id}`, Accion: 'Modificar Usuario', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
     return resultado;
   }
 
-  async delete(id) {
+  async delete(id, auditContext = {}) {
     const actualizado = await this.usuarioDAO.update(id, { Activo: false });
     if (!actualizado) {
       const err = new Error('Usuario no encontrado');
       err.statusCode = 404;
+      try { await registerAudit(this.bitacoraService, { detalle: `Eliminación de usuario fallida: Usuario ${id} no encontrado`, Accion: 'Eliminar Usuario', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
       throw err;
     }
+    try { await registerAudit(this.bitacoraService, { detalle: `Eliminación de usuario exitosa: Usuario ${id}`, Accion: 'Eliminar Usuario', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
     return true;
   }
 }
