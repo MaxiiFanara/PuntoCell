@@ -8,7 +8,7 @@ export default (sequelize) => {
     Fecha: { type: DataTypes.DATE, allowNull: true },
     IdEmpleado: { type: DataTypes.INTEGER, allowNull: false },
     IdSucursal: { type: DataTypes.INTEGER, allowNull: false },
-    IdAccion: { type: DataTypes.INTEGER, allowNull: false }
+    Accion: { type: DataTypes.STRING(100), allowNull: true }
   }, {
     tableName: 'Bitacora',
     timestamps: false

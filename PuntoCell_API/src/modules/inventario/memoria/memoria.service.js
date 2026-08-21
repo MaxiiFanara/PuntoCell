@@ -1,6 +1,9 @@
+import { registerAudit } from '../../../core/utils/audit.util.js';
+
 export default class MemoriaService {
-  constructor(memoriaDAO) {
+  constructor(memoriaDAO, bitacoraService = null) {
     this.memoriaDAO = memoriaDAO;
+    this.bitacoraService = bitacoraService;
     this.ATTRIBUTES = {};
   }
 
@@ -9,31 +12,108 @@ export default class MemoriaService {
     return await this.memoriaDAO.getAll({ page, limit, attributes: this.ATTRIBUTES });
   }
 
-  async getById(id) {
+  async getById(id, auditContext = null) {
     const item = await this.memoriaDAO.getById(id, { attributes: this.ATTRIBUTES });
-    if (!item) throw new Error('Memoria no encontrada');
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Memoria no encontrada (Id=${id})`,
+        Accion: 'Obtener Memoria',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Memoria no encontrada');
+    }
     return item;
   }
 
-  async create(data) {
+  async create(data, auditContext = null) {
     const existe = await this.memoriaDAO.findOne({ where: { Capacidad: data.Capacidad } });
-    if (existe) throw new Error('La memoria ya existe');
-    return await this.memoriaDAO.create(data);
+    if (existe) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Intento crear Memoria duplicada Capacidad=${data.Capacidad}`,
+        Accion: 'Crear Memoria',
+        IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+        IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('La memoria ya existe');
+    }
+    const created = await this.memoriaDAO.create(data);
+    await registerAudit(this.bitacoraService, {
+      detalle: `Memoria creada Id=${created.Id || created.id || ''}`,
+      Accion: 'Crear Memoria',
+      IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+      IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return created;
   }
 
-  async update(id, data) {
+  async update(id, data, auditContext = null) {
     const item = await this.memoriaDAO.getById(id);
-    if (!item) throw new Error('Memoria no encontrada');
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Memoria no encontrada (Id=${id})`,
+        Accion: 'Actualizar Memoria',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Memoria no encontrada');
+    }
     if (data.Capacidad !== undefined) {
       const existe = await this.memoriaDAO.findOne({ where: { Capacidad: data.Capacidad } });
-      if (existe && existe.Id !== parseInt(id)) throw new Error('Ya existe una memoria con esa capacidad');
+      if (existe && existe.Id !== parseInt(id)) {
+        await registerAudit(this.bitacoraService, {
+          detalle: `Intento actualizar Memoria a Capacidad duplicada=${data.Capacidad}`,
+          Accion: 'Actualizar Memoria',
+          IdEmpleado: auditContext?.IdEmpleado,
+          IdSucursal: auditContext?.IdSucursal,
+          IpAddress: auditContext?.Ip,
+          Fecha: new Date()
+        }).catch(() => {});
+        throw new Error('Ya existe una memoria con esa capacidad');
+      }
     }
-    return await this.memoriaDAO.update(id, data);
+    const updated = await this.memoriaDAO.update(id, data);
+    await registerAudit(this.bitacoraService, {
+      detalle: `Memoria actualizada Id=${id}`,
+      Accion: 'Actualizar Memoria',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return updated;
   }
 
-  async remove(id) {
+  async remove(id, auditContext = null) {
     const item = await this.memoriaDAO.getById(id);
-    if (!item) throw new Error('Memoria no encontrada');
-    return await this.memoriaDAO.remove(id);
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Memoria no encontrada (Id=${id})`,
+        Accion: 'Eliminar Memoria',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Memoria no encontrada');
+    }
+    const removed = await this.memoriaDAO.remove(id);
+    await registerAudit(this.bitacoraService, {
+      detalle: `Memoria eliminada Id=${id}`,
+      Accion: 'Eliminar Memoria',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return removed;
   }
 }

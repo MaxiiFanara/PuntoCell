@@ -345,10 +345,9 @@ export const setupAssociations = (models) => {
     Sucursal.hasMany(Bitacora, { foreignKey: 'IdSucursal', as: 'bitacoras' });
     Bitacora.belongsTo(Sucursal, { foreignKey: 'IdSucursal', as: 'sucursal' });
   }
-  if (Bitacora && Accion) {
-    Accion.hasMany(Bitacora, { foreignKey: 'IdAccion', as: 'bitacoras' });
-    Bitacora.belongsTo(Accion, { foreignKey: 'IdAccion', as: 'accion' });
-  }
+  // Note: Bitacora stores `Accion` as free text in the DB schema used here.
+  // The association to `Accion` via foreign key `IdAccion` is not created
+  // because the existing database table does not include that column.
 
   // Ventas
   if (models.Venta && models.DetalleVenta) {

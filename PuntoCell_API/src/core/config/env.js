@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Cargamos el .env desde la raíz del proyecto (eliminé el dotenv.config() duplicado)
-dotenv.config({ path: resolve(__dirname, '../../..', '.env') });
+dotenv.config({ path: resolve(__dirname, '../../../..', '.env') });
 
 export const env = {
   APP: {
@@ -16,7 +16,7 @@ export const env = {
   },
   DB: {
     DIALECT: process.env.DB_DIALECT || 'mssql',
-    HOST: process.env.DB_HOST || '192.168.0.2', // Tu IP estática por defecto
+    HOST: process.env.DB_HOST || '192.168.0.161', // Tu IP estática por defecto
     PORT: parseInt(process.env.DB_PORT, 10) || 1433,
     NAME: process.env.DB_NAME,
     USER: process.env.DB_USER,

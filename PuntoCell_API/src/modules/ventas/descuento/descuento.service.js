@@ -1,6 +1,9 @@
+import { registerAudit } from '../../../core/utils/audit.util.js';
+
 export default class DescuentoService {
-  constructor(descuentoDAO) {
+  constructor(descuentoDAO, bitacoraService = null) {
     this.descuentoDAO = descuentoDAO;
+    this.bitacoraService = bitacoraService;
     this.ATTRIBUTES = {};
   }
 
@@ -9,14 +12,45 @@ export default class DescuentoService {
     return await this.descuentoDAO.getAll({ page, limit, attributes: this.ATTRIBUTES });
   }
 
-  async getById(id) {
+  async getById(id, auditContext = null) {
     const item = await this.descuentoDAO.getById(id, { attributes: this.ATTRIBUTES });
-    if (!item) throw new Error('Descuento no encontrado');
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Descuento no encontrado (Id=${id})`,
+        Accion: 'Obtener Descuento',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Descuento no encontrado');
+    }
     return item;
   }
 
-  async create(data) {
-    return await this.descuentoDAO.create(data);
+  async create(data, auditContext = null) {
+    try {
+      const created = await this.descuentoDAO.create(data);
+      await registerAudit(this.bitacoraService, {
+        detalle: `Descuento creado Id=${created.Id || created.id || ''}`,
+        Accion: 'Crear Descuento',
+        IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+        IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      return created;
+    } catch (err) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Error creando descuento - ${err.message}`,
+        Accion: 'Crear Descuento',
+        IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+        IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw err;
+    }
   }
 
   async update(id, data) {

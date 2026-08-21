@@ -1,9 +1,11 @@
 import { Op } from 'sequelize';
+import { registerAudit } from '../../../core/utils/audit.util.js';
 
 export default class VentaService {
-  constructor(ventaDAO, detalleDAO) {
+  constructor(ventaDAO, detalleDAO, bitacoraService = null) {
     this.ventaDAO = ventaDAO;
     this.detalleDAO = detalleDAO;
+    this.bitacoraService = bitacoraService;
     this.ATTRIBUTES = {};
   }
 
@@ -12,7 +14,7 @@ export default class VentaService {
     return await this.ventaDAO.getAll({ page, limit, attributes: this.ATTRIBUTES });
   }
 
-  async getById(id) {
+  async getById(id, auditContext = null) {
     try {
       const item = await this.ventaDAO.getById(id, {
         attributes: this.ATTRIBUTES,
@@ -39,14 +41,32 @@ export default class VentaService {
           { association: 'turnoCaja', include: [{ association: 'sucursal', attributes: ['Nombre'] }] },
         ]
       });
-      if (!item) throw new Error('Venta no encontrada');
+      if (!item) {
+        await registerAudit(this.bitacoraService, {
+          detalle: `Venta no encontrada (Id=${id})`,
+          Accion: 'Obtener Venta',
+          IdEmpleado: auditContext?.IdEmpleado,
+          IdSucursal: auditContext?.IdSucursal,
+          IpAddress: auditContext?.Ip,
+          Fecha: new Date()
+        }).catch(() => {});
+        throw new Error('Venta no encontrada');
+      }
       return item;
     } catch (err) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Error al obtener venta (Id=${id}) - ${err.message}`,
+        Accion: 'Obtener Venta',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
       throw new Error('Error al obtener venta');
     }
   }
 
-  async create(data) {
+  async create(data, auditContext = null) {
     const sequelize = this.ventaDAO.model.sequelize;
     const t = await sequelize.transaction();
     let ventaData = null;
@@ -117,11 +137,30 @@ export default class VentaService {
       await t.commit();
 
       const Detalle = sequelize.models.DetalleVenta;
-      return await this.ventaDAO.getById(ventaId, { include: [ { model: Detalle, as: 'detalles' } ] });
+      const created = await this.ventaDAO.getById(ventaId, { include: [ { model: Detalle, as: 'detalles' } ] });
+
+      await registerAudit(this.bitacoraService, {
+        detalle: `Venta creada Id=${ventaId}`,
+        Accion: 'Crear Venta',
+        IdEmpleado: data.IdEmpleado || auditContext?.IdEmpleado,
+        IdSucursal: data.IdSucursal || auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+
+      return created;
     } catch (err) {
       await t.rollback();
       console.error('❌ Error creando venta transactional:', err);
       const message = (err.original && (err.original.message || err.original.sqlMessage)) || err.message || 'Error al crear venta';
+      await registerAudit(this.bitacoraService, {
+        detalle: `Error creando venta - ${message}`,
+        Accion: 'Crear Venta',
+        IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+        IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
       throw new Error(message);
     }
   }

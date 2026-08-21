@@ -1,7 +1,10 @@
+import { registerAudit } from '../../../core/utils/audit.util.js';
+
 export default class TransferenciaService {
-  constructor(transferenciaDAO) {
+  constructor(transferenciaDAO, bitacoraService = null) {
     this.transferenciaDAO = transferenciaDAO;
-    this.ATTRIBUTES = { };
+    this.bitacoraService = bitacoraService;
+    this.ATTRIBUTES = {};
   }
 
   _getRelatedModels() {
@@ -23,7 +26,7 @@ export default class TransferenciaService {
     ] });
   }
 
-  async getById(id) {
+  async getById(id, auditContext = null) {
     const { Sucursal, MovimientoStock } = this._getRelatedModels();
     const item = await this.transferenciaDAO.getById(id, { attributes: this.ATTRIBUTES, include: [
       { model: Sucursal, as: 'sucursalOrigen', attributes: ['Id', 'Nombre'] },
@@ -31,26 +34,85 @@ export default class TransferenciaService {
       { model: MovimientoStock, as: 'movimientoSalida', attributes: ['Id', 'Fecha'] },
       { model: MovimientoStock, as: 'movimientoIngreso', attributes: ['Id', 'Fecha'] }
     ] });
-    if (!item) throw new Error('Transferencia no encontrada');
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Transferencia no encontrada (Id=${id})`,
+        Accion: 'Obtener Transferencia',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Transferencia no encontrada');
+    }
     return item;
   }
 
-  async create(data) {
+  async create(data, auditContext = null) {
     const { Sucursal, MovimientoStock } = this._getRelatedModels();
     const sucOri = await Sucursal.findByPk(data.IdSucursalOrigen);
-    if (!sucOri) throw new Error('Sucursal origen no encontrada');
+    if (!sucOri) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Sucursal origen no encontrada Id=${data.IdSucursalOrigen}`,
+        Accion: 'Crear Transferencia',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Sucursal origen no encontrada');
+    }
     const sucDest = await Sucursal.findByPk(data.IdSucursalDestino);
-    if (!sucDest) throw new Error('Sucursal destino no encontrada');
+    if (!sucDest) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Sucursal destino no encontrada Id=${data.IdSucursalDestino}`,
+        Accion: 'Crear Transferencia',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Sucursal destino no encontrada');
+    }
     const movOut = await MovimientoStock.findByPk(data.IdMovimientoSalida);
-    if (!movOut) throw new Error('Movimiento salida no encontrado');
+    if (!movOut) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Movimiento salida no encontrado Id=${data.IdMovimientoSalida}`,
+        Accion: 'Crear Transferencia',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Movimiento salida no encontrado');
+    }
     const movIn = await MovimientoStock.findByPk(data.IdMovimientoIngreso);
-    if (!movIn) throw new Error('Movimiento ingreso no encontrado');
+    if (!movIn) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Movimiento ingreso no encontrado Id=${data.IdMovimientoIngreso}`,
+        Accion: 'Crear Transferencia',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Movimiento ingreso no encontrado');
+    }
 
-    return await this.transferenciaDAO.create(data);
+    const created = await this.transferenciaDAO.create(data);
+    await registerAudit(this.bitacoraService, {
+      detalle: `Transferencia creada Id=${created.Id || created.id || ''}`,
+      Accion: 'Crear Transferencia',
+      IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+      IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return created;
   }
 
   // Transacción: todo o nada.
-  async ejecutarTraspaso(data) {
+  async ejecutarTraspaso(data, auditContext = null) {
     const sequelize = this.transferenciaDAO.model.sequelize;
     const { Inventario, MovimientoStock, Transferencia, Articulo } = sequelize.models;
 
@@ -110,6 +172,14 @@ export default class TransferenciaService {
         }, { transaction: t });
 
         await t.commit();
+        await registerAudit(this.bitacoraService, {
+          detalle: `Traspaso ejecutado Id=${transferencia.Id || transferencia.id || ''}`,
+          Accion: 'Ejecutar Traspaso',
+          IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+          IdSucursal: data?.IdSucursalOrigen || auditContext?.IdSucursal,
+          IpAddress: auditContext?.Ip,
+          Fecha: new Date()
+        }).catch(() => {});
         return transferencia;
       }
 
@@ -168,41 +238,135 @@ export default class TransferenciaService {
       }, { transaction: t });
 
       await t.commit();
+      await registerAudit(this.bitacoraService, {
+        detalle: `Traspaso ejecutado Id=${transferencia.Id || transferencia.id || ''}`,
+        Accion: 'Ejecutar Traspaso',
+        IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+        IdSucursal: data?.IdSucursalOrigen || auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
       return transferencia;
 
     } catch (error) {
       await t.rollback();
+      await registerAudit(this.bitacoraService, {
+        detalle: `Error en ejecutarTraspaso: ${error.message}`,
+        Accion: 'Ejecutar Traspaso Error',
+        IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+        IdSucursal: data?.IdSucursalOrigen || auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
       throw error;
     }
   }
 
-  async update(id, data) {
+  async update(id, data, auditContext = null) {
     const item = await this.transferenciaDAO.getById(id);
-    if (!item) throw new Error('Transferencia no encontrada');
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Transferencia no encontrada (Id=${id})`,
+        Accion: 'Actualizar Transferencia',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Transferencia no encontrada');
+    }
     const { Sucursal, MovimientoStock } = this._getRelatedModels();
     if (data.IdSucursalOrigen !== undefined) {
       const sucOri = await Sucursal.findByPk(data.IdSucursalOrigen);
-      if (!sucOri) throw new Error('Sucursal origen no encontrada');
+      if (!sucOri) {
+        await registerAudit(this.bitacoraService, {
+          detalle: `Sucursal origen no encontrada Id=${data.IdSucursalOrigen}`,
+          Accion: 'Actualizar Transferencia',
+          IdEmpleado: auditContext?.IdEmpleado,
+          IdSucursal: auditContext?.IdSucursal,
+          IpAddress: auditContext?.Ip,
+          Fecha: new Date()
+        }).catch(() => {});
+        throw new Error('Sucursal origen no encontrada');
+      }
     }
     if (data.IdSucursalDestino !== undefined) {
       const sucDest = await Sucursal.findByPk(data.IdSucursalDestino);
-      if (!sucDest) throw new Error('Sucursal destino no encontrada');
+      if (!sucDest) {
+        await registerAudit(this.bitacoraService, {
+          detalle: `Sucursal destino no encontrada Id=${data.IdSucursalDestino}`,
+          Accion: 'Actualizar Transferencia',
+          IdEmpleado: auditContext?.IdEmpleado,
+          IdSucursal: auditContext?.IdSucursal,
+          IpAddress: auditContext?.Ip,
+          Fecha: new Date()
+        }).catch(() => {});
+        throw new Error('Sucursal destino no encontrada');
+      }
     }
     if (data.IdMovimientoSalida !== undefined) {
       const movOut = await MovimientoStock.findByPk(data.IdMovimientoSalida);
-      if (!movOut) throw new Error('Movimiento salida no encontrado');
+      if (!movOut) {
+        await registerAudit(this.bitacoraService, {
+          detalle: `Movimiento salida no encontrado Id=${data.IdMovimientoSalida}`,
+          Accion: 'Actualizar Transferencia',
+          IdEmpleado: auditContext?.IdEmpleado,
+          IdSucursal: auditContext?.IdSucursal,
+          IpAddress: auditContext?.Ip,
+          Fecha: new Date()
+        }).catch(() => {});
+        throw new Error('Movimiento salida no encontrado');
+      }
     }
     if (data.IdMovimientoIngreso !== undefined) {
       const movIn = await MovimientoStock.findByPk(data.IdMovimientoIngreso);
-      if (!movIn) throw new Error('Movimiento ingreso no encontrado');
+      if (!movIn) {
+        await registerAudit(this.bitacoraService, {
+          detalle: `Movimiento ingreso no encontrado Id=${data.IdMovimientoIngreso}`,
+          Accion: 'Actualizar Transferencia',
+          IdEmpleado: auditContext?.IdEmpleado,
+          IdSucursal: auditContext?.IdSucursal,
+          IpAddress: auditContext?.Ip,
+          Fecha: new Date()
+        }).catch(() => {});
+        throw new Error('Movimiento ingreso no encontrado');
+      }
     }
 
-    return await this.transferenciaDAO.update(id, data);
+    const updated = await this.transferenciaDAO.update(id, data);
+    await registerAudit(this.bitacoraService, {
+      detalle: `Transferencia actualizada Id=${id}`,
+      Accion: 'Actualizar Transferencia',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return updated;
   }
 
-  async remove(id) {
+  async remove(id, auditContext = null) {
     const item = await this.transferenciaDAO.getById(id);
-    if (!item) throw new Error('Transferencia no encontrada');
-    return await this.transferenciaDAO.remove(id);
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Transferencia no encontrada (Id=${id})`,
+        Accion: 'Eliminar Transferencia',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Transferencia no encontrada');
+    }
+    const removed = await this.transferenciaDAO.remove(id);
+    await registerAudit(this.bitacoraService, {
+      detalle: `Transferencia eliminada Id=${id}`,
+      Accion: 'Eliminar Transferencia',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return removed;
   }
 }
