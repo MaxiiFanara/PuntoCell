@@ -12,7 +12,7 @@ export function createPreciosModule(bitacoraService = null) {
   const listaController = new ListaPreciosController(listaService);
 
   const preciosArticulosDAO = new PreciosArticulosDAO(models.PrecioArticulo);
-  const preciosArticulosService = new PreciosArticulosService(preciosArticulosDAO);
+  const preciosArticulosService = new PreciosArticulosService(preciosArticulosDAO, listaService);
   const preciosArticulosController = new PreciosArticulosController(preciosArticulosService);
 
   return {
