@@ -36,6 +36,8 @@ import articuloModel from '../modules/inventario/articulo/articulo.model.js';
 import inventarioModel from '../modules/inventario/inventario/inventario.model.js';
 import movimientoStockModel from '../modules/inventario/movimiento-stock/movimiento-stock.model.js';
 import transferenciaModel from '../modules/inventario/transferencia/transferencia.model.js';
+import listaPrecioModel from '../modules/precios/lista-de-precios/lista-de-precios.model.js';
+import precioArticuloModel from '../modules/precios/precios-articulos/precios-articulos.model.js';
 
 // Modelos de solo lectura mapeados a las vistas de estadísticas
 import metricaMarcaReparadaModel from '../modules/estadisticas/marca-reparada.model.js';
@@ -116,6 +118,10 @@ export const models = {
   MovimientoStock: movimientoStockModel(sequelize)
   ,
   Transferencia: transferenciaModel(sequelize)
+  ,
+  ListaPrecio: listaPrecioModel(sequelize)
+  ,
+  PrecioArticulo: precioArticuloModel(sequelize)
   ,
   // Vistas de estadísticas (solo lectura)
   MetricaMarcaReparada: metricaMarcaReparadaModel(sequelize)

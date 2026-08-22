@@ -26,6 +26,7 @@ export default class InventarioController {
   create = async (req, res, next) => {
     try {
       const auditContext = { IdEmpleado: req.user?.Id, IdSucursal: req.user?.IdSucursal, Ip: req.ip };
+      // `validateFields` route middleware already normalizes/validates `req.body`.
       const data = await this.service.create(req.body, auditContext);
       return res.status(201).json({ status: 'success', data });
     } catch (err) {
@@ -36,6 +37,7 @@ export default class InventarioController {
   update = async (req, res, next) => {
     try {
       const auditContext = { IdEmpleado: req.user?.Id, IdSucursal: req.user?.IdSucursal, Ip: req.ip };
+      // `validateFields` route middleware already normalizes/validates `req.body`.
       const data = await this.service.update(req.params.id, req.body, auditContext);
       return res.status(200).json({ status: 'success', data });
     } catch (err) {
