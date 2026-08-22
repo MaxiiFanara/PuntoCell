@@ -10,6 +10,7 @@ import { createEstadisticasModule } from '../../modules/estadisticas/estadistica
 import { createVentasModule } from '../../modules/ventas/ventas.module.js';
 import { createFinanzasModule } from '../../modules/finanzas/finanzas.module.js';
 import { createAuditoriaModule } from '../../modules/auditoria/auditoria.module.js';
+import { createPreciosModule } from '../../modules/precios/precios.module.js';
 
 export function createContainer() {
   const usuarioDAO = new UsuarioDAO(models.Usuario);
@@ -22,6 +23,7 @@ export function createContainer() {
     compras: createComprasModule(),
     auth: createAuthModule(usuarioDAO),
     inventario: createInventarioModule(auditoriaModule.bitacoraService),
+    precios: createPreciosModule(auditoriaModule.bitacoraService),
     estadisticas: createEstadisticasModule(),
     ventas: createVentasModule(auditoriaModule.bitacoraService),
     finanzas: createFinanzasModule(),

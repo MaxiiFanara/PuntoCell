@@ -9,9 +9,6 @@ export default (sequelize) => {
       field: 'Id'
     },
     IMEI: { type: DataTypes.STRING(50), allowNull: true, unique: true },
-    PrecioCosto: { type: DataTypes.DECIMAL(18, 2), allowNull: false },
-    PrecioMayor: { type: DataTypes.DECIMAL(18, 2), allowNull: true },
-    PrecioMenor: { type: DataTypes.DECIMAL(18, 2), allowNull: true },
     Stock: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     CreatedAt: { type: DataTypes.DATE, allowNull: true },
     MesesGarantiaMarca: { type: DataTypes.DATE, allowNull: true },

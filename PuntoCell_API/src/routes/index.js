@@ -7,6 +7,7 @@ import usuariosEmpresaRoutes from '../modules/usuarios-empresa/usuarios.routes.j
 import reparacionesRoutes from '../modules/reparaciones/reparaciones.routes.js';
 import comprasRoutes from '../modules/compras/compras.routes.js';
 import inventarioRoutes from '../modules/inventario/inventario.routes.js';
+import preciosRoutes from '../modules/precios/precios.routes.js';
 import estadisticasRoutes from '../modules/estadisticas/estadisticas.routes.js';
 import ventasRoutes from '../modules/ventas/ventas.routes.js';
 import finanzasRoutes from '../modules/finanzas/finanzas.routes.js';
@@ -28,6 +29,7 @@ export default (container) => {
   router.use('/reparaciones', reparacionesRoutes(container));
   router.use('/compras', comprasRoutes(container));
   router.use('/inventario', inventarioRoutes(container));
+  router.use('/precios', preciosRoutes(container));
   router.use('/estadisticas', estadisticasRoutes(container));
   router.use('/ventas', ventasRoutes(container));
   router.use('/finanzas', finanzasRoutes(container));
