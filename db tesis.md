@@ -238,12 +238,9 @@ CREATE TABLE EstadoInventario ( -- Define si el stock es Nuevo, Usado (Reacondic
 );
 GO
 
-CREATE TABLE Inventario ( -- Representa la cantidad FÍSICA actual de un producto en una sucursal específica.
+CREATE TABLE Inventario ( -- Representa la cantidad FÍSICA actual de un producto en una sucursal específica. El costo/precio de venta vive en PrecioArticulo (ver más abajo), con historial.
     Id                 INT            PRIMARY KEY IDENTITY,
     IMEI                VARCHAR(50)    NULL, -- Único entre equipos serializados; ver índice único filtrado más abajo.
-    PrecioCosto        DECIMAL(18, 2) NOT NULL CHECK (PrecioCosto >= 0), -- Cuánto le costó al dueño comprarlo (vital para saber la ganancia real).
-    PrecioMayor        DECIMAL(18, 2) NULL CHECK (PrecioMayor >= 0), -- Opcional: precio especial para venta mayorista.
-    PrecioMenor        DECIMAL(18, 2) NULL CHECK (PrecioMenor >= 0), -- Opcional: precio mínimo permitido antes de requerir autorización.
     Stock              INT            NOT NULL DEFAULT 0 CHECK (Stock >= 0), -- Unidades disponibles actualmente en esta sucursal.
     CreatedAt          DATETIME2      NOT NULL DEFAULT SYSDATETIME(), -- Cuándo ingresó este lote.
     MesesGarantiaMarca DATETIME2      NULL,
@@ -274,6 +271,36 @@ GO
 -- estándar no sirve acá: SQL Server trata todos los NULL como iguales entre sí en un índice
 -- único, así que solo dejaría cargar UN producto sin IMEI en todo el inventario.
 CREATE UNIQUE INDEX UQ_Inventario_IMEI ON Inventario(IMEI) WHERE IMEI IS NOT NULL;
+GO
+
+CREATE TABLE ListaPrecio ( -- Regla de formación de precio por categoría de producto (Ej: "Mayorista Smartphones"). La lista Id=1 es el fallback default cuando un producto no tiene lista activa para su categoría.
+    Id                     INT           PRIMARY KEY IDENTITY,
+    Nombre                 NVARCHAR(100) NOT NULL,
+    PorcentajeRentabilidad DECIMAL(5, 2) NOT NULL CHECK (PorcentajeRentabilidad >= 0), -- % de ganancia que se aplica sobre el CostoReal.
+    Activo                 BIT           NOT NULL DEFAULT 1,
+    IdCategoriaProducto    INT           NULL, -- NULL = lista genérica, no atada a una categoría (ej. la lista Id=1 default).
+    CONSTRAINT FK_ListaPrecio_Categoria FOREIGN KEY (IdCategoriaProducto) REFERENCES CategoriaProducto (Id)
+);
+GO
+
+CREATE TABLE PrecioArticulo ( -- Precio concreto vigente de un renglón de Inventario, aplicando una ListaPrecio. Con historial: nunca se pisa un registro, se cierra su vigencia (FechaHasta) y se crea uno nuevo.
+    Id                 INT            PRIMARY KEY IDENTITY,
+    IdInventario       INT            NOT NULL,
+    IdListaPrecio      INT            NOT NULL,
+    ValorFinal         DECIMAL(18, 2) NOT NULL CHECK (ValorFinal >= 0), -- Precio de venta resultante (lo que paga el cliente).
+    CostoBase          DECIMAL(18, 2) NOT NULL CHECK (CostoBase >= 0), -- Lo que costó comprarlo (viene de Compras).
+    CostosVariables    DECIMAL(18, 2) NOT NULL CHECK (CostosVariables >= 0), -- Costos indirectos calculados sobre el CostoBase.
+    CostoReal          DECIMAL(18, 2) NOT NULL CHECK (CostoReal >= 0), -- CostoBase + CostosVariables.
+    PorcentajeGanancia DECIMAL(5, 2)  NOT NULL CHECK (PorcentajeGanancia >= 0), -- Copiado de ListaPrecio.PorcentajeRentabilidad al momento de calcular.
+    FechaDesde         DATETIME2      NOT NULL DEFAULT SYSDATETIME(),
+    FechaHasta         DATETIME2      NULL, -- NULL = vigencia actual.
+    CONSTRAINT FK_PrecioArticulo_Inventario  FOREIGN KEY (IdInventario)  REFERENCES Inventario (Id),
+    CONSTRAINT FK_PrecioArticulo_ListaPrecio FOREIGN KEY (IdListaPrecio) REFERENCES ListaPrecio (Id)
+);
+GO
+
+-- Acelera la búsqueda del precio vigente de un renglón de inventario (WHERE IdInventario = ? AND FechaHasta IS NULL).
+CREATE INDEX IX_PrecioArticulo_InventarioVigencia ON PrecioArticulo (IdInventario, FechaHasta);
 GO
 
 CREATE TABLE MovimientoStock ( -- Historial inmutable de todo lo que entra, sale o se transfiere. Auditoría pura.
@@ -621,6 +648,11 @@ GO
 
 -- 1. VISTA DE INVENTARIO COMPLETO (Ideal para el Catálogo y Control de Stock)
 -- Resuelve todas las claves foráneas para devolver una tabla plana lista para consumir.
+-- ROTA (deuda conocida, no se migra en esta tarea): referencia Inventario.PrecioMayor/PrecioMenor/PrecioCosto,
+-- columnas eliminadas al migrar el modelo de precios a ListaPrecio/PrecioArticulo. Ningún endpoint de la API
+-- la consume hoy, pero SQL Server SÍ valida las columnas al crear la vista (a diferencia de un stored procedure):
+-- este CREATE VIEW va a fallar al correr este script contra una base nueva, y la vista directamente no va a
+-- existir. Migrar a un JOIN con PrecioArticulo antes de volver a usarla.
 GO
 CREATE VIEW vw_Inventario_PuntoCell AS
 SELECT 
@@ -805,6 +837,11 @@ GO
 --      Costo    = SUM(Inventario.PrecioCosto * RepuestoOrden.Cantidad)
 --                 -> el costo REAL de los repuestos usados
 --      Ganancia = Ingreso - Costo
+--    ROTA (deuda conocida, no se migra en esta tarea): Inventario.PrecioCosto ya no existe (migrado a
+--    PrecioArticulo.CostoReal). Este CREATE VIEW va a fallar al correr el script, y en cascada
+--    vw_Finanzas_Resumen y vw_Dashboard_Metricas (que dependen de esta) tampoco van a poder crearse.
+--    GET /api/estadisticas/finanzas y /dashboard van a devolver error hasta que se migren estas 3 vistas
+--    para calcular el costo desde PrecioArticulo en vez de Inventario.PrecioCosto.
 --    Lleva FechaEntrega e IdSucursal (del empleado) para que el endpoint
 --    filtre por período o sucursal con un WHERE.
 --    El LEFT JOIN contempla órdenes sin repuestos (solo mano de obra):
@@ -1047,18 +1084,29 @@ INSERT INTO Proveedor (Nombre, Email, Celular, IdLocalidad) VALUES
 ('Apple Importaciones S.A.', 'import@apple.com', '3519998888', 2);
 GO
 
+-- 14b. Lista de precios (Id 1 = fallback default, sin categoría específica)
+INSERT INTO ListaPrecio (Nombre, PorcentajeRentabilidad, Activo, IdCategoriaProducto) VALUES
+('Lista General (Default)', 30.00, 1, NULL);
+GO
+
 -- 15. Inventario (Stock físico ingresado en Sucursal 1)
 -- Lote de 5 iPhones 13 (IdProducto 1), Estado Nuevo (Id 1), Prov (2), Color Negro (1), 8GB (3), 100% Bat (1), 256GB (3)
-INSERT INTO Inventario (PrecioCosto, PrecioMayor, PrecioMenor, Stock, MesesGarantiaMarca, MesesGarantiaLocal, Observaciones, IdSucursal, IdProducto, IdEstadoInventario, IdProveedor, IdColor, IdMemoria, IdBateria, IdAlmacenamiento) VALUES 
-(800000.00, 950000.00, 900000.00, 5, '2027-01-01', '2026-12-01', 'Lote nuevo sellado en perfectas condiciones', 1, 1, 1, 2, 1, 3, 1, 3);
+INSERT INTO Inventario (Stock, MesesGarantiaMarca, MesesGarantiaLocal, Observaciones, IdSucursal, IdProducto, IdEstadoInventario, IdProveedor, IdColor, IdMemoria, IdBateria, IdAlmacenamiento) VALUES
+(5, '2027-01-01', '2026-12-01', 'Lote nuevo sellado en perfectas condiciones', 1, 1, 1, 2, 1, 3, 1, 3);
 
 -- Lote de 20 Fundas (IdProducto 3), Estado Nuevo (Id 1), Prov (1)
-INSERT INTO Inventario (PrecioCosto, PrecioMayor, PrecioMenor, Stock, MesesGarantiaMarca, MesesGarantiaLocal, Observaciones, IdSucursal, IdProducto, IdEstadoInventario, IdProveedor) VALUES 
-(1500.00, 3000.00, 2500.00, 20, NULL, '2026-08-01', 'Fundas genéricas transparentes', 1, 3, 1, 1);
+INSERT INTO Inventario (Stock, MesesGarantiaMarca, MesesGarantiaLocal, Observaciones, IdSucursal, IdProducto, IdEstadoInventario, IdProveedor) VALUES
+(20, NULL, '2026-08-01', 'Fundas genéricas transparentes', 1, 3, 1, 1);
+GO
+
+-- 15b. PrecioArticulo (precio vigente de cada renglón de Inventario, usando la Lista General Id=1: CostosVariables = 26% del CostoBase, ValorFinal = CostoReal * (1 + %Ganancia/100), ver precios-articulos.service.js::computeFields)
+INSERT INTO PrecioArticulo (IdInventario, IdListaPrecio, ValorFinal, CostoBase, CostosVariables, CostoReal, PorcentajeGanancia, FechaDesde, FechaHasta) VALUES
+(1, 1, 1310400.00, 800000.00, 208000.00, 1008000.00, 30.00, SYSDATETIME(), NULL),
+(2, 1, 2457.00, 1500.00, 390.00, 1890.00, 30.00, SYSDATETIME(), NULL);
 GO
 
 -- 16. MovimientoStock (Registro de auditoría inmutable del ingreso)
-INSERT INTO MovimientoStock (TipoMovimiento, Cantidad, Observaciones, IdInventario, IdEmpleado) VALUES 
+INSERT INTO MovimientoStock (TipoMovimiento, Cantidad, Observaciones, IdInventario, IdEmpleado) VALUES
 ('Ingreso por Compra', 5, 'Lote de celulares recibido correctamente', 1, 3),
 ('Ingreso por Compra', 20, 'Fundas para exhibición', 2, 3);
 GO
