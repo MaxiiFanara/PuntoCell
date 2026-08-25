@@ -1,0 +1,81 @@
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    container_name: puntocell_db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${DB_SA_PASSWORD}
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - db_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+  db-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    container_name: puntocell_db_init
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MSSQL_SA_PASSWORD: ${DB_SA_PASSWORD}
+    volumes:
+      - ./db/init:/init:ro
+    entrypoint: ["/bin/bash", "-c"]
+    command: >
+      "/opt/mssql-tools18/bin/sqlcmd -S db -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -i /init/init.sql"
+    restart: "no"
+
+  api:
+    build:
+      context: ./PuntoCell_API
+    container_name: puntocell_api
+    environment:
+      PORT: 3000
+      NODE_ENV: development
+      CORS_ORIGIN: http://localhost:5173
+      DB_DIALECT: mssql
+      DB_HOST: db
+      DB_PORT: 1433
+      DB_NAME: ${DB_NAME}
+      DB_USER: sa
+      DB_PASSWORD: ${DB_SA_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: 8h
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      EMAIL_PORT: 587
+      EMAIL_USER: ${EMAIL_USER}
+      SMTP_PASS: ${SMTP_PASS}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./PuntoCell_API:/app
+      - api_node_modules:/app/node_modules
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  front:
+    build:
+      context: ./PuntoCell_WebPage
+    container_name: puntocell_front
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./PuntoCell_WebPage:/app
+      - front_node_modules:/app/node_modules
+    depends_on:
+      - api
+
+volumes:
+  db_data:
+  api_node_modules:
+  front_node_modules:

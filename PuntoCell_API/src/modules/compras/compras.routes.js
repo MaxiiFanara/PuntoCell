@@ -1,0 +1,65 @@
+import { Router } from 'express';
+import { validateFields } from '../../core/middlewares/validateFields.middleware.js';
+import { proveedorSchema, proveedorUpdateSchema } from './proveedor/proveedor.dto.js';
+import { compraSchema, compraUpdateSchema } from './compra/compra.dto.js';
+import { detalleCompraSchema, detalleCompraUpdateSchema } from './detalle-compra/detalle-compra.dto.js';
+import { detalleDevolucionCompraSchema, detalleDevolucionCompraUpdateSchema } from './detalle-devolucion-compra/detalle-devolucion-compra.dto.js';
+import { devolucionCompraSchema, devolucionCompraUpdateSchema } from './devolucion-compra/devolucion-compra.dto.js';
+import { pagoCompraSchema, pagoCompraUpdateSchema } from './pago-compra/pago-compra.dto.js';
+
+export default (container) => {
+  const router = Router();
+
+  const { 
+    proveedorController, 
+    compraController,
+    detalleCompraController,
+    detalleDevolucionCompraController,
+    devolucionCompraController,
+    pagoCompraController
+  } = container.compras;
+
+  // Proveedor
+  router.get('/proveedores', proveedorController.getAll);
+  router.get('/proveedores/:id', proveedorController.getById);
+  router.post('/proveedores', validateFields(proveedorSchema), proveedorController.create);
+  router.put('/proveedores/:id', validateFields(proveedorUpdateSchema), proveedorController.update);
+  router.delete('/proveedores/:id', proveedorController.delete);
+
+  // Compra
+  router.get('/compras', compraController.getAll);
+  router.get('/compras/:id', compraController.getById);
+  router.post('/compras', validateFields(compraSchema), compraController.create);
+  router.put('/compras/:id', validateFields(compraUpdateSchema), compraController.update);
+  router.delete('/compras/:id', compraController.delete);
+
+  // Detalle Compra
+  router.get('/detalles-compra', detalleCompraController.getAll);
+  router.get('/detalles-compra/:id', detalleCompraController.getById);
+  router.post('/detalles-compra', validateFields(detalleCompraSchema), detalleCompraController.create);
+  router.put('/detalles-compra/:id', validateFields(detalleCompraUpdateSchema), detalleCompraController.update);
+  router.delete('/detalles-compra/:id', detalleCompraController.delete);
+
+  // Detalle Devolucion Compra
+  router.get('/detalles-devolucion-compra', detalleDevolucionCompraController.getAll);
+  router.get('/detalles-devolucion-compra/:id', detalleDevolucionCompraController.getById);
+  router.post('/detalles-devolucion-compra', validateFields(detalleDevolucionCompraSchema), detalleDevolucionCompraController.create);
+  router.put('/detalles-devolucion-compra/:id', validateFields(detalleDevolucionCompraUpdateSchema), detalleDevolucionCompraController.update);
+  router.delete('/detalles-devolucion-compra/:id', detalleDevolucionCompraController.delete);
+
+  // Devolucion Compra
+  router.get('/devoluciones-compra', devolucionCompraController.getAll);
+  router.get('/devoluciones-compra/:id', devolucionCompraController.getById);
+  router.post('/devoluciones-compra', validateFields(devolucionCompraSchema), devolucionCompraController.create);
+  router.put('/devoluciones-compra/:id', validateFields(devolucionCompraUpdateSchema), devolucionCompraController.update);
+  router.delete('/devoluciones-compra/:id', devolucionCompraController.delete);
+
+  // Pago Compra
+  router.get('/pagos-compra', pagoCompraController.getAll);
+  router.get('/pagos-compra/:id', pagoCompraController.getById);
+  router.post('/pagos-compra', validateFields(pagoCompraSchema), pagoCompraController.create);
+  router.put('/pagos-compra/:id', validateFields(pagoCompraUpdateSchema), pagoCompraController.update);
+  router.delete('/pagos-compra/:id', pagoCompraController.delete);
+
+  return router;
+};
