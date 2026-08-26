@@ -5,6 +5,7 @@ export default (sequelize) => {
     Id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
     Nombre: { type: DataTypes.STRING(100), allowNull: false },
     PorcentajeRentabilidad: { type: DataTypes.DECIMAL(5,2), allowNull: false },
-    Activo: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true }
+    Activo: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    IdCategoriaProducto: { type: DataTypes.INTEGER, allowNull: false }
   }, { tableName: 'ListaPrecio', schema: 'dbo', timestamps: false });
 };
