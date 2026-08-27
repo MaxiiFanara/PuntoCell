@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box, Card, CardContent, TextField, Button, Typography,
   InputAdornment, IconButton, Divider, Alert, CircularProgress,
-  Tooltip, createTheme, ThemeProvider, CssBaseline,
+  Tooltip,
 } from '@mui/material'
 import {
   Visibility, VisibilityOff, PhoneAndroid, LockOutlined,
@@ -12,19 +12,6 @@ import {
 import { useAuth } from '../context/AuthContext'
 import { loginUsuario } from '../services/api'
 
-// ─── Temas del login ──────────────────────────────────────────────────────────
-const lightTheme = createTheme({
-  palette: { mode: 'light' },
-  typography: { fontFamily: "'Inter', sans-serif" },
-})
-const darkTheme = createTheme({
-  palette: {
-    mode: 'dark',
-    background: { default: '#0f172a', paper: '#1e293b' },
-    primary: { main: '#3b82f6' },
-  },
-  typography: { fontFamily: "'Inter', sans-serif" },
-})
 
 // ─── Animaciones CSS + View Transition ────────────────────────────────────────
 const STYLES = `
@@ -52,14 +39,10 @@ const STYLES = `
     from { opacity: 0; }
     to   { opacity: 1; }
   }
-  @keyframes blobFloat {
-    0%, 100% { transform: translateY(0px) scale(1); }
-    50%       { transform: translateY(-20px) scale(1.04); }
-  }
   @keyframes pulse-ring {
-    0%   { box-shadow: 0 0 0 0 rgba(37,99,235,0.5); }
-    70%  { box-shadow: 0 0 0 12px rgba(37,99,235,0); }
-    100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+    0%   { box-shadow: 0 0 0 0 rgba(var(--pc-palette-primary-mainChannel) / 0.5); }
+    70%  { box-shadow: 0 0 0 12px rgba(var(--pc-palette-primary-mainChannel) / 0); }
+    100% { box-shadow: 0 0 0 0 rgba(var(--pc-palette-primary-mainChannel) / 0); }
   }
   @keyframes successBounce {
     0%   { transform: scale(0.4); opacity: 0; }
@@ -87,6 +70,10 @@ const STYLES = `
   .f4 { animation: fadeSlideUp 0.45s cubic-bezier(.22,1,.36,1) 0.62s both; }
   .f5 { animation: fadeSlideUp 0.45s cubic-bezier(.22,1,.36,1) 0.70s both; }
   .f6 { animation: fadeSlideUp 0.45s cubic-bezier(.22,1,.36,1) 0.78s both; }
+  @media (prefers-reduced-motion: reduce) {
+    .logo-pulse, .anim-logo, .anim-card, .anim-footer, .anim-success, .icon-pop,
+    .f0, .f1, .f2, .f3, .f4, .f5, .f6 { animation: none !important; }
+  }
 `
 
 const TEST_USER = { usuario: 'jgonzales', password: 'admin123' }
@@ -101,14 +88,12 @@ export default function LoginPage() {
     if (usuario) navigate('/app', { replace: true })
   }, [usuario, navigate])
 
-  const [darkMode,      setDarkMode]      = useState(false)
-  const [iconKey,       setIconKey]       = useState(0)
+
   const [showPassword,  setShowPassword]  = useState(false)
   const [loading,       setLoading]       = useState(false)
   const [error,         setError]         = useState('')
   const [success,       setSuccess]       = useState(false)
   const [form,          setForm]          = useState({ usuario: '', password: '' })
-  const fabRef = useRef(null)
 
   useEffect(() => {
     if (document.getElementById('pc-login-styles')) return
@@ -126,20 +111,6 @@ export default function LoginPage() {
     return () => clearTimeout(id)
   }, [success, navigate])
 
-  const handleThemeToggle = useCallback(() => {
-    const fab = fabRef.current
-    if (fab) {
-      const rect = fab.getBoundingClientRect()
-      document.documentElement.style.setProperty('--vt-x', `${Math.round(rect.left + rect.width  / 2)}px`)
-      document.documentElement.style.setProperty('--vt-y', `${Math.round(rect.top  + rect.height / 2)}px`)
-    }
-    const next = !darkMode
-    if (document.startViewTransition) {
-      document.startViewTransition(() => { setDarkMode(next); setIconKey((k) => k + 1) })
-    } else {
-      setDarkMode(next); setIconKey((k) => k + 1)
-    }
-  }, [darkMode])
 
   const handleChange = (e) => { setForm({ ...form, [e.target.name]: e.target.value }); if (error) setError('') }
   const fillTestUser = () => { setForm(TEST_USER); setError('') }
@@ -171,91 +142,58 @@ export default function LoginPage() {
     }
   }
 
-  // ─── Tokens de color según el modo ───────────────────────────────────────────
-  const isDark      = darkMode
-  const bgGradient  = isDark ? 'linear-gradient(160deg,#0f172a 0%,#1e293b 100%)' : 'linear-gradient(160deg,#ffffff 0%,#f1f5f9 100%)'
-  const blob1       = isDark ? 'rgba(59,130,246,0.13)' : 'rgba(37,99,235,0.10)'
-  const blob2       = isDark ? 'rgba(59,130,246,0.08)' : 'rgba(37,99,235,0.07)'
-  const cardBg      = isDark ? '#1e293b' : '#ffffff'
-  const cardBorder  = isDark ? '#334155' : '#e5e7eb'
-  const titleColor  = isDark ? '#f1f5f9' : '#111827'
-  const subColor    = isDark ? '#94a3b8' : '#6b7280'
-  const fieldBg     = isDark ? '#0f172a' : '#f9fafb'
-  const iconColor   = isDark ? '#64748b' : '#9ca3af'
-  const divColor    = isDark ? '#334155' : '#f3f4f6'
-  const footerColor = isDark ? '#475569' : '#9ca3af'
-  const blue        = '#2563eb'
-
-  const inputSx = {
-    '& .MuiOutlinedInput-root': {
-      borderRadius: '12px', background: fieldBg,
-      '& input': { color: titleColor },
-      '&:hover .MuiOutlinedInput-notchedOutline':      { borderColor: blue },
-      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: blue, borderWidth: '2px' },
-    },
-    '& .MuiInputLabel-root':            { color: subColor },
-    '& .MuiInputLabel-root.Mui-focused':{ color: blue },
-    '& .MuiOutlinedInput-notchedOutline': { borderColor: isDark ? '#334155' : '#e5e7eb' },
-  }
-
   return (
-    <ThemeProvider theme={isDark ? darkTheme : lightTheme}>
-      <CssBaseline />
+    <>
       <Box sx={{
         minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: bgGradient, px: 2, position: 'relative', overflow: 'hidden',
+        bgcolor: 'background.default', px: 2, position: 'relative', overflow: 'hidden',
       }}>
 
-        {/* Blobs de fondo */}
-        <Box sx={{ position: 'fixed', top: -120, right: -120, width: 430, height: 430, borderRadius: '50%',
-          background: `radial-gradient(circle,${blob1} 0%,transparent 70%)`,
-          animation: 'blobFloat 7s ease-in-out infinite', pointerEvents: 'none' }} />
-        <Box sx={{ position: 'fixed', bottom: -100, left: -100, width: 370, height: 370, borderRadius: '50%',
-          background: `radial-gradient(circle,${blob2} 0%,transparent 70%)`,
-          animation: 'blobFloat 9s ease-in-out infinite reverse', pointerEvents: 'none' }} />
+        {/* Resplandor de fondo: única mancha estática, sobria y de marca — reemplaza
+            los dos blobs azules animados del lenguaje visual viejo. */}
+        <Box aria-hidden sx={(theme) => ({
+          position: 'fixed', top: '-12%', right: '-10%', width: 480, height: 480, borderRadius: '50%',
+          background: `radial-gradient(circle, rgba(${theme.vars.palette.primary.mainChannel} / 0.10) 0%, transparent 72%)`,
+          pointerEvents: 'none',
+        })} />
 
         <Box sx={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1 }}>
 
           {/* Logo */}
           <Box className="anim-logo" sx={{ textAlign: 'center', mb: 4 }}>
-            <Box className="logo-pulse" sx={{
+            <Box className="logo-pulse" sx={(theme) => ({
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               width: 60, height: 60, borderRadius: '18px',
-              background: 'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',
-              mb: 2, boxShadow: '0 8px 28px rgba(37,99,235,0.35)',
-            }}>
-              <PhoneAndroid sx={{ color: '#fff', fontSize: 32 }} />
+              bgcolor: 'primary.main',
+              mb: 2, boxShadow: theme.vars.palette.pc.liftPop,
+            })}>
+              <PhoneAndroid sx={{ color: 'primary.contrastText', fontSize: 32 }} />
             </Box>
-            <Typography variant="h4" sx={{ fontWeight: 800, color: titleColor, letterSpacing: '-0.5px', lineHeight: 1.1 }}>
-              Punto <Box component="span" sx={{ color: blue }}>Cell</Box>
+            <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1.1 }}>
+              Punto <Box component="span" sx={{ color: 'primary.main' }}>Cell</Box>
             </Typography>
-            <Typography variant="body2" sx={{ color: subColor, mt: 0.5, fontWeight: 500 }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5, fontWeight: 500 }}>
               Sistema de Gestión Integral
             </Typography>
           </Box>
 
           {/* Card */}
-          <Card className="anim-card" elevation={0} sx={{
-            borderRadius: '20px', border: `1px solid ${cardBorder}`, background: cardBg,
-            boxShadow: isDark
-              ? '0 4px 6px rgba(0,0,0,0.4),0 20px 40px rgba(0,0,0,0.3)'
-              : '0 4px 6px rgba(0,0,0,0.07),0 20px 40px rgba(0,0,0,0.10)',
-          }}>
-            <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
+          <Card className="anim-card" sx={{ borderRadius: '16px' }}>
+            <CardContent sx={{ p: { xs: 3, sm: 5 } }}>
               {success ? (
                 <Box sx={{ textAlign: 'center', py: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                  <CheckCircleOutline className="anim-success" sx={{ fontSize: 72, color: '#22c55e' }} />
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: titleColor }}>¡Bienvenido de vuelta!</Typography>
-                  <Typography variant="body2" sx={{ color: subColor }}>Redirigiendo al sistema...</Typography>
-                  <CircularProgress size={20} sx={{ color: blue, mt: 1 }} />
+                  <CheckCircleOutline className="anim-success" sx={{ fontSize: 72, color: 'success.main' }} />
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>¡Bienvenido de vuelta!</Typography>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>Redirigiendo al sistema...</Typography>
+                  <CircularProgress size={20} sx={{ mt: 1 }} />
                 </Box>
               ) : (
                 <>
                   <Box className="f0">
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: titleColor, mb: 0.5, letterSpacing: '-0.2px' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5, letterSpacing: '-0.2px' }}>
                       Iniciar sesión
                     </Typography>
-                    <Typography variant="body2" sx={{ color: subColor, mb: 2.5 }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2.5 }}>
                       Ingresá tus credenciales para continuar
                     </Typography>
                   </Box>
@@ -263,18 +201,18 @@ export default function LoginPage() {
                   <Box className="f1">
                     <Box onClick={fillTestUser} sx={{
                       display: 'flex', alignItems: 'center', gap: 1, p: 1.5, mb: 2.5, borderRadius: '10px',
-                      border: `1px dashed ${isDark ? '#3b82f6' : '#93c5fd'}`,
-                      background: isDark ? 'rgba(59,130,246,0.08)' : '#eff6ff',
-                      cursor: 'pointer', transition: 'all 0.2s',
-                      '&:hover': { background: isDark ? 'rgba(59,130,246,0.15)' : '#dbeafe', transform: 'translateY(-1px)' },
+                      border: '1px dashed', borderColor: 'divider',
+                      bgcolor: 'pc.accentSoft',
+                      cursor: 'pointer', transition: 'transform 0.2s',
+                      '&:hover': { transform: 'translateY(-1px)' },
                     }}>
-                      <Typography variant="caption" sx={{ color: blue, fontWeight: 600, fontSize: '0.78rem' }}>
+                      <Typography variant="caption" sx={{ color: 'primary.dark', fontWeight: 600, fontSize: '0.78rem' }}>
                         Usuario de prueba:
                       </Typography>
-                      <Typography variant="caption" sx={{ color: subColor, fontFamily: 'monospace', fontSize: '0.78rem' }}>
+                      <Typography className="mono" variant="caption" sx={{ color: 'text.secondary', fontSize: '0.78rem' }}>
                         jgonzales / admin123
                       </Typography>
-                      <Typography variant="caption" sx={{ color: blue, fontWeight: 600, fontSize: '0.72rem', ml: 'auto' }}>
+                      <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 600, fontSize: '0.72rem', ml: 'auto' }}>
                         Completar →
                       </Typography>
                     </Box>
@@ -282,7 +220,7 @@ export default function LoginPage() {
 
                   {error && (
                     <Box className="f2">
-                      <Alert severity="error" sx={{ mb: 2.5, borderRadius: '10px', fontSize: '0.85rem', '& .MuiAlert-icon': { fontSize: 18 } }}>
+                      <Alert severity="error" sx={{ mb: 2.5 }}>
                         {error}
                       </Alert>
                     </Box>
@@ -292,8 +230,8 @@ export default function LoginPage() {
                     <Box className="f3">
                       <TextField fullWidth label="Usuario" name="usuario" value={form.usuario} onChange={handleChange}
                         variant="outlined" size="medium" autoComplete="username"
-                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><PersonOutline sx={{ color: iconColor, fontSize: 20 }} /></InputAdornment> } }}
-                        sx={{ mb: 2.5, ...inputSx }} />
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><PersonOutline sx={{ color: 'text.disabled', fontSize: 20 }} /></InputAdornment> } }}
+                        sx={{ mb: 2.5 }} />
                     </Box>
 
                     <Box className="f4">
@@ -303,17 +241,17 @@ export default function LoginPage() {
                         variant="outlined" size="medium" autoComplete="current-password"
                         slotProps={{
                           input: {
-                            startAdornment: <InputAdornment position="start"><LockOutlined sx={{ color: iconColor, fontSize: 20 }} /></InputAdornment>,
+                            startAdornment: <InputAdornment position="start"><LockOutlined sx={{ color: 'text.disabled', fontSize: 20 }} /></InputAdornment>,
                             endAdornment: (
                               <InputAdornment position="end">
-                                <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small" sx={{ color: iconColor }}>
+                                <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small" sx={{ color: 'text.disabled' }}>
                                   {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                                 </IconButton>
                               </InputAdornment>
                             ),
                           },
                         }}
-                        sx={{ mb: 1, ...inputSx }} />
+                        sx={{ mb: 1 }} />
                     </Box>
 
                     <Box className="f5" sx={{ textAlign: 'right', mb: 3 }}>
@@ -322,7 +260,7 @@ export default function LoginPage() {
                         variant="body2"
                         onClick={() => navigate('/forgot-password')}
                         sx={{
-                          color: blue, fontWeight: 500, fontSize: '0.82rem', cursor: 'pointer',
+                          color: 'primary.main', fontWeight: 500, fontSize: '0.82rem', cursor: 'pointer',
                           '&:hover': { textDecoration: 'underline' },
                         }}
                       >
@@ -332,23 +270,16 @@ export default function LoginPage() {
 
                     <Box className="f6">
                       <Button type="submit" variant="contained" size="large" fullWidth disabled={loading}
-                        sx={{
-                          borderRadius: '12px', textTransform: 'none', fontWeight: 700, fontSize: '1rem', py: 1.5,
-                          background: 'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',
-                          boxShadow: '0 4px 14px rgba(37,99,235,0.40)', transition: 'all 0.25s',
-                          '&:hover': { background: 'linear-gradient(135deg,#1e40af 0%,#1d4ed8 100%)', boxShadow: '0 6px 22px rgba(37,99,235,0.55)', transform: 'translateY(-1px)' },
-                          '&:active': { transform: 'translateY(0px)' },
-                          '&.Mui-disabled': { background: isDark ? '#1e293b' : '#e5e7eb', boxShadow: 'none' },
-                        }}>
-                        {loading ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : 'Ingresar al sistema'}
+                        sx={{ borderRadius: '12px', fontSize: '1rem', py: 1.5 }}>
+                        {loading ? <CircularProgress size={22} color="inherit" /> : 'Ingresar al sistema'}
                       </Button>
                     </Box>
                   </Box>
 
-                  <Divider sx={{ my: 3, borderColor: divColor }}>
-                    <Typography variant="caption" sx={{ color: footerColor, px: 1 }}>Punto Cell © 2026</Typography>
+                  <Divider sx={{ my: 3 }}>
+                    <Typography variant="caption" sx={{ color: 'text.disabled', px: 1 }}>Punto Cell © 2026</Typography>
                   </Divider>
-                  <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', color: footerColor, lineHeight: 1.6 }}>
+                  <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', color: 'text.disabled', lineHeight: 1.6 }}>
                     Acceso restringido al personal autorizado.<br />
                     Ante problemas de acceso, contactá al administrador.
                   </Typography>
@@ -357,40 +288,12 @@ export default function LoginPage() {
             </CardContent>
           </Card>
 
-          <Typography className="anim-footer" variant="caption" sx={{ display: 'block', textAlign: 'center', mt: 3, color: footerColor }}>
+          <Typography className="anim-footer" variant="caption" sx={{ display: 'block', textAlign: 'center', mt: 3, color: 'text.disabled' }}>
             Proyecto final de carrera · Institución Cervantes
           </Typography>
         </Box>
 
-        {/* FAB toggle dark/light */}
-        <Tooltip title={isDark ? 'Modo claro' : 'Modo oscuro'} placement="left">
-          <Box
-            ref={fabRef}
-            onClick={handleThemeToggle}
-            sx={{
-              position: 'fixed', bottom: 28, right: 28, zIndex: 9999,
-              width: 52, height: 52, borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer',
-              background: isDark
-                ? 'linear-gradient(135deg,#1e293b,#334155)'
-                : 'linear-gradient(135deg,#1d4ed8,#2563eb)',
-              boxShadow: isDark
-                ? '0 4px 20px rgba(0,0,0,0.55),0 0 0 1.5px #475569'
-                : '0 4px 20px rgba(37,99,235,0.50),0 0 0 1.5px #3b82f6',
-              transition: 'transform 0.15s',
-              '&:hover':  { transform: 'scale(1.10)' },
-              '&:active': { transform: 'scale(0.92)' },
-            }}
-          >
-            <Box key={iconKey} className="icon-pop" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {isDark
-                ? <LightMode sx={{ color: '#fbbf24', fontSize: 24 }} />
-                : <DarkMode  sx={{ color: '#fff',    fontSize: 22 }} />}
-            </Box>
-          </Box>
-        </Tooltip>
       </Box>
-    </ThemeProvider>
+    </>
   )
 }

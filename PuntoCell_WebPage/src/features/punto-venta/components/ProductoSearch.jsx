@@ -1,23 +1,16 @@
-import { useState, useEffect } from 'react'; 
-import {
-  Autocomplete, TextField, Button,
-  Box, Typography
-} from '@mui/material';
+import { useState, useEffect } from 'react';
+import { Autocomplete, Box, Button, TextField, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useVenta } from '../context/VentaContext';
 
 export const ProductoSearch = ({ inventario = [], onTerminoChange }) => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [inputValue, setInputValue] = useState('');
-  const { agregarAlCarrito, esMayorista } = useVenta();
+  const { agregarAlCarrito, esMayorista, dolarGlobal } = useVenta();
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
-      if (inputValue.trim().length > 0) {
-        onTerminoChange(inputValue);
-      } else {
-        onTerminoChange(""); 
-      }
+      onTerminoChange(inputValue.trim().length > 0 ? inputValue : '');
     }, 300);
     return () => clearTimeout(delayDebounceFn);
   }, [inputValue]);
@@ -30,109 +23,118 @@ export const ProductoSearch = ({ inventario = [], onTerminoChange }) => {
   const opciones = inventarioDisponible.map(item => {
     const nombre = item.articulo?.Nombre || 'Sin nombre';
     const precio = esMayorista ? (item.PrecioMayor || item.PrecioMenor || 0) : (item.PrecioMenor || 0);
-    const stock = item.Stock ?? 0;
-    const idUnico = item.Id || Math.random();
-
     return {
-      label: `${nombre} - U$S ${precio} (Stock: ${stock})`,
-      value: nombre,
+      label: nombre,
       datos: item,
       nombreLimpio: nombre,
       precioLimpio: precio,
-      stockLimpio: stock,
-      id: idUnico
+      stockLimpio: item.Stock ?? 0,
+      imei: item.IMEI || null,
+      id: item.Id || Math.random(),
     };
   });
 
-  const handleSelect = (event, option) => {
-    if (option) setSelectedProduct(option.datos);
-  };
-
   const handleKeyDown = (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      const codigo = inputValue.trim();
-      if (!codigo) return;
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const codigo = inputValue.trim();
+    if (!codigo) return;
 
-      const encontrado = inventarioDisponible.find(item => {
-        const nombre = (item.articulo?.Nombre || "").toLowerCase();
-        const imei = (item.IMEI || "");
-        return nombre.includes(codigo.toLowerCase()) || imei === codigo;
-      });
+    const encontrado = inventarioDisponible.find(item => {
+      const nombre = (item.articulo?.Nombre || '').toLowerCase();
+      const imei = (item.IMEI || '');
+      return nombre.includes(codigo.toLowerCase()) || imei === codigo;
+    });
 
-      if (encontrado) {
-        agregarAlCarrito(encontrado);
-        setInputValue('');
-        setSelectedProduct(null);
-      } else {
-        alert("⚠️ El IMEI o producto no se encuentra en el stock de esta sucursal.");
-      }
+    if (encontrado) {
+      agregarAlCarrito(encontrado);
+      setInputValue('');
+      setSelectedProduct(null);
+    } else {
+      alert('⚠️ El IMEI o producto no se encuentra en el stock de esta sucursal.');
     }
   };
 
   const handleAgregar = () => {
-    if (selectedProduct) {
-      agregarAlCarrito(selectedProduct);
-      setSelectedProduct(null);
-      setInputValue('');
-    }
+    if (!selectedProduct) return;
+    agregarAlCarrito(selectedProduct);
+    setSelectedProduct(null);
+    setInputValue('');
   };
 
   const precioBase = selectedProduct?.PrecioMenor || 0;
   const precioMayor = selectedProduct?.PrecioMayor || precioBase;
-  const precioMostrado = esMayorista ? precioMayor : precioBase;
+  const precioUsd = esMayorista ? precioMayor : precioBase;
+  const precioArs = precioUsd * (dolarGlobal || 0);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, alignItems: 'flex-end' }}>
-      <Box sx={{ flex: 1, width: '100%' }}>
+    <Box sx={{
+      display: 'grid',
+      gridTemplateColumns: { xs: '1fr', md: 'minmax(0,1fr) 150px auto' },
+      gap: 1.25,
+      alignItems: 'end',
+    }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
+        <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>Producto o IMEI</Box>
         <Autocomplete
           freeSolo
           options={opciones}
           inputValue={inputValue}
           onInputChange={(e, value) => setInputValue(value)}
-          onChange={handleSelect}
-          renderOption={(props, option) => (
-            <li {...props} key={option.id}>
-              <Box>
-                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                  {option.nombreLimpio}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  U$S {option.precioLimpio} | Stock: {option.stockLimpio}
-                </Typography>
-              </Box>
-            </li>
-          )}
+          onChange={(e, option) => option && setSelectedProduct(option.datos)}
+          renderOption={(props, option) => {
+            const { key: _key, ...rest } = props;
+            return (
+              <li key={option.id} {...rest}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 600, fontSize: '.8125rem' }}>{option.nombreLimpio}</Typography>
+                  <Typography className="mono" sx={{ color: 'text.disabled', fontSize: '.69rem' }}>
+                    U$S {option.precioLimpio} · stock {option.stockLimpio}
+                    {option.imei && ` · IMEI ${option.imei}`}
+                  </Typography>
+                </Box>
+              </li>
+            );
+          }}
           renderInput={(params) => (
             <TextField
               {...params}
-              label="Buscar Producto"
-              placeholder="Escribí nombre, modelo o escaneá IMEI..."
+              placeholder="Escribí el nombre o escaneá el IMEI"
               fullWidth
-              size="small"
               onKeyDown={handleKeyDown}
-              sx={{ bgcolor: 'white' }}
             />
           )}
         />
       </Box>
 
-      <TextField 
-        label="Precio Unit." 
-        value={precioMostrado ? `U$S ${precioMostrado}` : ''} 
-        InputProps={{ readOnly: true }} 
-        size="small" 
-        sx={{ width: { xs: '100%', md: 160 }, bgcolor: 'white' }} 
-      />
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
+        <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>Precio unitario</Box>
+        <Box sx={{
+          height: 32, px: 1.25, display: 'flex', flexDirection: 'column', justifyContent: 'center',
+          border: 1, borderColor: 'divider', borderRadius: '7px', bgcolor: 'pc.surfaceMuted',
+        }}>
+          {precioUsd ? (
+            <>
+              <Box className="num" sx={{ fontSize: '.78rem', fontWeight: 600, lineHeight: 1.1 }}>
+                $ {Math.round(precioArs).toLocaleString('es-AR')}
+              </Box>
+              <Box className="num" sx={{ fontSize: '.63rem', color: 'text.disabled', lineHeight: 1.1 }}>
+                U$S {precioUsd}
+              </Box>
+            </>
+          ) : (
+            <Box sx={{ fontSize: '.78rem', color: 'text.disabled' }}>—</Box>
+          )}
+        </Box>
+      </Box>
 
-      <Button 
-        variant="contained" 
-        onClick={handleAgregar} 
-        disabled={!selectedProduct} 
-        startIcon={<AddIcon />} 
-        sx={{ bgcolor: '#1976d2', borderRadius: 2, height: 40 }}
+      <Button
+        variant="contained"
+        onClick={handleAgregar}
+        disabled={!selectedProduct}
+        startIcon={<AddIcon sx={{ fontSize: '16px !important' }} />}
       >
-        AGREGAR
+        Agregar
       </Button>
     </Box>
   );

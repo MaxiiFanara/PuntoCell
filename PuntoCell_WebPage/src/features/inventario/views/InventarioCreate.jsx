@@ -1,10 +1,10 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Box, Typography } from '@mui/material';
-import { ArrowBack, Inventory } from '@mui/icons-material';
+import { Box, Button } from '@mui/material';
+import { ArrowBack } from '@mui/icons-material';
 import InventarioForm from '../components/InventarioForm';
 import { inventarioService } from "../../../services/inventarioServices";
 import { useAuth } from '../../../context/AuthContext';
+import PageHeader from '../../../components/ui/PageHeader';
 
 const InventarioCreate = () => {
   const navigate = useNavigate();
@@ -32,15 +32,20 @@ const InventarioCreate = () => {
   };
 
   return (
-    <Box sx={{ p: 3, bgcolor: '#f8fafc', minHeight: '100vh' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, maxWidth: '1024px', mx: 'auto' }}>
-        <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'text.primary', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Inventory fontSize="large" color="primary" /> Nuevo Ingreso
-        </Typography>
-        <Button variant="outlined" color="inherit" startIcon={<ArrowBack />} onClick={() => navigate('/app/inventario')} sx={{ bgcolor: 'white' }}>
-          Volver
-        </Button>
-      </Box>
+    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+      <Button
+        onClick={() => navigate('/app/inventario')}
+        startIcon={<ArrowBack sx={{ fontSize: '16px !important' }} />}
+        sx={{ alignSelf: 'flex-start', px: 0 }}
+      >
+        Inventario
+      </Button>
+
+      <PageHeader
+        eyebrow="Stock"
+        title="Nuevo ingreso"
+        meta="Cargá el equipo o repuesto que entra al inventario"
+      />
 
       <InventarioForm
         initialData={initialState}

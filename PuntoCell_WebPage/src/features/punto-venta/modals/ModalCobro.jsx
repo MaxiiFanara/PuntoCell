@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Button, Typography, Alert, Paper,
-  List, ListItem, ListItemText, IconButton, Divider,
-  Select, MenuItem, FormControl, InputLabel, Box
+  TextField, Button, Typography, IconButton,
+  Select, MenuItem, Box,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import DeleteIcon from '@mui/icons-material/Delete';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddIcon from '@mui/icons-material/Add';
 import { useVenta } from '../context/VentaContext';
 import InventarioForm from '../../inventario/components/InventarioForm';
 import { inventarioService } from '../../../services/inventarioServices';
 import { soloDecimalNoNegativo } from '../../../utils/validators';
+import StatusPill from '../../../components/ui/StatusPill';
 
-const formatArs = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
+const pesos = (n) => `$ ${Math.round(n || 0).toLocaleString('es-AR')}`;
+const dolares = (n) => `U$S ${(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 // Suma N meses a una fecha "YYYY-MM-DD" y devuelve el mismo formato.
 const sumarMeses = (fechaISO, meses) => {
@@ -22,6 +22,37 @@ const sumarMeses = (fechaISO, meses) => {
   const fecha = new Date(y, m - 1 + meses, d);
   return fecha.toISOString().slice(0, 10);
 };
+
+const Campo = ({ label, children, sx }) => (
+  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0, ...sx }}>
+    {label && <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>{label}</Box>}
+    {children}
+  </Box>
+);
+
+// Los bloques condicionales (transferencia, canje, cuotas) son formularios, no
+// avisos: van como sub-tarjetas y no como Alert, que gritaba de más.
+const Bloque = ({ titulo, children }) => (
+  <Box sx={{
+    display: 'flex', flexDirection: 'column', gap: 1.25,
+    p: '12px 13px', borderRadius: '9px',
+    bgcolor: 'pc.surfaceMuted', border: 1, borderColor: 'divider',
+  }}>
+    <Box sx={{ typography: 'eyebrow', color: 'text.secondary' }}>{titulo}</Box>
+    {children}
+  </Box>
+);
+
+const Columna = ({ titulo, children, sx }) => (
+  <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, ...sx }}>
+    <Box sx={{ p: '12px 15px', borderBottom: 1, borderColor: 'pc.dividerSoft' }}>
+      <Typography sx={{ fontWeight: 600, fontSize: '.84rem', letterSpacing: '-.01em' }}>{titulo}</Typography>
+    </Box>
+    <Box sx={{ p: '13px 15px', display: 'flex', flexDirection: 'column', gap: 1.5, flex: 1, minWidth: 0 }}>
+      {children}
+    </Box>
+  </Box>
+);
 
 export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
   const {
@@ -51,6 +82,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
   const totalAjustado = totalVenta - bonificacion;
   const totalPagado = pagos.reduce((sum, p) => sum + p.Monto, 0);
   const restante = totalAjustado - totalPagado;
+  const ars = (usd) => (usd || 0) * dolarGlobal;
 
   useEffect(() => {
     if (open) {
@@ -199,251 +231,316 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
     onConfirmar(ventaRequest);
   };
 
+  const cubierto = restante <= 0.01;
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xl" fullWidth>
-      <DialogTitle sx={{ bgcolor: '#1976d2', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 2 }}>
-        <Typography variant="h6" component="span" sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 'bold' }}>
-          💵 Finalizar Venta
-        </Typography>
-        <IconButton onClick={onClose} sx={{ color: 'white' }}><CloseIcon /></IconButton>
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5 }}>
+        <Box>
+          Finalizar venta
+          <Box sx={{ display: 'block', color: 'text.disabled', fontSize: '.72rem', fontWeight: 400, mt: '-1px' }}>
+            {cliente?.nombre ? `Cliente ${cliente.nombre}` : 'Sin cliente seleccionado'} · {carrito.length} {carrito.length === 1 ? 'ítem' : 'ítems'}
+          </Box>
+        </Box>
+        <IconButton size="small" onClick={onClose} aria-label="Cerrar">
+          <CloseIcon sx={{ fontSize: 17 }} />
+        </IconButton>
       </DialogTitle>
 
       <DialogContent sx={{ p: 0 }}>
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, width: '100%', minHeight: 600 }}>
-          
-          <Box sx={{ width: { xs: '100%', md: '33.333%' }, p: 3, bgcolor: 'grey.50', borderRight: { md: '1px solid #e0e0e0' }, borderBottom: { xs: '1px solid #e0e0e0', md: 'none' }, display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h6" color="primary" sx={{ fontWeight: 'bold', mb: 3 }}>
-              🏷️ Ajustes
-            </Typography>
+        <Box sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0,1fr))' },
+          '& > *:not(:first-of-type)': {
+            borderTop: { xs: 1, md: 0 },
+            borderLeft: { md: 1 },
+            borderColor: { xs: 'pc.dividerSoft', md: 'pc.dividerSoft' },
+          },
+        }}>
 
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+          {/* ── Ajustes ────────────────────────────────────── */}
+          <Columna titulo="Ajustes">
+            <Campo label="Bonificación (U$S)">
               <TextField
-                label="Bonificación ($)" fullWidth size="small" value={bonificacionInput}
-                inputProps={{ inputMode: 'decimal' }}
+                fullWidth value={bonificacionInput}
+                placeholder="0,00"
+                slotProps={{ htmlInput: { inputMode: 'decimal' } }}
                 // Filtra a mano: type="number" del HTML permite "-", "+" y notación científica
                 onChange={(e) => setBonificacionInput(soloDecimalNoNegativo(e.target.value))}
-                InputProps={{ startAdornment: <Typography sx={{ color: '#ed6c02', fontWeight: 'bold', mr: 1 }}>-</Typography> }} />
-              <TextField label="Motivo del descuento" fullWidth size="small" value={motivoBonif} onChange={(e) => setMotivoBonif(e.target.value)} placeholder="Ej: Atención comercial..." />
-              <TextField label="Observaciones" multiline rows={3} fullWidth size="small" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} placeholder="Notas internas..." />
-            </Box>
+              />
+            </Campo>
 
-            <Divider sx={{ my: 2 }} />
+            <Campo label="Motivo del descuento">
+              <TextField fullWidth value={motivoBonif} onChange={(e) => setMotivoBonif(e.target.value)}
+                placeholder="Ej: atención comercial" />
+            </Campo>
 
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="caption" color="text.secondary">Total Venta</Typography>
-              <Typography variant="h5" sx={{ fontWeight: 'bold' }}>U$S {totalVenta.toFixed(2)}</Typography>
-              {bonificacion > 0 && <Typography variant="caption" sx={{ color: '#d32f2f', display: 'block' }}>(Desc. - U$S {bonificacion.toFixed(2)})</Typography>}
+            <Campo label="Observaciones">
+              <TextField fullWidth multiline rows={3} value={observaciones}
+                onChange={(e) => setObservaciones(e.target.value)} placeholder="Notas internas" />
+            </Campo>
 
-              <Alert severity="success" sx={{ mt: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold' }}>TOTAL A PAGAR</Typography>
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'success.dark' }}>U$S {totalAjustado.toFixed(2)}</Typography>
-              </Alert>
-            </Box>
-          </Box>
-
-          <Box sx={{ width: { xs: '100%', md: '33.333%' }, p: 3, bgcolor: 'white', borderRight: { md: '1px solid #e0e0e0' }, borderBottom: { xs: '1px solid #e0e0e0', md: 'none' }, display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 'bold', mb: 3 }}>
-              Pagos Registrados
-            </Typography>
-
-            <Paper variant="outlined" sx={{ flex: 1, overflow: 'auto', minHeight: 300, mb: 3, bgcolor: '#fafafa' }}>
-              {pagos.length === 0 ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'grey.400', opacity: 0.7 }}>
-                  <Typography sx={{ fontSize: '2.25rem', mb: 1 }}>💸</Typography>
-                  <Typography>Aún no hay pagos cargados</Typography>
+            <Box sx={{ mt: 'auto', pt: 1.5, borderTop: 1, borderColor: 'pc.dividerSoft' }}>
+              <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.25, fontSize: '.78rem' }}>
+                <Box sx={{ color: 'text.secondary' }}>Total venta</Box>
+                <Box className="num" sx={{ fontWeight: 600 }}>{pesos(ars(totalVenta))}</Box>
+              </Box>
+              {bonificacion > 0 && (
+                <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.25, fontSize: '.78rem', mt: 0.5 }}>
+                  <Box sx={{ color: 'text.secondary' }}>Bonificación</Box>
+                  <Box className="num" sx={{ fontWeight: 600, color: 'error.main' }}>− {pesos(ars(bonificacion))}</Box>
                 </Box>
-              ) : (
-                <List dense>
-                  {pagos.map((pago, index) => (
-                    <ListItem key={index} secondaryAction={<IconButton onClick={() => eliminarPago(index)} color="error" size="small"><DeleteIcon /></IconButton>} sx={{ borderBottom: '1px solid #f0f0f0', '&:last-child': { borderBottom: 'none' } }}>
-                      <ListItemText
-                        primaryTypographyProps={{ component: 'div' }}
-                        secondaryTypographyProps={{ component: 'div' }}
-                        primary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <CheckCircleIcon color="success" fontSize="small" />
-                            <Typography sx={{ fontWeight: 'bold', fontSize: '0.875rem', color: 'grey.800' }}>{pago.NombreMetodo}</Typography>
-                          </Box>
-                        }
-                        secondary={
-                          <Box sx={{ display: 'flex', flexDirection: 'column', mt: 0.5 }}>
-                            {pago.Observacion && <Typography sx={{ fontSize: '0.75rem', color: 'grey.500' }}>{pago.Observacion}</Typography>}
-                            <Box sx={{ mt: 0.5 }}>
-                              <Typography component="span" sx={{ fontWeight: 'bold', color: 'grey.900' }}>U$S {pago.Monto.toFixed(2)}</Typography>
-                              <Typography component="span" sx={{ fontSize: '0.75rem', color: 'grey.400', ml: 1 }}>≈ {formatArs.format(pago.Monto * pago.Cotizacion)}</Typography>
-                            </Box>
-                          </Box>
-                        }
-                      />
-                    </ListItem>
-                  ))}
-                </List>
               )}
-            </Paper>
-
-            <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 3, border: '1px solid #e0e0e0' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderBottom: '1px solid #e0e0e0', pb: 1, mb: 1, color: 'grey.700' }}>
-                <Typography>Pagado:</Typography>
-                <Typography sx={{ color: 'success.main' }}>U$S {totalPagado.toFixed(2)}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', color: restante <= 0 ? 'success.main' : 'error.main' }}>
-                <Typography variant="h6">Resta:</Typography>
-                <Typography variant="h6">{restante <= 0 ? `¡CUBIERTO! (${Math.abs(restante).toFixed(2)} a favor)` : `U$S ${restante.toFixed(2)}`}</Typography>
+              <Box sx={{ mt: 1.25, p: '11px 13px', borderRadius: '9px', bgcolor: 'pc.accentSoft', color: 'primary.main' }}>
+                <Box sx={{ typography: 'eyebrow', color: 'inherit', opacity: .75 }}>Total a pagar</Box>
+                <Box className="num" sx={{ fontSize: '1.6rem', fontWeight: 600, letterSpacing: '-.04em', lineHeight: 1.1 }}>
+                  {pesos(ars(totalAjustado))}
+                </Box>
+                <Box className="num" sx={{ fontSize: '.72rem', opacity: .75 }}>{dolares(totalAjustado)}</Box>
               </Box>
             </Box>
-          </Box>
+          </Columna>
 
-          <Box sx={{ width: { xs: '100%', md: '33.333%' }, p: 3, bgcolor: 'grey.50', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h6" sx={{ color: '#2e7d32', fontWeight: 'bold', mb: 3 }}>
-              Agregar Nuevo Pago
-            </Typography>
-
-            <Paper elevation={2} sx={{ p: 3, borderRadius: 3 }}>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Forma de Pago</InputLabel>
-                  <Select
-                    value={metodoPago || ''}
-                    onChange={(e) => {
-                      setMetodoPago(e.target.value);
-                      setSubTransferencias([]);
-                      setEquipoCanje(null);
-                      setFechaVencimiento('');
-                      setCantidadCuotas(1);
-                      // Arranca en lo que falta cubrir; en efectivo se puede editar después
-                      setMontoPago(restante > 0 ? restante.toFixed(2) : '');
-                    }}
-                    label="Forma de Pago"
-                  >
-                    {metodosPago?.map(m => <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>)}
-                  </Select>
-                </FormControl>
-
-                <Box>
-                  <TextField
-                    label="Monto (U$S)" type="number" fullWidth size="small" value={montoPago}
-                    onChange={(e) => montoEditable && setMontoPago(e.target.value)}
-                    disabled={esTransferencia}
-                    InputProps={{
-                      readOnly: !montoEditable,
-                      startAdornment: <Typography sx={{ bgcolor: '#2e7d32', color: 'white', px: 1.5, py: 0.5, borderRadius: 1, mr: 1, fontSize: '0.875rem' }}>U$S</Typography>,
-                    }}
-                    inputProps={{ min: 0 }}
-                    helperText={montoEditable ? 'Monto recibido en efectivo (puede superar lo que falta cobrar)' : 'Cobro real — no editable para este medio de pago'}
-                  />
-                  <Typography variant="caption" sx={{ textAlign: 'right', display: 'block', color: 'text.secondary', mt: 0.5 }}>
-                    ≈ {formatArs.format((parseFloat(montoPago) || 0) * dolarGlobal)}
-                  </Typography>
-                  {vuelto > 0.009 && (
-                    <Alert severity="success" sx={{ mt: 1.5, p: 1.5 }}>
-                      <Typography sx={{ fontWeight: 'bold' }}>
-                        💰 Vuelto: U$S {vuelto.toFixed(2)} ({formatArs.format(vuelto * dolarGlobal)})
-                      </Typography>
-                    </Alert>
-                  )}
+          {/* ── Pagos registrados ──────────────────────────── */}
+          <Columna titulo="Pagos registrados">
+            <Box sx={{
+              flex: 1, minHeight: 200, borderRadius: '9px',
+              border: 1, borderColor: 'divider', bgcolor: 'pc.surfaceMuted', overflow: 'auto',
+            }}>
+              {pagos.length === 0 ? (
+                <Box sx={{
+                  height: '100%', minHeight: 200, display: 'grid', placeItems: 'center',
+                  color: 'text.disabled', fontSize: '.78rem', p: 2, textAlign: 'center',
+                }}>
+                  Todavía no cargaste ningún pago
                 </Box>
-
-                {esTransferencia && (
-                  <Alert severity="info" sx={{ p: 2 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', textAlign: 'center', mb: 2 }}>Desglose de Transferencias</Typography>
-                    
-                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 1, mb: 1.5 }}>
-                      <Box sx={{ gridColumn: { xs: 'span 12', sm: 'span 5' } }}><TextField label="Banco" size="small" fullWidth value={banco} onChange={(e) => setBanco(e.target.value)} /></Box>
-                      <Box sx={{ gridColumn: { xs: 'span 8', sm: 'span 4' } }}><TextField label="Monto" type="number" size="small" fullWidth value={subMonto} onChange={(e) => setSubMonto(e.target.value)} /></Box>
-                      <Box sx={{ gridColumn: { xs: 'span 4', sm: 'span 3' } }}>
-                        <Button variant="contained" color="info" size="small" fullWidth onClick={agregarSubTransferencia} sx={{ height: '100%', minWidth: 0 }}><AddIcon /></Button>
-                      </Box>
-                    </Box>
-
-                    <List dense sx={{ maxHeight: 120, overflow: 'auto', bgcolor: 'white', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-                      {subTransferencias.length === 0 ? (
-                        <ListItem><ListItemText primary="Sin cuentas" sx={{ textAlign: 'center', color: 'text.secondary', fontStyle: 'italic' }} /></ListItem>
-                      ) : (
-                        subTransferencias.map((t, i) => (
-                          <ListItem key={i} dense secondaryAction={<IconButton size="small" onClick={() => eliminarSubTransferencia(i)} color="error"><DeleteIcon fontSize="small" /></IconButton>}>
-                            <ListItemText primary={`${t.banco}: U$S ${t.monto.toFixed(2)}`} primaryTypographyProps={{ variant: 'body2' }} />
-                          </ListItem>
-                        ))
-                      )}
-                    </List>
-                    <Typography variant="body2" sx={{ textAlign: 'right', fontWeight: 'bold', mt: 1 }}>Total: U$S {subTransferencias.reduce((s, t) => s + t.monto, 0).toFixed(2)}</Typography>
-                  </Alert>
-                )}
-
-                {esPermuta && (
-                  <Alert severity="warning" sx={{ p: 2 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', textAlign: 'center', mb: 2 }}>📱 Equipo recibido en canje</Typography>
-
-                    {equipoCanje ? (
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, bgcolor: 'white', p: 1.5, borderRadius: 1, border: '1px solid', borderColor: 'success.light' }}>
-                        <Box>
-                          <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{equipoCanje.resumen}</Typography>
-                          <Typography variant="caption" color="text.secondary">Se registra en inventario al confirmar la venta</Typography>
-                        </Box>
-                        <Button size="small" onClick={() => setEquipoCanje(null)}>Cambiar</Button>
-                      </Box>
-                    ) : (
-                      <Button
-                        variant="contained" color="warning" fullWidth
-                        onClick={async () => {
-                          if (!proveedorCanjeId) {
-                            try {
-                              setProveedorCanjeId(await inventarioService.obtenerOCrearProveedorCanje());
-                            } catch {
-                              return alert('No se pudo preparar el alta del equipo. Probá de nuevo.');
-                            }
-                          }
-                          setModalIngresoCanjeOpen(true);
-                        }}
-                      >
-                        Cargar equipo en el inventario
-                      </Button>
-                    )}
-                  </Alert>
-                )}
-
-                {esCredito && (
-                  <Alert severity="error" sx={{ p: 2 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', textAlign: 'center', mb: 2 }}>Venta en cuotas</Typography>
-                    <Box sx={{ display: 'flex', gap: 1.5, mb: 1.5 }}>
-                      <TextField label="Cantidad de cuotas *" type="number" size="small" fullWidth
-                        value={cantidadCuotas} onChange={(e) => setCantidadCuotas(Math.max(1, parseInt(e.target.value) || 1))}
-                        inputProps={{ min: 1 }} />
-                      <TextField label="Fecha 1ª cuota *" type="date" size="small" fullWidth
-                        value={fechaVencimiento} onChange={(e) => setFechaVencimiento(e.target.value)} InputLabelProps={{ shrink: true }} />
-                    </Box>
-                    {parseInt(cantidadCuotas) > 1 && montoPago && (
-                      <Typography variant="caption" color="text.secondary">
-                        {cantidadCuotas} cuotas mensuales de U$S {(parseFloat(montoPago) / cantidadCuotas).toFixed(2)} c/u
+              ) : pagos.map((pago, index) => (
+                <Box key={index} sx={{
+                  p: '11px 13px', borderTop: index === 0 ? 0 : 1, borderColor: 'pc.dividerSoft',
+                  display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.25,
+                }}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 600, fontSize: '.78rem' }}>{pago.NombreMetodo}</Typography>
+                    {pago.Observacion && (
+                      <Typography sx={{ color: 'text.disabled', fontSize: '.69rem', mt: '1px' }}>
+                        {pago.Observacion}
                       </Typography>
                     )}
-                  </Alert>
-                )}
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, flex: 'none' }}>
+                    <Box sx={{ textAlign: 'right' }}>
+                      <Box className="num" sx={{ fontWeight: 600, fontSize: '.78rem', whiteSpace: 'nowrap' }}>
+                        {pesos(pago.Monto * pago.Cotizacion)}
+                      </Box>
+                      <Box className="num" sx={{ color: 'text.disabled', fontSize: '.65rem', whiteSpace: 'nowrap' }}>
+                        {dolares(pago.Monto)}
+                      </Box>
+                    </Box>
+                    <IconButton size="small" onClick={() => eliminarPago(index)} aria-label="Quitar pago"
+                      sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}>
+                      <DeleteOutlineIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
 
-                <Button variant="contained" color="success" fullWidth onClick={agregarPago} startIcon={<AddIcon />}
-                  disabled={esPermuta && !equipoCanje}
-                  sx={{ mt: 1, py: 1.5, fontWeight: 'bold', textTransform: 'none', borderRadius: 2 }}>
-                  AGREGAR PAGO
-                </Button>
+            <Box sx={{ p: '11px 13px', borderRadius: '9px', border: 1, borderColor: 'divider' }}>
+              <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.25, fontSize: '.78rem' }}>
+                <Box sx={{ color: 'text.secondary' }}>Pagado</Box>
+                <Box className="num" sx={{ fontWeight: 600 }}>{pesos(ars(totalPagado))}</Box>
               </Box>
-            </Paper>
-          </Box>
+              <Box sx={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.25,
+                mt: 1, pt: 1, borderTop: 1, borderColor: 'pc.dividerSoft',
+              }}>
+                <Box sx={{ fontWeight: 600, fontSize: '.8125rem' }}>Resta</Box>
+                {cubierto ? (
+                  <StatusPill
+                    tone="ok"
+                    label={Math.abs(restante) < 0.01 ? 'Cubierto' : `Cubierto · ${pesos(ars(Math.abs(restante)))} a favor`}
+                  />
+                ) : (
+                  <Box className="num" sx={{ fontWeight: 600, fontSize: '.95rem', color: 'error.main' }}>
+                    {pesos(ars(restante))}
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          </Columna>
+
+          {/* ── Nuevo pago ─────────────────────────────────── */}
+          <Columna titulo="Agregar un pago">
+            <Campo label="Forma de pago">
+              <Select
+                fullWidth size="small" displayEmpty
+                value={metodoPago || ''}
+                onChange={(e) => {
+                  setMetodoPago(e.target.value);
+                  setSubTransferencias([]);
+                  setEquipoCanje(null);
+                  setFechaVencimiento('');
+                  setCantidadCuotas(1);
+                  // Arranca en lo que falta cubrir; en efectivo se puede editar después
+                  setMontoPago(restante > 0 ? restante.toFixed(2) : '');
+                }}
+              >
+                {metodosPago?.map(m => <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>)}
+              </Select>
+            </Campo>
+
+            <Campo label="Monto (U$S)">
+              <TextField
+                type="number" fullWidth value={montoPago}
+                onChange={(e) => montoEditable && setMontoPago(e.target.value)}
+                disabled={esTransferencia}
+                slotProps={{ input: { readOnly: !montoEditable }, htmlInput: { min: 0 } }}
+              />
+              <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1 }}>
+                <Typography sx={{ color: 'text.disabled', fontSize: '.69rem' }}>
+                  {montoEditable ? 'Puede superar lo que falta cobrar' : 'No editable para este medio'}
+                </Typography>
+                <Typography className="num" sx={{ color: 'text.secondary', fontSize: '.72rem', fontWeight: 600 }}>
+                  {pesos(ars(parseFloat(montoPago) || 0))}
+                </Typography>
+              </Box>
+              {vuelto > 0.009 && (
+                <Box sx={{
+                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1,
+                  mt: 0.5, p: '9px 11px', borderRadius: '7px', bgcolor: 'warning.light', color: 'warning.main',
+                }}>
+                  <Box sx={{ typography: 'eyebrow', color: 'inherit' }}>Vuelto</Box>
+                  <Box className="num" sx={{ fontWeight: 700, fontSize: '.84rem' }}>
+                    {pesos(ars(vuelto))} <Box component="span" sx={{ opacity: .75, fontWeight: 500 }}>· {dolares(vuelto)}</Box>
+                  </Box>
+                </Box>
+              )}
+            </Campo>
+
+            {esTransferencia && (
+              <Bloque titulo="Desglose de transferencias">
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.4fr) minmax(0,1fr) auto', gap: 0.75 }}>
+                  <TextField placeholder="Banco" value={banco} onChange={(e) => setBanco(e.target.value)} />
+                  <TextField placeholder="Monto" type="number" value={subMonto} onChange={(e) => setSubMonto(e.target.value)} />
+                  <Button variant="contained" onClick={agregarSubTransferencia} aria-label="Agregar cuenta" sx={{ minWidth: 32, px: 1 }}>
+                    <AddIcon sx={{ fontSize: 17 }} />
+                  </Button>
+                </Box>
+                <Box sx={{ maxHeight: 120, overflow: 'auto', borderRadius: '7px', border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+                  {subTransferencias.length === 0 ? (
+                    <Box sx={{ p: '10px 11px', color: 'text.disabled', fontSize: '.72rem' }}>Sin cuentas cargadas</Box>
+                  ) : subTransferencias.map((t, i) => (
+                    <Box key={i} sx={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1,
+                      p: '7px 7px 7px 11px', borderTop: i === 0 ? 0 : 1, borderColor: 'pc.dividerSoft', fontSize: '.72rem',
+                    }}>
+                      <Box sx={{ fontWeight: 500 }}>{t.banco}</Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <Box className="num" sx={{ fontWeight: 600 }}>{dolares(t.monto)}</Box>
+                        <IconButton size="small" onClick={() => eliminarSubTransferencia(i)} aria-label="Quitar cuenta"
+                          sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}>
+                          <DeleteOutlineIcon sx={{ fontSize: 15 }} />
+                        </IconButton>
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+                <Box className="num" sx={{ textAlign: 'right', fontWeight: 600, fontSize: '.75rem' }}>
+                  Total {dolares(subTransferencias.reduce((s, t) => s + t.monto, 0))}
+                </Box>
+              </Bloque>
+            )}
+
+            {esPermuta && (
+              <Bloque titulo="Equipo recibido en canje">
+                {equipoCanje ? (
+                  <Box sx={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1,
+                    p: '9px 11px', borderRadius: '7px', bgcolor: 'background.paper', border: 1, borderColor: 'divider',
+                  }}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontWeight: 600, fontSize: '.75rem' }}>{equipoCanje.resumen}</Typography>
+                      <Typography sx={{ color: 'text.disabled', fontSize: '.65rem' }}>
+                        Se registra en inventario al confirmar la venta
+                      </Typography>
+                    </Box>
+                    <Button size="small" onClick={() => setEquipoCanje(null)}>Cambiar</Button>
+                  </Box>
+                ) : (
+                  <Button
+                    variant="outlined" fullWidth
+                    onClick={async () => {
+                      if (!proveedorCanjeId) {
+                        try {
+                          setProveedorCanjeId(await inventarioService.obtenerOCrearProveedorCanje());
+                        } catch {
+                          return alert('No se pudo preparar el alta del equipo. Probá de nuevo.');
+                        }
+                      }
+                      setModalIngresoCanjeOpen(true);
+                    }}
+                  >
+                    Cargar equipo en el inventario
+                  </Button>
+                )}
+              </Bloque>
+            )}
+
+            {esCredito && (
+              <Bloque titulo="Venta en cuotas">
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 0.75 }}>
+                  <Campo label="Cuotas">
+                    <TextField type="number" fullWidth value={cantidadCuotas}
+                      onChange={(e) => setCantidadCuotas(Math.max(1, parseInt(e.target.value) || 1))}
+                      slotProps={{ htmlInput: { min: 1 } }} />
+                  </Campo>
+                  <Campo label="Primera cuota">
+                    <TextField type="date" fullWidth value={fechaVencimiento}
+                      onChange={(e) => setFechaVencimiento(e.target.value)} />
+                  </Campo>
+                </Box>
+                {parseInt(cantidadCuotas) > 1 && montoPago && (
+                  <Typography className="num" sx={{ color: 'text.secondary', fontSize: '.72rem' }}>
+                    {cantidadCuotas} cuotas mensuales de {pesos(ars(parseFloat(montoPago) / cantidadCuotas))}
+                    {' · '}{dolares(parseFloat(montoPago) / cantidadCuotas)}
+                  </Typography>
+                )}
+              </Bloque>
+            )}
+
+            <Button
+              variant="contained" fullWidth size="large" onClick={agregarPago}
+              disabled={esPermuta && !equipoCanje}
+              startIcon={<AddIcon sx={{ fontSize: '16px !important' }} />}
+              sx={{ mt: 'auto' }}
+            >
+              Agregar pago
+            </Button>
+          </Columna>
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ p: 3, bgcolor: 'grey.100' }}>
-        <Button onClick={onClose} variant="outlined" color="inherit" sx={{ textTransform: 'none', fontWeight: 500 }}>
-          Cancelar
-        </Button>
-        <Button variant="contained" color="primary" onClick={procesarVenta} disabled={restante > 0.01} sx={{ px: 4, fontWeight: 'bold', textTransform: 'none', borderRadius: 2, boxShadow: 2 }}>
-          ✅ CONFIRMAR VENTA
-        </Button>
+      <DialogActions sx={{ justifyContent: 'space-between' }}>
+        <Typography sx={{ color: 'text.disabled', fontSize: '.72rem' }}>
+          {cubierto ? 'Los pagos cubren el total' : `Falta cubrir ${pesos(ars(restante))}`}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button onClick={onClose}>Cancelar</Button>
+          <Button variant="contained" onClick={procesarVenta} disabled={!cubierto}>
+            Confirmar venta
+          </Button>
+        </Box>
       </DialogActions>
 
       {/* Alta del equipo recibido en canje — mismo formulario que "Nuevo Ingreso" en Inventario */}
       <Dialog open={modalIngresoCanjeOpen} onClose={() => setModalIngresoCanjeOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ bgcolor: '#ed6c02', color: 'white' }}>📱 Cargar equipo recibido en canje</DialogTitle>
-        <DialogContent sx={{ pt: 3, bgcolor: 'grey.50' }}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5 }}>
+          Cargar equipo recibido en canje
+          <IconButton size="small" onClick={() => setModalIngresoCanjeOpen(false)} aria-label="Cerrar">
+            <CloseIcon sx={{ fontSize: 17 }} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
           <InventarioForm
             modoCanje
             initialData={{

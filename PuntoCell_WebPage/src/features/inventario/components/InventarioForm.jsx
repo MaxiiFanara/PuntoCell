@@ -1,14 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  Button, TextField, MenuItem, Select, FormControl, InputLabel,
-  InputAdornment, Autocomplete, Switch, FormControlLabel, FormHelperText, Box, Typography,
-  Alert
+  Alert, Autocomplete, Box, Button, MenuItem, Paper, Select, Switch, TextField, Typography,
 } from '@mui/material';
-import {
-  Save, Store, Smartphone, QrCode2, BatteryChargingFull,
-  AttachMoney
-} from '@mui/icons-material';
+import SaveIcon from '@mui/icons-material/Save';
 import { inventarioService } from '../../../services/inventarioServices';
+
+const Campo = ({ label, children, hint, error, span = 1, sx }) => (
+  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0, gridColumn: span > 1 ? `span ${span}` : undefined, ...sx }}>
+    {label && <Box sx={{ typography: 'eyebrow', color: error ? 'error.main' : 'text.disabled' }}>{label}</Box>}
+    {children}
+    {hint && (
+      <Typography sx={{ fontSize: '.69rem', color: error ? 'error.main' : 'text.disabled' }}>{hint}</Typography>
+    )}
+  </Box>
+);
+
+const Seccion = ({ titulo, extra, children, columnas = 2 }) => (
+  <Paper sx={{ overflow: 'hidden' }}>
+    <Box sx={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5,
+      p: '12px 15px', borderBottom: 1, borderColor: 'pc.dividerSoft',
+    }}>
+      <Typography sx={{ fontWeight: 600, fontSize: '.84rem', letterSpacing: '-.01em' }}>{titulo}</Typography>
+      {extra}
+    </Box>
+    <Box sx={{
+      display: 'grid',
+      gridTemplateColumns: { xs: '1fr', md: `repeat(${columnas}, minmax(0,1fr))` },
+      gap: 1.5, p: '15px',
+    }}>
+      {children}
+    </Box>
+  </Paper>
+);
 
 const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = false, excludeIdImei, onReingreso }) => {
   const [formData, setFormData] = useState(initialData);
@@ -136,14 +160,6 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
     onSubmit(formData);
   };
 
-  const sectionStyles = {
-    bgcolor: 'background.paper',
-    p: 3,
-    borderRadius: 3,
-    border: '1px solid #e2e8f0',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-  };
-
   // Filtra por EsDispositivo de la categoría del modelo, según el switch de serializado
   const modelosFiltrados = listaModelos.filter((m) => {
     const idCategoria = m.IdCategoriaArticulo ?? m.idCategoriaArticulo;
@@ -153,47 +169,34 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
     return Boolean(categoria.EsDispositivo) === Boolean(formData.esSerializado);
   });
 
-  const headerStyles = {
-    color: 'text.secondary',
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    fontSize: '0.875rem',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 1,
-    borderBottom: '1px solid #e2e8f0',
-    pb: 1,
-    mb: 2
-  };
+  const faltaPrecio = !modoCanje && !formData.precioMenor;
 
   return (
-    <Box component="form" onSubmit={handleFormSubmit} sx={{ maxWidth: '1024px', mx: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
-      
-      {/* SECCIÓN 1: DETALLES DEL DISPOSITIVO */}
-      <Box sx={sectionStyles}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', pb: 1, mb: 2 }}>
-          <Typography component="h6" sx={{ ...headerStyles, borderBottom: 'none', pb: 0, mb: 0 }}>
-            <Smartphone fontSize="small" /> 1. Detalles del Producto
-          </Typography>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={formData.esSerializado}
-                onChange={(e) => setFormData({
-                  ...formData,
-                  esSerializado: e.target.checked,
-                  // El modelo elegido puede dejar de ser válido para la otra categoría.
-                  idModeloArticulo: '',
-                  nombreModelo: ''
-                })}
-                color="primary"
-              />
-            }
-            label={formData.esSerializado ? "📱 Equipo Serializado (Celular/Tablet)" : "🔌 Accesorio o Repuesto"}
-          />
-        </Box>
-        
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2 }}>
+    <Box component="form" onSubmit={handleFormSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 1.75, minWidth: 0 }}>
+
+      {/* ─── Producto ───────────────────────────────────────── */}
+      <Seccion
+        titulo="Producto"
+        extra={
+          <Box component="label" sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}>
+            <Typography sx={{ fontSize: '.75rem', color: 'text.secondary' }}>
+              {formData.esSerializado ? 'Equipo serializado' : 'Accesorio o repuesto'}
+            </Typography>
+            <Switch
+              size="small"
+              checked={Boolean(formData.esSerializado)}
+              onChange={(e) => setFormData({
+                ...formData,
+                esSerializado: e.target.checked,
+                // El modelo elegido puede dejar de ser válido para la otra categoría.
+                idModeloArticulo: '',
+                nombreModelo: ''
+              })}
+            />
+          </Box>
+        }
+      >
+        <Campo label="Modelo *">
           <Autocomplete
             options={modelosFiltrados}
             getOptionLabel={(option) => option.Nombre || option.nombre || ''}
@@ -206,186 +209,174 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
                 nombreModelo: newValue ? newValue.Nombre : ''
               });
             }}
-            renderInput={(params) => <TextField {...params} label="Seleccionar Modelo *" required size="small" />}
+            renderInput={(params) => <TextField {...params} required placeholder="Elegí un modelo" />}
           />
+        </Campo>
 
-          {formData.esSerializado && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-              <TextField
-                label="IMEI / Serial *" name="imei" size="small" required
-                value={formData.imei || ''} onChange={handleImeiChange}
-                inputProps={{ maxLength: 15, inputMode: 'numeric' }}
-                error={Boolean(imeiEstado.error)}
-                helperText={
-                  imeiEstado.error
-                    ? imeiEstado.error
-                    : imeiEstado.checking
-                      ? 'Verificando IMEI...'
-                      : `${(formData.imei || '').length}/15 dígitos`
-                }
-                InputProps={{ startAdornment: <InputAdornment position="start"><QrCode2 /></InputAdornment> }}
-              />
-              {imeiEstado.reingresoId && (
-                <Alert
-                  severity="info"
-                  action={
-                    onReingreso && (
-                      <Button color="inherit" size="small" onClick={() => onReingreso(imeiEstado.reingresoId)}>
-                        EDITAR REGISTRO
-                      </Button>
-                    )
-                  }
-                >
-                  Este IMEI ya existe en inventario (Id {imeiEstado.reingresoId}) pero está sin stock — probablemente sea un
-                  reingreso (garantía, reparación o recompra). Editá ese registro en vez de cargar uno nuevo.
-                </Alert>
+        {formData.esSerializado && (
+          <Campo
+            label="IMEI / Serial *"
+            error={Boolean(imeiEstado.error)}
+            hint={
+              imeiEstado.error ? imeiEstado.error
+                : imeiEstado.checking ? 'Verificando IMEI…'
+                : `${(formData.imei || '').length}/15 dígitos`
+            }
+          >
+            <TextField
+              name="imei" required fullWidth className="mono"
+              placeholder="Sin espacios"
+              value={formData.imei || ''} onChange={handleImeiChange}
+              error={Boolean(imeiEstado.error)}
+              slotProps={{ htmlInput: { maxLength: 15, inputMode: 'numeric', className: 'mono' } }}
+            />
+          </Campo>
+        )}
+
+        <Campo label="Color">
+          <Select name="idColor" size="small" displayEmpty value={formData.idColor || ''} onChange={handleChange}>
+            <MenuItem value="">Sin especificar</MenuItem>
+            {listaColores.map(c => <MenuItem key={c.id || c.Id} value={c.id || c.Id}>{c.Nombre || c.nombre}</MenuItem>)}
+          </Select>
+        </Campo>
+
+        <Campo label="Memoria">
+          <Select name="idMemoria" size="small" displayEmpty value={formData.idMemoria || ''} onChange={handleChange}>
+            <MenuItem value="">Sin especificar</MenuItem>
+            {listaMemorias.map(m => <MenuItem key={m.id || m.Id} value={m.id || m.Id}>{m.Capacidad || m.capacidad || m.Nombre}</MenuItem>)}
+          </Select>
+        </Campo>
+
+        {formData.esSerializado && (
+          <Campo label="Batería">
+            <Select name="idBateria" size="small" displayEmpty value={formData.idBateria || ''} onChange={handleChange}>
+              <MenuItem value="">Sin especificar</MenuItem>
+              {listaBaterias.map(b => (
+                <MenuItem key={b.id || b.Id} value={b.id || b.Id}>{(b.Porcentaje ?? b.porcentaje)}%</MenuItem>
+              ))}
+            </Select>
+          </Campo>
+        )}
+
+        {imeiEstado.reingresoId && (
+          <Box sx={{ gridColumn: '1 / -1' }}>
+            <Alert
+              severity="info"
+              action={onReingreso && (
+                <Button color="inherit" size="small" onClick={() => onReingreso(imeiEstado.reingresoId)}>
+                  Editar registro
+                </Button>
               )}
-            </Box>
-          )}
+            >
+              Este IMEI ya existe en inventario (Id {imeiEstado.reingresoId}) pero está sin stock — probablemente sea un
+              reingreso por garantía, reparación o recompra. Editá ese registro en vez de cargar uno nuevo.
+            </Alert>
+          </Box>
+        )}
+      </Seccion>
 
-          <FormControl fullWidth size="small">
-            <InputLabel>Color</InputLabel>
-            <Select name="idColor" value={formData.idColor || ''} onChange={handleChange} label="Color">
-              <MenuItem value=""><em>-- N/A --</em></MenuItem>
-              {listaColores.map(c => <MenuItem key={c.id || c.Id} value={c.id || c.Id}>{c.Nombre || c.nombre}</MenuItem>)}
-            </Select>
-          </FormControl>
-
-          <FormControl fullWidth size="small">
-            <InputLabel>Memoria</InputLabel>
-            <Select name="idMemoria" value={formData.idMemoria || ''} onChange={handleChange} label="Memoria">
-              <MenuItem value=""><em>-- N/A --</em></MenuItem>
-              {listaMemorias.map(m => <MenuItem key={m.id || m.Id} value={m.id || m.Id}>{m.Capacidad || m.capacidad || m.Nombre}</MenuItem>)}
-            </Select>
-          </FormControl>
-
-          {formData.esSerializado && (
-            <FormControl fullWidth size="small">
-              <InputLabel>Batería</InputLabel>
-              <Select
-                name="idBateria" value={formData.idBateria || ''} onChange={handleChange} label="Batería"
-                startAdornment={<InputAdornment position="start"><BatteryChargingFull fontSize="small" /></InputAdornment>}
-              >
-                <MenuItem value=""><em>-- N/A --</em></MenuItem>
-                {listaBaterias.map(b => (
-                  <MenuItem key={b.id || b.Id} value={b.id || b.Id}>
-                    {(b.Porcentaje ?? b.porcentaje)}%
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-        </Box>
-      </Box>
-
-      {/* SECCIÓN 2: PRECIOS Y COSTOS — no aplica en canje: el precio de toma es el monto
-          que se carga en la forma de pago "Canje" al cobrar la venta, no acá. */}
+      {/* ─── Precios ────────────────────────────────────────── */}
       {modoCanje ? (
-        <Alert severity="info" sx={{ borderRadius: 3 }}>
+        <Alert severity="info">
           El precio de este equipo se define al cargar el monto en la forma de pago "Canje", no acá.
           Además, no se registra en inventario hasta confirmar la venta.
         </Alert>
       ) : (
-      <Box sx={sectionStyles}>
-        <Typography component="h6" sx={headerStyles}>
-          <AttachMoney fontSize="small" /> 2. Precios y Costos (USD)
-        </Typography>
-
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2 }}>
-          <TextField
-            label="Costo Base" name="precioCosto" size="small"
-            value={formData.precioCosto || ''} onChange={setSoloPrecio('precioCosto')}
-            inputProps={{ inputMode: 'decimal' }}
-            InputProps={{ startAdornment: <InputAdornment position="start">U$S</InputAdornment> }}
-          />
-          <TextField
-            label="Precio Mayorista" name="precioMayor" size="small"
-            value={formData.precioMayor || ''} onChange={setSoloPrecio('precioMayor')}
-            inputProps={{ inputMode: 'decimal' }}
-            InputProps={{ startAdornment: <InputAdornment position="start">U$S</InputAdornment> }}
-          />
-          <TextField
-            label="Precio Público (Venta) *" name="precioMenor" size="small" required
-            value={formData.precioMenor || ''} onChange={setSoloPrecio('precioMenor')}
-            inputProps={{ inputMode: 'decimal' }}
-            InputProps={{ startAdornment: <InputAdornment position="start">U$S</InputAdornment> }}
-            error={!formData.precioMenor}
-            helperText={!formData.precioMenor ? 'Obligatorio, mayor a 0' : ''}
-            sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#f0fdf4' } }}
-          />
-        </Box>
-      </Box>
+        <Seccion titulo="Precios" columnas={3} extra={
+          <Typography sx={{ color: 'text.disabled', fontSize: '.72rem' }}>En dólares</Typography>
+        }>
+          <Campo label="Costo base">
+            <TextField
+              name="precioCosto" fullWidth className="mono" placeholder="0.00"
+              value={formData.precioCosto || ''} onChange={setSoloPrecio('precioCosto')}
+              slotProps={{ htmlInput: { inputMode: 'decimal', className: 'mono' } }}
+            />
+          </Campo>
+          <Campo label="Precio mayorista">
+            <TextField
+              name="precioMayor" fullWidth className="mono" placeholder="0.00"
+              value={formData.precioMayor || ''} onChange={setSoloPrecio('precioMayor')}
+              slotProps={{ htmlInput: { inputMode: 'decimal', className: 'mono' } }}
+            />
+          </Campo>
+          <Campo
+            label="Precio público *"
+            error={faltaPrecio}
+            hint={faltaPrecio ? 'Obligatorio, mayor a 0' : undefined}
+          >
+            <TextField
+              name="precioMenor" required fullWidth className="mono" placeholder="0.00"
+              value={formData.precioMenor || ''} onChange={setSoloPrecio('precioMenor')}
+              error={faltaPrecio}
+              slotProps={{ htmlInput: { inputMode: 'decimal', className: 'mono' } }}
+            />
+          </Campo>
+        </Seccion>
       )}
 
-      {/* SECCIÓN 3: LOGÍSTICA */}
-      <Box sx={sectionStyles}>
-        <Typography component="h6" sx={headerStyles}>
-          <Store fontSize="small" /> 3. Logística
-        </Typography>
-        
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
-          <FormControl fullWidth size="small" disabled={isEdit}>
-            <InputLabel>Sucursal</InputLabel>
-            <Select
-              name="idSucursal"
-              value={listaSucursales.some(s => (s.id ?? s.Id) === formData.idSucursal) ? formData.idSucursal : ''}
-              onChange={handleChange}
-              label="Sucursal"
-            >
-              {listaSucursales.map(s => <MenuItem key={s.id || s.Id} value={s.id || s.Id}>{s.Nombre || s.nombre}</MenuItem>)}
-            </Select>
-            {isEdit && <FormHelperText sx={{ color: '#f59e0b', fontWeight: 'bold' }}>* Para mover, usá Traspaso.</FormHelperText>}
-          </FormControl>
+      {/* ─── Logística ──────────────────────────────────────── */}
+      <Seccion titulo="Logística" columnas={4}>
+        <Campo label="Sucursal" hint={isEdit ? 'Para mover stock, usá Traspaso' : undefined}>
+          <Select
+            name="idSucursal" size="small" displayEmpty disabled={isEdit}
+            value={listaSucursales.some(s => (s.id ?? s.Id) === formData.idSucursal) ? formData.idSucursal : ''}
+            onChange={handleChange}
+          >
+            <MenuItem value="" disabled>Elegí una sucursal</MenuItem>
+            {listaSucursales.map(s => <MenuItem key={s.id || s.Id} value={s.id || s.Id}>{s.Nombre || s.nombre}</MenuItem>)}
+          </Select>
+        </Campo>
 
-          <FormControl fullWidth size="small" required error={!formData.idProveedor}>
-            <InputLabel>Proveedor *</InputLabel>
-            <Select name="idProveedor" value={formData.idProveedor || ''} onChange={handleChange} label="Proveedor *">
-              <MenuItem value=""><em>-- Seleccionar --</em></MenuItem>
-              {listaProveedores.map(p => <MenuItem key={p.Id || p.id} value={p.Id || p.id}>{p.Nombre || p.nombre}</MenuItem>)}
-            </Select>
-            {!formData.idProveedor && <FormHelperText>Obligatorio</FormHelperText>}
-          </FormControl>
+        <Campo label="Proveedor *" error={!formData.idProveedor} hint={!formData.idProveedor ? 'Obligatorio' : undefined}>
+          <Select
+            name="idProveedor" size="small" displayEmpty error={!formData.idProveedor}
+            value={formData.idProveedor || ''} onChange={handleChange}
+          >
+            <MenuItem value="" disabled>Elegí un proveedor</MenuItem>
+            {listaProveedores.map(p => <MenuItem key={p.Id || p.id} value={p.Id || p.id}>{p.Nombre || p.nombre}</MenuItem>)}
+          </Select>
+        </Campo>
 
-          <FormControl fullWidth size="small">
-            <InputLabel>Estado</InputLabel>
-            <Select
-              name="idEstadoInventario"
-              value={listaEstados.some(e => (e.Id ?? e.id) === formData.idEstadoInventario) ? formData.idEstadoInventario : ''}
-              onChange={handleChange}
-              label="Estado"
-            >
-              {listaEstados.map(e => <MenuItem key={e.Id ?? e.id} value={e.Id ?? e.id}>{e.Nombre ?? e.nombre}</MenuItem>)}
-            </Select>
-            {/* Antes quedaba fijo en "Nuevo" (Id 1) sin poder cambiarlo — clave para poder
-                marcar un reingreso (garantía/reparación) como Usado/Reacondicionado. */}
-          </FormControl>
+        {/* Antes quedaba fijo en "Nuevo" (Id 1) sin poder cambiarlo — clave para poder
+            marcar un reingreso (garantía/reparación) como Usado/Reacondicionado. */}
+        <Campo label="Estado">
+          <Select
+            name="idEstadoInventario" size="small" displayEmpty
+            value={listaEstados.some(e => (e.Id ?? e.id) === formData.idEstadoInventario) ? formData.idEstadoInventario : ''}
+            onChange={handleChange}
+          >
+            <MenuItem value="" disabled>Elegí un estado</MenuItem>
+            {listaEstados.map(e => <MenuItem key={e.Id ?? e.id} value={e.Id ?? e.id}>{e.Nombre ?? e.nombre}</MenuItem>)}
+          </Select>
+        </Campo>
 
+        <Campo
+          label="Stock"
+          hint={formData.esSerializado ? 'Los equipos serializados se cargan de a uno' : undefined}
+        >
           <TextField
-            label="Stock Actual" name="stock" size="small"
+            name="stock" fullWidth className="mono"
             value={formData.stock || 1} onChange={setSoloEntero('stock')}
-            inputProps={{ inputMode: 'numeric', readOnly: formData.esSerializado }}
-            sx={formData.esSerializado ? { bgcolor: '#f8fafc' } : {}}
-            helperText={formData.esSerializado ? 'Fijo en 1: los equipos serializados se cargan de a uno' : undefined}
+            slotProps={{ htmlInput: { inputMode: 'numeric', readOnly: Boolean(formData.esSerializado), className: 'mono' } }}
           />
-        </Box>
-      </Box>
+        </Campo>
+      </Seccion>
 
-      {/* SECCIÓN 4: OBSERVACIONES */}
-      <Box sx={sectionStyles}>
-        <TextField 
-          label="Observaciones (Opcional)" name="observaciones" multiline rows={3} fullWidth
-          value={formData.observaciones || ''} onChange={handleChange}
-          placeholder="Escribe detalles adicionales..."
-        />
-      </Box>
+      {/* ─── Observaciones ──────────────────────────────────── */}
+      <Seccion titulo="Observaciones" columnas={1}>
+        <Campo>
+          <TextField
+            name="observaciones" multiline rows={3} fullWidth
+            value={formData.observaciones || ''} onChange={handleChange}
+            placeholder="Detalles estéticos, accesorios incluidos, condición del equipo…"
+          />
+        </Campo>
+      </Seccion>
 
-      {/* BOTONES */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, pb: 4 }}>
-        <Button variant="outlined" color="inherit" onClick={onCancel} sx={{ bgcolor: 'white', px: 3 }}>
-          Cancelar
-        </Button>
-        <Button type="submit" variant="contained" color="primary" startIcon={<Save />} sx={{ fontWeight: 'bold', px: 4, boxShadow: 2 }}>
-          {isEdit ? "GUARDAR CAMBIOS" : "GUARDAR INGRESO"}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, pb: 2 }}>
+        <Button onClick={onCancel}>Cancelar</Button>
+        <Button type="submit" variant="contained" startIcon={<SaveIcon sx={{ fontSize: '16px !important' }} />}>
+          {isEdit ? 'Guardar cambios' : 'Guardar ingreso'}
         </Button>
       </Box>
     </Box>

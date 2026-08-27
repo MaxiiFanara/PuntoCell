@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Button, CircularProgress } from '@mui/material';
-import { ArrowBack, Edit as EditIcon } from '@mui/icons-material';
+import { Box, Button } from '@mui/material';
+import { ArrowBack } from '@mui/icons-material';
 import InventarioForm from '../components/InventarioForm';
 import { inventarioService } from "../../../services/inventarioServices";
+import PageHeader from '../../../components/ui/PageHeader';
 
 const InventarioEdit = () => {
   const { id } = useParams();
@@ -97,18 +98,25 @@ const InventarioEdit = () => {
     }
   };
 
-  if (cargando) return <div className="p-10 text-center mt-20"><CircularProgress /><p>Cargando datos...</p></div>;
+  if (cargando) {
+    return <Box sx={{ p: 5, textAlign: 'center', color: 'text.disabled' }}>Cargando datos del registro…</Box>;
+  }
 
   return (
-    <div className="p-6 bg-slate-50 min-h-screen font-sans">
-      <div className="flex justify-between items-center mb-6 max-w-5xl mx-auto">
-        <h2 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
-          <EditIcon fontSize="large" className="text-blue-600" /> Editar Registro #{id}
-        </h2>
-        <Button variant="outlined" color="inherit" startIcon={<ArrowBack />} onClick={() => navigate('/app/inventario')} className="bg-white">
-          Volver
-        </Button>
-      </div>
+    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+      <Button
+        onClick={() => navigate('/app/inventario')}
+        startIcon={<ArrowBack sx={{ fontSize: '16px !important' }} />}
+        sx={{ alignSelf: 'flex-start', px: 0 }}
+      >
+        Inventario
+      </Button>
+
+      <PageHeader
+        eyebrow="Stock"
+        title={`Editar registro #${id}`}
+        meta={dataForForm?.nombreModelo || 'Registro de inventario'}
+      />
 
       <InventarioForm
         initialData={dataForForm}
@@ -117,7 +125,7 @@ const InventarioEdit = () => {
         onCancel={() => navigate('/app/inventario')}
         excludeIdImei={id}
       />
-    </div>
+    </Box>
   );
 };
 

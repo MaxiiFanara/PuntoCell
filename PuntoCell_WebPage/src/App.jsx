@@ -29,7 +29,10 @@ import InventarioCreate from './features/inventario/views/InventarioCreate';
 import InventarioEdit from './features/inventario/views/InventarioEdit';
 import InventarioDetails from './features/inventario/views/InventarioDetails';
 import BalanceList from './features/reportes/views/BalanceList';
+import ComprasList from './features/compras/views/ComprasList';
+import Precios from './features/precios/precios';
 import { VentaProvider } from './features/punto-venta/context/VentaContext';
+import ThemeToggle from './components/ui/ThemeToggle';
 
 
 
@@ -52,6 +55,9 @@ const AdminRoute = ({ children }) => {
 
 const App = () => (
   <AuthProvider>
+    {/* Único switch de tema del sistema: al vivir fuera de <Routes> aparece
+        igual en todas las pantallas, públicas e internas. */}
+    <ThemeToggle />
     <Routes>
       {/* ---------------- PUBLICAS ---------------- */}
       <Route path="/" element={<LandingPage />} />
@@ -100,6 +106,10 @@ const App = () => (
         <Route path="inventario/nuevo" element={<InventarioCreate />} />
         <Route path="inventario/editar/:id" element={<InventarioEdit />} />
         <Route path="inventario/detalle/:id" element={<InventarioDetails />} />
+
+        {/* -------- ABASTECIMIENTO -------- */}
+        <Route path="compras" element={<ComprasList />} />
+        <Route path="precios" element={<Precios />} />
 
         {/* -------- REPORTES -------- */}
         <Route path="reportes" element={<BalanceList />} />

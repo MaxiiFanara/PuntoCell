@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Box } from '@mui/material';
 import { useVenta } from '../context/VentaContext';
 import { useAuth } from '../../../context/AuthContext';
@@ -8,6 +7,7 @@ import { CarritoSection } from '../components/CarritoSection';
 import { TotalSection } from '../components/TotalSection';
 import ModalRegistroCliente from '../../../components/modals/ModalRegistroCliente';
 import { ModalCobro } from '../modals/ModalCobro';
+import PageHeader from '../../../components/ui/PageHeader';
 
 import { inventarioService } from '../../../services/inventarioServices';
 import { ventasService } from '../../../services/ventasServices';
@@ -16,15 +16,14 @@ import { getLocalidades } from '../../../services/api';
 // Consume el VentaProvider único de App.jsx; envolver de nuevo acá creaba una
 // segunda instancia desincronizada del dólar del navbar.
 const PuntoVentaContent = () => {
-  const navigate = useNavigate();
   const { usuario } = useAuth();
 
   const {
     carrito,
-    cliente,
     setCliente,
     datosConfig,
     idSucursal,
+    nombreSucursal,
     vaciarTodo
   } = useVenta();
 
@@ -69,7 +68,7 @@ const PuntoVentaContent = () => {
       // idSucursal viene del empleado logueado (antes quedaba hardcodeado en 1)
       const resultados = await inventarioService.getAll({ search: termino, IdSucursal: idSucursal });
       return resultados;
-    } catch (error) {
+    } catch {
       return [];
     }
   };
@@ -112,21 +111,32 @@ const PuntoVentaContent = () => {
     }
   };
 
+  const unidades = carrito.reduce((a, i) => a + (Number(i.Cantidad) || 0), 0);
+
   return (
-    <Box sx={{ width: '100%', minHeight: '95%', p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', bgcolor: 'grey.50'}}>
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3, flex: 1}}>
-        
-        {/* PANEL IZQUIERDO: CLIENTE Y TOTAL */}
-        <Box sx={{ width: { xs: '100%', lg: '33.333%' }, display: 'flex', flexDirection: 'column', gap: 3, order: { xs: 2, lg: 1 } }}>
+    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+
+      <PageHeader
+        eyebrow="Ventas"
+        title="Registrar una venta"
+        meta={`Sucursal ${nombreSucursal || 'Centro'} · ${
+          carrito.length === 0 ? 'carrito vacío' : `${unidades} ${unidades === 1 ? 'unidad' : 'unidades'} en el carrito`
+        }`}
+      />
+
+      {/* El carrito es el área de trabajo, así que se lleva el ancho; cliente y
+          total quedan en el panel fijo de la derecha, como en el resto del sistema. */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0,1fr) 320px' }, gap: 2, alignItems: 'start' }}>
+
+        <CarritoSection onBuscar={buscarProductoReal} />
+
+        <Box sx={{
+          display: 'flex', flexDirection: 'column', gap: 1.75, minWidth: 0,
+          position: { lg: 'sticky' }, top: 68,
+        }}>
           <ClienteSection onOpenNuevoCliente={handleOpenNuevoCliente} />
           <TotalSection onCobrar={handleCobrar} />
         </Box>
-
-        {/* PANEL DERECHO: CARRITO / BUSCADOR */}
-        <Box sx={{ width: '100%', flex: { lg: 1 }, display: 'flex', flexDirection: 'column', order: { xs: 1, lg: 2 } }}>
-          <CarritoSection onBuscar={buscarProductoReal} />
-        </Box>
-
       </Box>
 
       {/* MODALES CON DATOS REALES */}
