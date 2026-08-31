@@ -1,6 +1,11 @@
+import { auditar } from '../../../core/utils/audit.util.js';
+
+const noEncontrado = () => { const e = new Error('MetodoPago no encontrado'); e.statusCode = 404; return e; };
+
 export default class MetodoPagoService {
-  constructor(dao) {
+  constructor(dao, bitacoraService = null) {
     this.dao = dao;
+    this.bitacoraService = bitacoraService;
     this.ATTRIBUTES = {};
   }
 
@@ -11,23 +16,29 @@ export default class MetodoPagoService {
 
   async getById(id) {
     const item = await this.dao.getById(id, { attributes: this.ATTRIBUTES });
-    if (!item) throw new Error('MetodoPago no encontrado');
+    if (!item) throw noEncontrado();
     return item;
   }
 
-  async create(data) {
-    return await this.dao.create(data);
+  async create(data, ctx = null) {
+    const creado = await this.dao.create(data);
+    await auditar(this.bitacoraService, ctx, `Creó el método de pago "${data.Nombre}" (#${creado.Id})`, `Alta de método de pago`);
+    return creado;
   }
 
-  async update(id, data) {
+  async update(id, data, ctx = null) {
     const item = await this.dao.getById(id);
-    if (!item) throw new Error('MetodoPago no encontrado');
-    return await this.dao.update(id, data);
+    if (!item) throw noEncontrado();
+    const actualizado = await this.dao.update(id, data);
+    await auditar(this.bitacoraService, ctx, `Modificó el método de pago "${item.Nombre}" (#${id})`, `Campos: ${Object.keys(data).join(', ')}`);
+    return actualizado;
   }
 
-  async remove(id) {
+  async remove(id, ctx = null) {
     const item = await this.dao.getById(id);
-    if (!item) throw new Error('MetodoPago no encontrado');
-    return await this.dao.remove(id);
+    if (!item) throw noEncontrado();
+    const eliminado = await this.dao.remove(id);
+    await auditar(this.bitacoraService, ctx, `Eliminó el método de pago "${item.Nombre}" (#${id})`, `Baja de método de pago`);
+    return eliminado;
   }
 }

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button, CircularProgress, Box, Typography, Paper } from '@mui/material';
-import { 
-  Info, Edit, ArrowBack, Smartphone, MonetizationOn, Storefront, 
-  CalendarToday, ShoppingCart, Receipt, BatteryChargingFull, Sync, Warning 
+import {
+  Info, ArrowBack, Smartphone, MonetizationOn, Storefront,
+  CalendarToday, ShoppingCart, Receipt, BatteryChargingFull, Sync, Warning
 } from '@mui/icons-material';
 import { inventarioService } from '../../../services/inventarioServices';
+import { preciosService, mapVigentePorInventario, LISTA_MINORISTA_ID } from '../../../services/preciosServices';
 
 const InventarioDetails = () => {
   const { id } = useParams();
@@ -20,9 +21,20 @@ const InventarioDetails = () => {
     const fetchDetalle = async () => {
       try {
         setCargando(true);
-        const res = await inventarioService.getById(id);
+        const [res, preciosArticulos] = await Promise.all([
+          inventarioService.getById(id),
+          preciosService.getPreciosArticulos().catch(() => []),
+        ]);
         const data = res.data || res;
         const art = data.articulo || data.Articulo || {};
+
+        // Precio de venta vigente por lista (modelo nuevo: PrecioArticulo)
+        const mapa = mapVigentePorInventario(preciosArticulos);
+        const preciosInv = mapa[data.Id || data.id] || {};
+        const minorista = preciosInv[LISTA_MINORISTA_ID];
+        const otras = Object.entries(preciosInv)
+          .filter(([lista]) => Number(lista) !== LISTA_MINORISTA_ID)
+          .map(([lista, p]) => ({ lista: Number(lista), valorFinal: Number(p.ValorFinal) || 0 }));
 
         setItem({
           id: data.Id || data.id,
@@ -34,9 +46,9 @@ const InventarioDetails = () => {
           bateria: null,
           ciclos: null,
           observaciones: data.Observaciones,
-          precioCosto: data.PrecioCosto || 0,
-          precioMayor: data.PrecioMayor || 0,
-          precioMenor: data.PrecioMenor || 0,
+          costoBase: minorista ? Number(minorista.CostoBase) || 0 : 0,
+          precioMenor: minorista ? Number(minorista.ValorFinal) || 0 : 0,
+          preciosOtrasListas: otras,
           sucursal: data.sucursal?.Nombre || 'Sin asignar',
           stock: data.Stock || 0,
           createdAt: data.CreatedAt ? new Date(data.CreatedAt).toLocaleString() : '---'
@@ -73,16 +85,7 @@ const InventarioDetails = () => {
               <Info /> Ficha Técnica #{item.id}
             </Typography>
             <Box sx={{ display: 'flex', gap: 1 }}>
-              {isAdmin && (
-                <Button 
-                  variant="outlined" size="small" startIcon={<Edit />}
-                  onClick={() => navigate(`/app/inventario/editar/${item.id}`)}
-                  sx={{ borderColor: '#64748b', color: '#e2e8f0', '&:hover': { borderColor: 'white', color: 'white' } }}
-                >
-                  Editar
-                </Button>
-              )}
-              <Button 
+              <Button
                 variant="contained" size="small" startIcon={<ArrowBack />}
                 onClick={() => navigate('/app/inventario')}
                 sx={{ bgcolor: 'white', color: '#0f172a', fontWeight: 'bold', '&:hover': { bgcolor: '#e2e8f0' } }}
@@ -166,22 +169,30 @@ const InventarioDetails = () => {
                 <MonetizationOn fontSize="small" /> Valores de Mercado
               </Typography>
               
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 3, textAlign: 'center', div: { borderRight: { md: '1px solid #e2e8f0' } } }}>
-                {isAdmin && (
+              {item.precioMenor === 0 && item.preciosOtrasListas.length === 0 ? (
+                <Typography sx={{ color: 'text.secondary', fontStyle: 'italic', fontSize: '0.875rem' }}>
+                  Sin precio de venta vigente. Cargá uno desde la pantalla de Precios.
+                </Typography>
+              ) : (
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 3, textAlign: 'center' }}>
+                  {isAdmin && (
+                    <Box>
+                      <Typography sx={labelStyles}>Costo Base</Typography>
+                      <Typography sx={{ color: 'text.secondary', fontWeight: 'bold', fontSize: '1.25rem', mt: 0.5 }}>U$S {item.costoBase.toLocaleString()}</Typography>
+                    </Box>
+                  )}
+                  {item.preciosOtrasListas.map((p) => (
+                    <Box key={p.lista}>
+                      <Typography sx={labelStyles}>Lista #{p.lista}</Typography>
+                      <Typography sx={{ color: 'text.primary', fontWeight: 'bold', fontSize: '1.25rem', mt: 0.5 }}>U$S {p.valorFinal.toLocaleString()}</Typography>
+                    </Box>
+                  ))}
                   <Box>
-                    <Typography sx={labelStyles}>Costo de Ingreso</Typography>
-                    <Typography sx={{ color: 'text.secondary', fontWeight: 'bold', fontSize: '1.25rem', mt: 0.5 }}>U$S {item.precioCosto.toLocaleString()}</Typography>
+                    <Typography sx={{ ...labelStyles, color: '#10b981', fontStyle: 'italic' }}>Precio Público (Minorista)</Typography>
+                    <Typography sx={{ color: '#059669', fontWeight: 900, fontSize: '1.875rem', mt: 0.5 }}>U$S {item.precioMenor.toLocaleString()}</Typography>
                   </Box>
-                )}
-                <Box sx={{ borderRight: !isAdmin ? { md: 'none' } : undefined }}>
-                  <Typography sx={labelStyles}>Precio Mayorista</Typography>
-                  <Typography sx={{ color: 'text.primary', fontWeight: 'bold', fontSize: '1.25rem', mt: 0.5 }}>U$S {item.precioMayor.toLocaleString()}</Typography>
                 </Box>
-                <Box sx={{ borderRight: 'none !important' }}>
-                  <Typography sx={{ ...labelStyles, color: '#10b981', fontStyle: 'italic' }}>Precio Público Final</Typography>
-                  <Typography sx={{ color: '#059669', fontWeight: 900, fontSize: '1.875rem', mt: 0.5 }}>U$S {item.precioMenor.toLocaleString()}</Typography>
-                </Box>
-              </Box>
+              )}
             </Box>
 
             {/* 3. SECCIÓN UBICACIÓN */}

@@ -19,14 +19,14 @@ export function createContainer() {
 
   return {
     usuariosEmpresa: createUsuariosEmpresaModule(usuarioDAO, auditoriaModule.bitacoraService),
-    reparaciones: createReparacionesModule(usuarioDAO),
-    compras: createComprasModule(),
-    auth: createAuthModule(usuarioDAO),
+    reparaciones: createReparacionesModule(usuarioDAO, auditoriaModule.bitacoraService),
+    compras: createComprasModule(auditoriaModule.bitacoraService),
+    auth: createAuthModule(usuarioDAO, auditoriaModule.bitacoraService),
     inventario: createInventarioModule(auditoriaModule.bitacoraService),
     precios: createPreciosModule(auditoriaModule.bitacoraService),
     estadisticas: createEstadisticasModule(),
     ventas: createVentasModule(auditoriaModule.bitacoraService),
-    finanzas: createFinanzasModule(),
+    finanzas: createFinanzasModule(auditoriaModule.bitacoraService),
     auditoria: auditoriaModule
   };
 }

@@ -7,7 +7,7 @@ import {
   ToggleButtonGroup, ToggleButton
 } from '@mui/material';
 import {
-  Search, Add, Edit, Visibility, LocalShipping,
+  Search, Visibility, LocalShipping,
   Store, Lock, PointOfSale, Sell, Build, SwapHoriz
 } from '@mui/icons-material';
 import { inventarioService } from '../../../services/inventarioServices';
@@ -60,8 +60,8 @@ const InventarioList = () => {
           canje: { soloCanje: true },
           todos: {},
         }[filtroTipo];
-        const res = await inventarioService.getAll({ IdSucursal: sucursalActual, ...paramsFiltro });
-        const datosBackend = res.data || res || [];
+        // getConPrecios mergea el PrecioArticulo vigente (el modelo nuevo no lo trae en /inventarios)
+        const datosBackend = await inventarioService.getConPrecios({ IdSucursal: sucursalActual, ...paramsFiltro });
 
         const inventarioAdaptado = datosBackend.map(row => {
           const art = row.articulo || row.Articulo || {};
@@ -75,7 +75,7 @@ const InventarioList = () => {
             color: null,
             memoria: null,
             stock: row.Stock || 0,
-            precioMenor: row.PrecioMenor || row.PrecioCosto || 0,
+            precioMenor: row.PrecioVenta || 0,
             esSerializado: art.EsSerializado || false
           };
         });
@@ -117,7 +117,7 @@ const InventarioList = () => {
         IdSucursalOrigen: sucursalActual,
         IdSucursalDestino: miSucursalReal,
         Cantidad: productoTransferir.cantidadPedir,
-        IdEmpleado: 1
+        IdEmpleado: usuario?.userID
       };
       await inventarioService.ejecutarTraspaso(payload);
       alert(`✅ ¡Traspaso completado! Se enviaron ${payload.Cantidad} unidades.`);
@@ -202,22 +202,14 @@ const InventarioList = () => {
         </Box>
 
         <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
-          <Button 
+          <Button
             variant="outlined" color="success" startIcon={<PointOfSale />}
-            onClick={() => navigate('/app/punto-venta')} 
+            onClick={() => navigate('/app/punto-venta')}
             sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}
           >
             Ir a Caja
           </Button>
-          {(esMiStock) && (
-            <Button 
-              variant="contained" color="primary" startIcon={<Add />}
-              onClick={() => navigate('/app/inventario/nuevo')} 
-              sx={{ fontWeight: 'bold', boxShadow: 1 }}
-            >
-              Registrar Ingreso
-            </Button>
-          )}
+          {/* El alta de stock entra por Compras — la sección Inventario solo lista y traspasa. */}
         </Box>
       </Box>
 
@@ -275,18 +267,11 @@ const InventarioList = () => {
                     <TableCell align="right">
                       <Box sx={{ display: 'inline-flex', gap: 0.5 }}>
                         {esMiStock ? (
-                          <>
-                            <Tooltip title="Editar">
-                              <IconButton size="small" onClick={() => navigate(`/app/inventario/editar/${item.id}`)} sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5, color: 'primary.main' }}>
-                                <Edit fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Ver Detalle">
-                              <IconButton size="small" onClick={() => navigate(`/app/inventario/detalle/${item.id}`)} sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5, color: 'text.secondary' }}>
-                                <Visibility fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </>
+                          <Tooltip title="Ver Detalle">
+                            <IconButton size="small" onClick={() => navigate(`/app/inventario/detalle/${item.id}`)} sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5, color: 'text.secondary' }}>
+                              <Visibility fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                         ) : (
                           <Tooltip title="Solicitar Traspaso">
                             <Button variant="contained" size="small" sx={{ bgcolor: '#f59e0b', '&:hover': { bgcolor: '#d97706' }, minWidth: 40, p: '4px 8px' }} onClick={() => abrirTransferencia(item)}>

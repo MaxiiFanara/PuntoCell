@@ -1,4 +1,4 @@
-import { registerAudit } from '../../../core/utils/audit.util.js';
+import { registerAudit, auditar } from '../../../core/utils/audit.util.js';
 
 export default class DescuentoService {
   constructor(descuentoDAO, bitacoraService = null) {
@@ -53,15 +53,19 @@ export default class DescuentoService {
     }
   }
 
-  async update(id, data) {
+  async update(id, data, ctx = null) {
     const item = await this.descuentoDAO.getById(id);
-    if (!item) throw new Error('Descuento no encontrado');
-    return await this.descuentoDAO.update(id, data);
+    if (!item) { const e = new Error('Descuento no encontrado'); e.statusCode = 404; throw e; }
+    const actualizado = await this.descuentoDAO.update(id, data);
+    await auditar(this.bitacoraService, ctx, `Modificó el descuento #${id}`, `Campos: ${Object.keys(data).join(', ')}`);
+    return actualizado;
   }
 
-  async remove(id) {
+  async remove(id, ctx = null) {
     const item = await this.descuentoDAO.getById(id);
-    if (!item) throw new Error('Descuento no encontrado');
-    return await this.descuentoDAO.remove(id);
+    if (!item) { const e = new Error('Descuento no encontrado'); e.statusCode = 404; throw e; }
+    const eliminado = await this.descuentoDAO.remove(id);
+    await auditar(this.bitacoraService, ctx, `Eliminó el descuento #${id}`, `Baja de descuento`);
+    return eliminado;
   }
 }

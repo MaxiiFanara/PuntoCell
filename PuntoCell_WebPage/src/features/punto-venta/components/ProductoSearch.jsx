@@ -9,7 +9,13 @@ import { useVenta } from '../context/VentaContext';
 export const ProductoSearch = ({ inventario = [], onTerminoChange }) => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [inputValue, setInputValue] = useState('');
-  const { agregarAlCarrito, esMayorista } = useVenta();
+  const { agregarAlCarrito, esMayorista, resolverPrecios } = useVenta();
+
+  // Precio de venta de un renglón de inventario según el modo (mayorista/minorista)
+  const precioDe = (item) => {
+    const { minorista, mayorista } = resolverPrecios(item?.Id ?? item?.id);
+    return esMayorista ? (mayorista || minorista || 0) : (minorista || 0);
+  };
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
@@ -29,7 +35,7 @@ export const ProductoSearch = ({ inventario = [], onTerminoChange }) => {
 
   const opciones = inventarioDisponible.map(item => {
     const nombre = item.articulo?.Nombre || 'Sin nombre';
-    const precio = esMayorista ? (item.PrecioMayor || item.PrecioMenor || 0) : (item.PrecioMenor || 0);
+    const precio = precioDe(item);
     const stock = item.Stock ?? 0;
     const idUnico = item.Id || Math.random();
 
@@ -78,9 +84,7 @@ export const ProductoSearch = ({ inventario = [], onTerminoChange }) => {
     }
   };
 
-  const precioBase = selectedProduct?.PrecioMenor || 0;
-  const precioMayor = selectedProduct?.PrecioMayor || precioBase;
-  const precioMostrado = esMayorista ? precioMayor : precioBase;
+  const precioMostrado = selectedProduct ? precioDe(selectedProduct) : 0;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, alignItems: 'flex-end' }}>

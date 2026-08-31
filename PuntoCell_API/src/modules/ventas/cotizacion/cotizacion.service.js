@@ -1,4 +1,4 @@
-import { registerAudit } from '../../../core/utils/audit.util.js';
+import { registerAudit, auditar } from '../../../core/utils/audit.util.js';
 
 export default class CotizacionService {
   constructor(cotizacionDAO, bitacoraService = null) {
@@ -53,15 +53,19 @@ export default class CotizacionService {
     }
   }
 
-  async update(id, data) {
+  async update(id, data, ctx = null) {
     const item = await this.cotizacionDAO.getById(id);
-    if (!item) throw new Error('Cotizacion no encontrada');
-    return await this.cotizacionDAO.update(id, data);
+    if (!item) { const e = new Error('Cotizacion no encontrada'); e.statusCode = 404; throw e; }
+    const actualizado = await this.cotizacionDAO.update(id, data);
+    await auditar(this.bitacoraService, ctx, `Modificó la cotización #${id}`, `Campos: ${Object.keys(data).join(', ')}`);
+    return actualizado;
   }
 
-  async remove(id) {
+  async remove(id, ctx = null) {
     const item = await this.cotizacionDAO.getById(id);
-    if (!item) throw new Error('Cotizacion no encontrada');
-    return await this.cotizacionDAO.remove(id);
+    if (!item) { const e = new Error('Cotizacion no encontrada'); e.statusCode = 404; throw e; }
+    const eliminado = await this.cotizacionDAO.remove(id);
+    await auditar(this.bitacoraService, ctx, `Eliminó la cotización #${id}`, `Baja de cotización`);
+    return eliminado;
   }
 }

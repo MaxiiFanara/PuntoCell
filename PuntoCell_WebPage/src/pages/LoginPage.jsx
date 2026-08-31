@@ -89,7 +89,7 @@ const STYLES = `
   .f6 { animation: fadeSlideUp 0.45s cubic-bezier(.22,1,.36,1) 0.78s both; }
 `
 
-const TEST_USER = { usuario: 'jgonzales', password: 'admin123' }
+const TEST_USER = { usuario: 'admin', password: 'talleres123456' }
 
 export default function LoginPage() {
   const { usuario, login } = useAuth()
@@ -272,7 +272,7 @@ export default function LoginPage() {
                         Usuario de prueba:
                       </Typography>
                       <Typography variant="caption" sx={{ color: subColor, fontFamily: 'monospace', fontSize: '0.78rem' }}>
-                        jgonzales / admin123
+                        admin / talleres123456
                       </Typography>
                       <Typography variant="caption" sx={{ color: blue, fontWeight: 600, fontSize: '0.72rem', ml: 'auto' }}>
                         Completar →

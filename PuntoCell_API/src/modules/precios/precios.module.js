@@ -8,11 +8,11 @@ import PreciosArticulosController from './precios-articulos/precios-articulos.co
 
 export function createPreciosModule(bitacoraService = null) {
   const listaDAO = new ListaPreciosDAO(models.ListaPrecio);
-  const listaService = new ListaPreciosService(listaDAO);
+  const listaService = new ListaPreciosService(listaDAO, bitacoraService);
   const listaController = new ListaPreciosController(listaService);
 
   const preciosArticulosDAO = new PreciosArticulosDAO(models.PrecioArticulo);
-  const preciosArticulosService = new PreciosArticulosService(preciosArticulosDAO, listaService);
+  const preciosArticulosService = new PreciosArticulosService(preciosArticulosDAO, listaService, bitacoraService);
   const preciosArticulosController = new PreciosArticulosController(preciosArticulosService);
 
   return {

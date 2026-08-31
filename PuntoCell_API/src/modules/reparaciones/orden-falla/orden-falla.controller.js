@@ -1,3 +1,5 @@
+const ctxDe = (req) => ({ IdEmpleado: req.user?.id, IdSucursal: req.user?.sucursal, Ip: req.ip });
+
 export default class OrdenFallaController {
   constructor(service) {
     this.service = service;
@@ -23,7 +25,7 @@ export default class OrdenFallaController {
 
   create = async (req, res, next) => {
     try {
-      const data = await this.service.create(req.body);
+      const data = await this.service.create(req.body, ctxDe(req));
       return res.status(201).json({ status: 'success', data });
     } catch (err) {
       next(err);
@@ -32,7 +34,7 @@ export default class OrdenFallaController {
 
   update = async (req, res, next) => {
     try {
-      const data = await this.service.update(req.params.id, req.body);
+      const data = await this.service.update(req.params.id, req.body, ctxDe(req));
       return res.status(200).json({ status: 'success', data });
     } catch (err) {
       next(err);
@@ -41,7 +43,7 @@ export default class OrdenFallaController {
 
   delete = async (req, res, next) => {
     try {
-      await this.service.delete(req.params.id);
+      await this.service.delete(req.params.id, ctxDe(req));
       return res.status(200).json({ status: 'success', data: { message: 'Falla eliminada de la orden exitosamente' } });
     } catch (err) {
       next(err);

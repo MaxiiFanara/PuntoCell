@@ -5,8 +5,7 @@ import {
   Alert
 } from '@mui/material';
 import {
-  Save, Store, Smartphone, QrCode2, BatteryChargingFull,
-  AttachMoney
+  Save, Store, Smartphone, QrCode2, BatteryChargingFull
 } from '@mui/icons-material';
 import { inventarioService } from '../../../services/inventarioServices';
 
@@ -102,16 +101,6 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
     setFormData({ ...formData, imei: value });
   };
 
-  // Precios: DECIMAL(18,2) CHECK(>= 0) en la BD — solo dígitos y un único punto decimal
-  const setSoloPrecio = (campo) => (e) => {
-    let value = e.target.value.replace(/[^0-9.]/g, '');
-    const primerPunto = value.indexOf('.');
-    if (primerPunto !== -1) {
-      value = value.slice(0, primerPunto + 1) + value.slice(primerPunto + 1).replace(/\./g, '');
-    }
-    setFormData({ ...formData, [campo]: value });
-  };
-
   // Stock: INT NOT NULL CHECK(>= 0) — solo dígitos, sin decimales ni negativos.
   const setSoloEntero = (campo) => (e) => {
     const value = e.target.value.replace(/\D/g, '');
@@ -124,13 +113,8 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
       alert(`⚠️ ${imeiEstado.error}`);
       return;
     }
-    if (!formData.idProveedor) {
+    if (!modoCanje && !formData.idProveedor) {
       alert('⚠️ Seleccioná un proveedor. Es obligatorio para guardar el ingreso.');
-      return;
-    }
-    // En canje no se carga precio acá: el precio de toma se define en ModalCobro
-    if (!modoCanje && (!formData.precioMenor || Number(formData.precioMenor) <= 0)) {
-      alert('⚠️ Ingresá un precio público válido, mayor a 0.');
       return;
     }
     onSubmit(formData);
@@ -278,44 +262,12 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
         </Box>
       </Box>
 
-      {/* SECCIÓN 2: PRECIOS Y COSTOS — no aplica en canje: el precio de toma es el monto
-          que se carga en la forma de pago "Canje" al cobrar la venta, no acá. */}
-      {modoCanje ? (
-        <Alert severity="info" sx={{ borderRadius: 3 }}>
-          El precio de este equipo se define al cargar el monto en la forma de pago "Canje", no acá.
-          Además, no se registra en inventario hasta confirmar la venta.
-        </Alert>
-      ) : (
-      <Box sx={sectionStyles}>
-        <Typography component="h6" sx={headerStyles}>
-          <AttachMoney fontSize="small" /> 2. Precios y Costos (USD)
-        </Typography>
-
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2 }}>
-          <TextField
-            label="Costo Base" name="precioCosto" size="small"
-            value={formData.precioCosto || ''} onChange={setSoloPrecio('precioCosto')}
-            inputProps={{ inputMode: 'decimal' }}
-            InputProps={{ startAdornment: <InputAdornment position="start">U$S</InputAdornment> }}
-          />
-          <TextField
-            label="Precio Mayorista" name="precioMayor" size="small"
-            value={formData.precioMayor || ''} onChange={setSoloPrecio('precioMayor')}
-            inputProps={{ inputMode: 'decimal' }}
-            InputProps={{ startAdornment: <InputAdornment position="start">U$S</InputAdornment> }}
-          />
-          <TextField
-            label="Precio Público (Venta) *" name="precioMenor" size="small" required
-            value={formData.precioMenor || ''} onChange={setSoloPrecio('precioMenor')}
-            inputProps={{ inputMode: 'decimal' }}
-            InputProps={{ startAdornment: <InputAdornment position="start">U$S</InputAdornment> }}
-            error={!formData.precioMenor}
-            helperText={!formData.precioMenor ? 'Obligatorio, mayor a 0' : ''}
-            sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#f0fdf4' } }}
-          />
-        </Box>
-      </Box>
-      )}
+      {/* El precio ya no se carga acá. Equipos por Compras (con su costo) y equipos de
+          canje sin precio (se les fija uno después desde la pantalla de Precios). */}
+      <Alert severity="info" sx={{ borderRadius: 3 }}>
+        El precio de venta se define en la pantalla de Precios (modelo ListaPrecio + PrecioArticulo).
+        El equipo de canje se registra en inventario recién al confirmar la venta.
+      </Alert>
 
       {/* SECCIÓN 3: LOGÍSTICA */}
       <Box sx={sectionStyles}>

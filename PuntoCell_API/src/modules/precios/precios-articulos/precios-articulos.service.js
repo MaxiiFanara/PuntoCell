@@ -1,7 +1,10 @@
+import { auditar } from '../../../core/utils/audit.util.js';
+
 export default class PreciosArticulosService {
-  constructor(preciosArticulosDAO, listaPreciosService) {
+  constructor(preciosArticulosDAO, listaPreciosService, bitacoraService = null) {
     this.preciosArticulosDAO = preciosArticulosDAO;
     this.listaPreciosService = listaPreciosService;
+    this.bitacoraService = bitacoraService;
   }
 
   async getAll(query = {}) { return this.preciosArticulosDAO.getAll({ page: query.page, limit: query.limit }); }
@@ -29,13 +32,17 @@ export default class PreciosArticulosService {
     return { CostoBase, CostosVariables, CostoReal, PorcentajeGanancia, ValorFinal };
   }
 
-  async create(data) {
+  async create(data, ctx = null) {
     const computed = await this.computeFields(data);
     const payload = { ...data, ...computed };
-    return this.preciosArticulosDAO.create(payload);
+    const creado = await this.preciosArticulosDAO.create(payload);
+    await auditar(this.bitacoraService, ctx,
+      `Cargó un precio para el inventario #${data.IdInventario} (precio #${creado.Id})`,
+      `Lista ${data.IdListaPrecio} · costo ${computed.CostoBase} → venta ${computed.ValorFinal}`);
+    return creado;
   }
 
-  async update(id, data) {
+  async update(id, data, ctx = null) {
     const existing = await this.preciosArticulosDAO.getById(id);
     if (!existing) return null;
 
@@ -43,8 +50,15 @@ export default class PreciosArticulosService {
     const merged = { ...existingData, ...data };
     const computed = await this.computeFields(merged);
     const payload = { ...merged, ...computed };
-    return this.preciosArticulosDAO.update(id, payload);
+    const actualizado = await this.preciosArticulosDAO.update(id, payload);
+    await auditar(this.bitacoraService, ctx, `Modificó el precio de artículo #${id}`,
+      `Nuevo costo ${computed.CostoBase} → venta ${computed.ValorFinal}`);
+    return actualizado;
   }
 
-  async remove(id) { return this.preciosArticulosDAO.remove(id); }
+  async remove(id, ctx = null) {
+    const eliminado = await this.preciosArticulosDAO.remove(id);
+    await auditar(this.bitacoraService, ctx, `Eliminó el precio de artículo #${id}`, `Baja de precio de artículo`);
+    return eliminado;
+  }
 }

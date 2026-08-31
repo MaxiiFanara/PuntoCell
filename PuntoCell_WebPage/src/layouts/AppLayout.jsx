@@ -8,6 +8,8 @@ import {
   Inventory2,
   Assessment,
   ReceiptLong,
+  ShoppingCart,
+  PriceChange,
   Language,
   Menu,
   ChevronLeft,
@@ -57,6 +59,22 @@ const menuItems = [
     icon: Inventory2,
     color: '#f87171', // text-red-400
     hoverBg: 'rgba(248, 113, 113, 0.1)',
+  },
+  {
+    name: 'Compras',
+    path: '/app/compras',
+    icon: ShoppingCart,
+    color: '#2dd4bf', // text-teal-400
+    hoverBg: 'rgba(45, 212, 191, 0.1)',
+    reqAdmin: true,
+  },
+  {
+    name: 'Precios',
+    path: '/app/precios',
+    icon: PriceChange,
+    color: '#a3e635', // text-lime-400
+    hoverBg: 'rgba(163, 230, 53, 0.1)',
+    reqAdmin: true,
   },
   {
     name: 'Reportes',

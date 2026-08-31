@@ -1,4 +1,5 @@
 import { fetchApi } from './api';
+import { preciosService, mapVigentePorInventario, valorFinalVigente, LISTA_MINORISTA_ID } from './preciosServices';
 
 export const inventarioService = {
   getAll: async (params = {}) => {
@@ -6,6 +7,33 @@ export const inventarioService = {
     const response = await fetchApi(`/inventario/inventarios?${query}`);
     // El controlador envía { data: [...] }
     return response?.data || response || [];
+  },
+
+  // Inventario + precio de venta vigente ya resuelto. El modelo nuevo no trae el
+  // precio en /inventario/inventarios, así que hacemos 1 request extra a
+  // /precios/precios-articulos y lo mergeamos client-side.
+  //   { ...fila, PrecioVenta, PrecioMinorista, PrecioMayorista, precios: {mapa por lista} }
+  getConPrecios: async (params = {}, { idListaMayorista } = {}) => {
+    const [items, preciosArticulos] = await Promise.all([
+      inventarioService.getAll(params),
+      preciosService.getPreciosArticulos(),
+    ]);
+    const mapa = mapVigentePorInventario(preciosArticulos);
+    const lista = Array.isArray(items) ? items : (items?.data || []);
+    return lista.map((fila) => {
+      const id = fila.Id ?? fila.id;
+      const minorista = valorFinalVigente(mapa, id, LISTA_MINORISTA_ID);
+      const mayorista = idListaMayorista
+        ? valorFinalVigente(mapa, id, idListaMayorista) || minorista
+        : minorista;
+      return {
+        ...fila,
+        precios: mapa[id] || {},
+        PrecioMinorista: minorista,
+        PrecioMayorista: mayorista,
+        PrecioVenta: minorista,
+      };
+    });
   },
 
   getById: async (id) => {
@@ -124,10 +152,11 @@ export const inventarioService = {
     return nuevo.Id || nuevo.id;
   },
 
-  // Alta completa: crea el Articulo (specs genéricas) y luego el Inventario (unidad física)
-  // que lo referencia. Compartido entre "Nuevo Ingreso" y el alta por canje en Punto de Venta.
+  // Alta de un equipo recibido en canje desde el Punto de Venta (ModalCobro).
+  // Crea el Articulo (specs genéricas) y el Inventario que lo referencia.
+  // NO carga precio: el equipo de canje entra NO vendible y se le fija precio
+  // después desde la pantalla de Precios (modelo nuevo: ListaPrecio + PrecioArticulo).
   crearIngresoCompleto: async (formData) => {
-    // Canje entra sin precio de venta: no es vendible hasta que se le fije precio manualmente
     const payloadArticulo = {
       Nombre: formData.nombreModelo || "Equipo genérico",
       EsSerializado: formData.esSerializado,
@@ -142,15 +171,17 @@ export const inventarioService = {
 
     if (!idArticuloNuevo) throw new Error("El backend no devolvió el ID del nuevo artículo creado.");
 
+    // IdProveedor es NOT NULL. En canje usamos el proveedor placeholder "Canje de Clientes".
+    const idProveedor = formData.idProveedor
+      ? Number(formData.idProveedor)
+      : await inventarioService.obtenerOCrearProveedorCanje();
+
     const payloadInventario = {
       IdArticulo: idArticuloNuevo,
       IdSucursal: Number(formData.idSucursal) || 1,
-      IdProveedor: formData.idProveedor ? Number(formData.idProveedor) : null,
+      IdProveedor: idProveedor,
       Stock: Number(formData.stock) || 1,
       IdEstadoInventario: formData.idEstadoInventario ? Number(formData.idEstadoInventario) : 1,
-      PrecioCosto: formData.precioCosto !== "" ? Number(formData.precioCosto) : 0,
-      PrecioMayor: formData.precioMayor !== "" ? Number(formData.precioMayor) : null,
-      PrecioMenor: formData.precioMenor !== "" ? Number(formData.precioMenor) : null,
       IMEI: formData.esSerializado && formData.imei ? String(formData.imei).trim() : null,
       IdColor: formData.idColor ? Number(formData.idColor) : null,
       IdMemoria: formData.idMemoria ? Number(formData.idMemoria) : null,

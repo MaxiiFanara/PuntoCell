@@ -1,4 +1,5 @@
 import { sequelize } from '../../../models/index.js';
+import { auditar } from '../../../core/utils/audit.util.js';
 
 export default class OrdenReparacionService {
   constructor(
@@ -7,7 +8,8 @@ export default class OrdenReparacionService {
     ordenReparacionDAO,
     ordenFallaDAO,
     seguimientoOrdenDAO,
-    notificacionService
+    notificacionService,
+    bitacoraService = null
   ) {
     this.usuarioDAO = usuarioDAO;
     this.dispositivoClienteDAO = dispositivoClienteDAO;
@@ -15,9 +17,10 @@ export default class OrdenReparacionService {
     this.ordenFallaDAO = ordenFallaDAO;
     this.seguimientoOrdenDAO = seguimientoOrdenDAO;
     this.notificacionService = notificacionService;
+    this.bitacoraService = bitacoraService;
   }
 
-  async create(datosPaquete, idEmpleadoSesion) {
+  async create(datosPaquete, idEmpleadoSesion, ctx = null) {
     const { cliente, dispositivo, idsFallas, observacionIngreso, sena } = datosPaquete;
     const t = await sequelize.transaction();
 
@@ -95,6 +98,11 @@ if (!idClienteAsignado) {
       }, { transaction: t });
 
       await t.commit();
+
+      await auditar(this.bitacoraService, ctx ?? { IdEmpleado: idEmpleadoSesion },
+        `Creó la orden de reparación #${nuevaOrden.Id}`,
+        `Cliente ${idClienteAsignado} · dispositivo ${nuevoDispositivo.Id}`);
+
       return {
         IdOrden: nuevaOrden.Id,
         ClienteId: idClienteAsignado,
@@ -108,7 +116,7 @@ if (!idClienteAsignado) {
   }
 
   async updateStatus(idOrden, datosCambio) {
-    const { IdEstadoOrden, ObservacionTecnico, PrecioManoObra, pagoFinal, idEmpleadoSesion } = datosCambio;
+    const { IdEstadoOrden, ObservacionTecnico, PrecioManoObra, pagoFinal, idEmpleadoSesion, ctx } = datosCambio;
     const t = await sequelize.transaction();
 
     try {
@@ -231,6 +239,11 @@ if (!idClienteAsignado) {
       }, { transaction: t });
 
       await t.commit();
+
+      const estados = { 1: 'En espera', 2: 'En reparación', 3: 'Terminado', 4: 'Entregado', 5: 'Anulado' };
+      await auditar(this.bitacoraService, ctx ?? { IdEmpleado: idEmpleadoSesion },
+        `Cambió la orden de reparación #${idOrden} a estado "${estados[nuevoEstado] ?? nuevoEstado}"`,
+        ObservacionTecnico || 'Actualización de estado');
 
       if (nuevoEstado !== estadoActual && nuevoEstado !== 4) {
         const email  = orden.dispositivo?.cliente?.Email;

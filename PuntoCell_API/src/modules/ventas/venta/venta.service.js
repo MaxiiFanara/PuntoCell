@@ -1,5 +1,5 @@
 import { Op } from 'sequelize';
-import { registerAudit } from '../../../core/utils/audit.util.js';
+import { registerAudit, auditar } from '../../../core/utils/audit.util.js';
 
 export default class VentaService {
   constructor(ventaDAO, detalleDAO, bitacoraService = null) {
@@ -165,12 +165,16 @@ export default class VentaService {
     }
   }
 
-  async update(id, data) {
-    return await this.ventaDAO.update(id, data);
+  async update(id, data, ctx = null) {
+    const actualizado = await this.ventaDAO.update(id, data);
+    await auditar(this.bitacoraService, ctx, `Modificó la venta #${id}`, `Campos: ${Object.keys(data).join(', ')}`);
+    return actualizado;
   }
 
-  async remove(id) {
-    return await this.ventaDAO.remove(id);
+  async remove(id, ctx = null) {
+    const eliminado = await this.ventaDAO.remove(id);
+    await auditar(this.bitacoraService, ctx, `Eliminó la venta #${id}`, `Baja de venta`);
+    return eliminado;
   }
 
   async historico(filters = {}) {

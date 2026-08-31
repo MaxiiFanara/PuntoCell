@@ -99,26 +99,16 @@ GO
 --- TABLAS MÓDULO BITÁCORA Y CAJA ---
 -------------------------------------
 
-CREATE TABLE Accion ( -- Catálogo de acciones sensibles para el log de auditoría.
-    Id          INT           PRIMARY KEY IDENTITY, 
-    Nombre      NVARCHAR(100) NOT NULL, -- Ej: 'Login fallido', 'Anulación de venta'.
-    CreatedAt   DATETIME2     NOT NULL DEFAULT SYSDATETIME(),
-    IdPermiso   INT           NULL, 
-    CONSTRAINT FK_Accion_Permiso FOREIGN KEY (IdPermiso) REFERENCES Permiso (Id)
-);
-GO
-
 CREATE TABLE Bitacora ( -- El "Gran Hermano". Registra todas las operaciones críticas del personal.
-    Id         INT           PRIMARY KEY IDENTITY, 
-    Detalle    NVARCHAR(MAX) NULL, -- Información adicional (Ej: JSON con los datos borrados).
-    IpAddress  NVARCHAR(50)  NULL, -- Desde qué computadora se hizo, por seguridad.
-    Fecha      DATETIME2     NOT NULL DEFAULT SYSDATETIME(), -- Momento exacto.
-    IdEmpleado INT           NOT NULL, -- Quién fue.
-    IdSucursal INT           NOT NULL, -- Dónde estaba logueado.
-    IdAccion   INT           NOT NULL, -- Qué hizo.
-    CONSTRAINT FK_Bitacora_Empleado FOREIGN KEY (IdEmpleado) REFERENCES Usuario (Id), 
-    CONSTRAINT FK_Bitacora_Sucursal FOREIGN KEY (IdSucursal) REFERENCES Sucursal (Id), 
-    CONSTRAINT FK_Bitacora_Accion   FOREIGN KEY (IdAccion)   REFERENCES Accion (Id) 
+    Id         INT            PRIMARY KEY IDENTITY,
+    Detalle    NVARCHAR(MAX)  NULL, -- Información adicional (Ej: JSON con los datos borrados).
+    IpAddress  NVARCHAR(50)   NULL, -- Desde qué computadora se hizo, por seguridad.
+    Fecha      DATETIME2      NOT NULL DEFAULT SYSDATETIME(), -- Momento exacto.
+    IdEmpleado INT            NULL, -- Quién fue. NULL para acciones previas al login (ej. "Login fallido" con identificador inexistente).
+    IdSucursal INT            NULL, -- Dónde estaba logueado. NULL si la acción no tiene sesión asociada.
+    Accion     NVARCHAR(150)  NOT NULL, -- Qué pasó, en texto: el backend lo arma manualmente (ej. "Usuario admin inició sesión", "Login fallido para juan").
+    CONSTRAINT FK_Bitacora_Empleado FOREIGN KEY (IdEmpleado) REFERENCES Usuario (Id),
+    CONSTRAINT FK_Bitacora_Sucursal FOREIGN KEY (IdSucursal) REFERENCES Sucursal (Id)
 );
 GO
 
@@ -196,14 +186,23 @@ CREATE TABLE Producto (
 GO
 
 CREATE TABLE Proveedor ( -- Quienes nos suministran el stock de artículos o repuestos.
-    Id          INT           PRIMARY KEY IDENTITY, 
-    Nombre      NVARCHAR(100) NOT NULL UNIQUE, 
-    Email       NVARCHAR(100) NULL UNIQUE, 
-    Celular     NVARCHAR(20)  NULL, 
-    Activo      BIT           NOT NULL DEFAULT 1, 
+    Id          INT           PRIMARY KEY IDENTITY,
+    Nombre      NVARCHAR(100) NOT NULL UNIQUE,
+    Email       NVARCHAR(100) NULL, -- UNIQUE real vía índice filtrado más abajo (ver UQ_Proveedor_Email)
+    Celular     NVARCHAR(20)  NULL, -- UNIQUE real vía índice filtrado más abajo (ver UQ_Proveedor_Celular)
+    Activo      BIT           NOT NULL DEFAULT 1,
     IdLocalidad INT           NULL,
-    CONSTRAINT FK_Proveedor_Localidad FOREIGN KEY (IdLocalidad) REFERENCES Localidad (Id) 
+    CONSTRAINT FK_Proveedor_Localidad FOREIGN KEY (IdLocalidad) REFERENCES Localidad (Id)
 );
+GO
+
+-- Índices únicos FILTRADOS sobre Email/Celular: mismo motivo que UQ_Inventario_IMEI —
+-- un UNIQUE de columna estándar en SQL Server solo permite UN NULL en toda la tabla,
+-- así que un segundo proveedor sin email (o sin celular) rompería como si fuera un
+-- duplicado. Filtrando a "IS NOT NULL" solo se exige unicidad entre los valores reales.
+SET QUOTED_IDENTIFIER ON;
+CREATE UNIQUE INDEX UQ_Proveedor_Email ON Proveedor(Email) WHERE Email IS NOT NULL;
+CREATE UNIQUE INDEX UQ_Proveedor_Celular ON Proveedor(Celular) WHERE Celular IS NOT NULL;
 GO
 
 CREATE TABLE Color ( -- Catálogo de colores para las variantes de los productos.
@@ -238,12 +237,9 @@ CREATE TABLE EstadoInventario ( -- Define si el stock es Nuevo, Usado (Reacondic
 );
 GO
 
-CREATE TABLE Inventario ( -- Representa la cantidad FÍSICA actual de un producto en una sucursal específica.
+CREATE TABLE Inventario ( -- Representa la cantidad FÍSICA actual de un producto en una sucursal específica. El costo/precio de venta vive en PrecioArticulo (ver más abajo), con historial.
     Id                 INT            PRIMARY KEY IDENTITY,
     IMEI                VARCHAR(50)    NULL, -- Único entre equipos serializados; ver índice único filtrado más abajo.
-    PrecioCosto        DECIMAL(18, 2) NOT NULL CHECK (PrecioCosto >= 0), -- Cuánto le costó al dueño comprarlo (vital para saber la ganancia real).
-    PrecioMayor        DECIMAL(18, 2) NULL CHECK (PrecioMayor >= 0), -- Opcional: precio especial para venta mayorista.
-    PrecioMenor        DECIMAL(18, 2) NULL CHECK (PrecioMenor >= 0), -- Opcional: precio mínimo permitido antes de requerir autorización.
     Stock              INT            NOT NULL DEFAULT 0 CHECK (Stock >= 0), -- Unidades disponibles actualmente en esta sucursal.
     CreatedAt          DATETIME2      NOT NULL DEFAULT SYSDATETIME(), -- Cuándo ingresó este lote.
     MesesGarantiaMarca DATETIME2      NULL,
@@ -264,8 +260,7 @@ CREATE TABLE Inventario ( -- Representa la cantidad FÍSICA actual de un product
     CONSTRAINT FK_Inventario_Sucursal           FOREIGN KEY (IdSucursal)         REFERENCES Sucursal (Id), 
     CONSTRAINT FK_Inventario_Producto           FOREIGN KEY (IdProducto)         REFERENCES Producto (Id),
     CONSTRAINT FK_Inventario_Estado             FOREIGN KEY (IdEstadoInventario) REFERENCES EstadoInventario (Id),
-    CONSTRAINT FK_Inventario_Proveedor          FOREIGN KEY (IdProveedor)        REFERENCES Proveedor (Id),
-    CONSTRAINT UQ_Inventario_SucursalProducto   UNIQUE (IdSucursal, IdProducto, IdEstadoInventario) -- Ahora la unicidad es por Sucursal + Artículo + ESTADO. Permite tener "5 iPhone 13 Nuevos" y "2 iPhone 13 Defectuosos" sin que la base tire error de duplicado.
+    CONSTRAINT FK_Inventario_Proveedor          FOREIGN KEY (IdProveedor)        REFERENCES Proveedor (Id)
 );
 GO
 
@@ -274,6 +269,45 @@ GO
 -- estándar no sirve acá: SQL Server trata todos los NULL como iguales entre sí en un índice
 -- único, así que solo dejaría cargar UN producto sin IMEI en todo el inventario.
 CREATE UNIQUE INDEX UQ_Inventario_IMEI ON Inventario(IMEI) WHERE IMEI IS NOT NULL;
+GO
+
+-- Índice único FILTRADO sobre Sucursal+Producto+Estado: un producto NO serializado
+-- (IMEI NULL) tiene una sola fila de stock por sucursal/estado (se incrementa, no se
+-- duplica). Filtrado a IMEI IS NULL para no chocar con productos serializados, donde
+-- cada unidad es su propia fila (identificada por IMEI, ver índice de arriba) y puede
+-- haber varias filas para el mismo Sucursal+Producto+Estado.
+SET QUOTED_IDENTIFIER ON;
+CREATE UNIQUE INDEX UQ_Inventario_SucursalProducto ON Inventario(IdSucursal, IdProducto, IdEstadoInventario) WHERE IMEI IS NULL;
+GO
+
+CREATE TABLE ListaPrecio ( -- Regla de formación de precio por categoría de producto (Ej: "Mayorista Smartphones"). La lista Id=1 es el fallback default cuando un producto no tiene lista activa para su categoría.
+    Id                     INT           PRIMARY KEY IDENTITY,
+    Nombre                 NVARCHAR(100) NOT NULL,
+    PorcentajeRentabilidad DECIMAL(5, 2) NOT NULL CHECK (PorcentajeRentabilidad >= 0), -- % de ganancia que se aplica sobre el CostoReal.
+    Activo                 BIT           NOT NULL DEFAULT 1,
+    IdCategoriaProducto    INT           NULL, -- NULL = lista genérica, no atada a una categoría (ej. la lista Id=1 default).
+    CONSTRAINT FK_ListaPrecio_Categoria FOREIGN KEY (IdCategoriaProducto) REFERENCES CategoriaProducto (Id)
+);
+GO
+
+CREATE TABLE PrecioArticulo ( -- Precio concreto vigente de un renglón de Inventario, aplicando una ListaPrecio. Con historial: nunca se pisa un registro, se cierra su vigencia (FechaHasta) y se crea uno nuevo.
+    Id                 INT            PRIMARY KEY IDENTITY,
+    IdInventario       INT            NOT NULL,
+    IdListaPrecio      INT            NOT NULL,
+    ValorFinal         DECIMAL(18, 2) NOT NULL CHECK (ValorFinal >= 0), -- Precio de venta resultante (lo que paga el cliente).
+    CostoBase          DECIMAL(18, 2) NOT NULL CHECK (CostoBase >= 0), -- Lo que costó comprarlo (viene de Compras).
+    CostosVariables    DECIMAL(18, 2) NOT NULL CHECK (CostosVariables >= 0), -- Costos indirectos calculados sobre el CostoBase.
+    CostoReal          DECIMAL(18, 2) NOT NULL CHECK (CostoReal >= 0), -- CostoBase + CostosVariables.
+    PorcentajeGanancia DECIMAL(5, 2)  NOT NULL CHECK (PorcentajeGanancia >= 0), -- Copiado de ListaPrecio.PorcentajeRentabilidad al momento de calcular.
+    FechaDesde         DATETIME2      NOT NULL DEFAULT SYSDATETIME(),
+    FechaHasta         DATETIME2      NULL, -- NULL = vigencia actual.
+    CONSTRAINT FK_PrecioArticulo_Inventario  FOREIGN KEY (IdInventario)  REFERENCES Inventario (Id),
+    CONSTRAINT FK_PrecioArticulo_ListaPrecio FOREIGN KEY (IdListaPrecio) REFERENCES ListaPrecio (Id)
+);
+GO
+
+-- Acelera la búsqueda del precio vigente de un renglón de inventario (WHERE IdInventario = ? AND FechaHasta IS NULL).
+CREATE INDEX IX_PrecioArticulo_InventarioVigencia ON PrecioArticulo (IdInventario, FechaHasta);
 GO
 
 CREATE TABLE MovimientoStock ( -- Historial inmutable de todo lo que entra, sale o se transfiere. Auditoría pura.
@@ -308,15 +342,17 @@ GO
 -----------------------------
 
 CREATE TABLE Compra ( -- Cabecera de la factura de compra
-    Id                INT            PRIMARY KEY IDENTITY, 
-    Fecha             DATETIME2      NOT NULL DEFAULT SYSDATETIME(), 
+    Id                INT            PRIMARY KEY IDENTITY,
+    Fecha             DATETIME2      NOT NULL DEFAULT SYSDATETIME(),
     TotalCosto        DECIMAL(18, 2) NOT NULL CHECK(TotalCosto >= 0), -- Cuánto costó en total el pedido
+    EstadoPago        SMALLINT       NOT NULL DEFAULT 1 CHECK (EstadoPago IN (1, 2, 3)), -- 1=Pendiente, 2=Parcial, 3=Pagado (lo calcula el backend, ver compra.service.js)
+    SaldoPendiente    DECIMAL(18, 2) NOT NULL DEFAULT 0 CHECK (SaldoPendiente >= 0), -- TotalCosto - TotalPagado, nunca negativo
     IdProveedor       INT            NOT NULL, -- A quién le compramos
     IdSucursalDestino INT            NOT NULL, -- Dónde entra la mercadería
     IdEmpleado        INT            NOT NULL, -- Quién cargó la compra
-    CONSTRAINT FK_Compra_Proveedor FOREIGN KEY (IdProveedor)       REFERENCES Proveedor (Id), 
-    CONSTRAINT FK_Compra_Sucursal  FOREIGN KEY (IdSucursalDestino) REFERENCES Sucursal (Id), 
-    CONSTRAINT FK_Compra_Empleado  FOREIGN KEY (IdEmpleado)        REFERENCES Usuario (Id) 
+    CONSTRAINT FK_Compra_Proveedor FOREIGN KEY (IdProveedor)       REFERENCES Proveedor (Id),
+    CONSTRAINT FK_Compra_Sucursal  FOREIGN KEY (IdSucursalDestino) REFERENCES Sucursal (Id),
+    CONSTRAINT FK_Compra_Empleado  FOREIGN KEY (IdEmpleado)        REFERENCES Usuario (Id)
 );
 GO
 
@@ -369,6 +405,22 @@ CREATE TABLE DetalleDevolucionCompra ( -- Los artículos exactos que mandamos de
     CONSTRAINT FK_DetDevCompra_Inventario     FOREIGN KEY (IdInventario)       REFERENCES Inventario (Id),
     CONSTRAINT FK_DetDevCompra_MovStock       FOREIGN KEY (IdMovimientoStock)  REFERENCES MovimientoStock (Id),
     CONSTRAINT UQ_DetalleDevCompra_Inventario UNIQUE (IdDevolucionCompra, IdInventario)
+);
+GO
+
+CREATE TABLE CuentaCorrienteProveedor ( -- Historial cronológico de deuda con cada proveedor (Debe = nueva deuda, Haber = pago que la cancela).
+    Id              INT            PRIMARY KEY IDENTITY,
+    IdProveedor     INT            NOT NULL,
+    FechaMovimiento DATETIME2      NOT NULL DEFAULT SYSDATETIME(),
+    Concepto        NVARCHAR(100)  NOT NULL, -- Valores fijos que arma el backend (ej. "Factura de Compra", "Pago a cuenta/total"), nunca texto libre del frontend.
+    Debe            DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    Haber           DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    SaldoAcumulado  DECIMAL(18, 2) NOT NULL, -- Saldo del proveedor después de aplicar este movimiento; lo calcula el backend, nunca se recibe del frontend.
+    IdCompra        INT            NULL,
+    IdPagoCompra    INT            NULL,
+    CONSTRAINT FK_CCProv_Proveedor  FOREIGN KEY (IdProveedor)  REFERENCES Proveedor (Id),
+    CONSTRAINT FK_CCProv_Compra     FOREIGN KEY (IdCompra)     REFERENCES Compra (Id),
+    CONSTRAINT FK_CCProv_PagoCompra FOREIGN KEY (IdPagoCompra) REFERENCES PagoCompra (Id)
 );
 GO
 
@@ -621,9 +673,13 @@ GO
 
 -- 1. VISTA DE INVENTARIO COMPLETO (Ideal para el Catálogo y Control de Stock)
 -- Resuelve todas las claves foráneas para devolver una tabla plana lista para consumir.
+-- El precio y el costo salen del PrecioArticulo VIGENTE (FechaHasta IS NULL) de cada
+-- renglón de Inventario, tras migrar el modelo de precios a ListaPrecio/PrecioArticulo.
+-- Si el renglón todavía no tiene un precio cargado, las columnas de precio quedan NULL
+-- (OUTER APPLY). Si hubiera más de una lista vigente, se toma la de FechaDesde más reciente.
 GO
 CREATE VIEW vw_Inventario_PuntoCell AS
-SELECT 
+SELECT
     i.Id                            AS IdInventario,
     s.Nombre                        AS Sucursal,
     cp.Nombre                       AS Categoria,
@@ -631,16 +687,22 @@ SELECT
     mo.Nombre                       AS Modelo,
     p.Nombre                        AS Producto,
     i.Stock,
-    i.PrecioMayor                   AS PrecioMayorista,
-    i.PrecioMenor                   AS PrecioMinorista,
-    i.PrecioCosto,
-    (i.PrecioMenor - i.PrecioCosto) AS GananciaEstimadaARS
+    pa.IdListaPrecio,
+    pa.ValorFinal                   AS PrecioVentaARS,
+    pa.CostoReal                    AS CostoRealARS,
+    (pa.ValorFinal - pa.CostoReal)  AS GananciaEstimadaARS
 FROM Inventario i
 INNER JOIN Sucursal           s  ON i.IdSucursal = s.Id
 INNER JOIN Producto           p  ON i.IdProducto = p.Id
 INNER JOIN ModeloProducto     mo ON p.IdModeloProducto = mo.Id
 INNER JOIN MarcaProducto      ma ON mo.IdMarcaProducto = ma.Id
 INNER JOIN CategoriaProducto  cp ON mo.IdCategoriaProducto = cp.Id
+OUTER APPLY (
+    SELECT TOP 1 pa2.IdListaPrecio, pa2.ValorFinal, pa2.CostoReal
+    FROM PrecioArticulo pa2
+    WHERE pa2.IdInventario = i.Id AND pa2.FechaHasta IS NULL
+    ORDER BY pa2.FechaDesde DESC
+) pa
 WHERE p.Activo = 1;
 GO
 
@@ -802,13 +864,14 @@ GO
 -- 5) FINANZAS - reparaciones (detalle, una fila por orden ENTREGADA)
 --    Modelo de MARGEN (rentabilidad), solo módulo taller:
 --      Ingreso  = TotalReparacion (mano de obra + repuestos cobrados)
---      Costo    = SUM(Inventario.PrecioCosto * RepuestoOrden.Cantidad)
---                 -> el costo REAL de los repuestos usados
+--      Costo    = SUM(PrecioArticulo.CostoReal * RepuestoOrden.Cantidad)
+--                 -> el costo REAL de los repuestos usados, tomado del precio VIGENTE
+--                    (FechaHasta IS NULL) de cada renglón de Inventario.
 --      Ganancia = Ingreso - Costo
 --    Lleva FechaEntrega e IdSucursal (del empleado) para que el endpoint
 --    filtre por período o sucursal con un WHERE.
 --    El LEFT JOIN contempla órdenes sin repuestos (solo mano de obra):
---    en ese caso Costo = 0.
+--    en ese caso Costo = 0. Un repuesto sin PrecioArticulo vigente aporta costo 0.
 -- ---------------------------------------------------------------------
 IF OBJECT_ID('vw_Finanzas_Reparaciones', 'V') IS NOT NULL DROP VIEW vw_Finanzas_Reparaciones;
 GO
@@ -827,9 +890,15 @@ INNER JOIN EstadoOrden eo  ON o.IdEstadoOrden = eo.Id
 INNER JOIN Usuario     emp ON o.IdEmpleado    = emp.Id
 LEFT JOIN (
     SELECT ro.IdOrdenReparacion,
-           SUM(i.PrecioCosto * ro.Cantidad) AS CostoRepuestos
+           SUM(ISNULL(pa.CostoReal, 0) * ro.Cantidad) AS CostoRepuestos
     FROM RepuestoOrden ro
     INNER JOIN Inventario i ON ro.IdInventario = i.Id
+    OUTER APPLY (
+        SELECT TOP 1 pa2.CostoReal
+        FROM PrecioArticulo pa2
+        WHERE pa2.IdInventario = i.Id AND pa2.FechaHasta IS NULL
+        ORDER BY pa2.FechaDesde DESC
+    ) pa
     GROUP BY ro.IdOrdenReparacion
 ) cr ON cr.IdOrdenReparacion = o.Id
 WHERE eo.Nombre = 'Entregado';
@@ -1047,33 +1116,35 @@ INSERT INTO Proveedor (Nombre, Email, Celular, IdLocalidad) VALUES
 ('Apple Importaciones S.A.', 'import@apple.com', '3519998888', 2);
 GO
 
+-- 14b. Lista de precios (Id 1 = fallback default, sin categoría específica)
+INSERT INTO ListaPrecio (Nombre, PorcentajeRentabilidad, Activo, IdCategoriaProducto) VALUES
+('Lista General (Default)', 30.00, 1, NULL);
+GO
+
 -- 15. Inventario (Stock físico ingresado en Sucursal 1)
 -- Lote de 5 iPhones 13 (IdProducto 1), Estado Nuevo (Id 1), Prov (2), Color Negro (1), 8GB (3), 100% Bat (1), 256GB (3)
-INSERT INTO Inventario (PrecioCosto, PrecioMayor, PrecioMenor, Stock, MesesGarantiaMarca, MesesGarantiaLocal, Observaciones, IdSucursal, IdProducto, IdEstadoInventario, IdProveedor, IdColor, IdMemoria, IdBateria, IdAlmacenamiento) VALUES 
-(800000.00, 950000.00, 900000.00, 5, '2027-01-01', '2026-12-01', 'Lote nuevo sellado en perfectas condiciones', 1, 1, 1, 2, 1, 3, 1, 3);
+INSERT INTO Inventario (Stock, MesesGarantiaMarca, MesesGarantiaLocal, Observaciones, IdSucursal, IdProducto, IdEstadoInventario, IdProveedor, IdColor, IdMemoria, IdBateria, IdAlmacenamiento) VALUES
+(5, '2027-01-01', '2026-12-01', 'Lote nuevo sellado en perfectas condiciones', 1, 1, 1, 2, 1, 3, 1, 3);
 
 -- Lote de 20 Fundas (IdProducto 3), Estado Nuevo (Id 1), Prov (1)
-INSERT INTO Inventario (PrecioCosto, PrecioMayor, PrecioMenor, Stock, MesesGarantiaMarca, MesesGarantiaLocal, Observaciones, IdSucursal, IdProducto, IdEstadoInventario, IdProveedor) VALUES 
-(1500.00, 3000.00, 2500.00, 20, NULL, '2026-08-01', 'Fundas genéricas transparentes', 1, 3, 1, 1);
+INSERT INTO Inventario (Stock, MesesGarantiaMarca, MesesGarantiaLocal, Observaciones, IdSucursal, IdProducto, IdEstadoInventario, IdProveedor) VALUES
+(20, NULL, '2026-08-01', 'Fundas genéricas transparentes', 1, 3, 1, 1);
+GO
+
+-- 15b. PrecioArticulo (precio vigente de cada renglón de Inventario, usando la Lista General Id=1: CostosVariables = 26% del CostoBase, ValorFinal = CostoReal * (1 + %Ganancia/100), ver precios-articulos.service.js::computeFields)
+INSERT INTO PrecioArticulo (IdInventario, IdListaPrecio, ValorFinal, CostoBase, CostosVariables, CostoReal, PorcentajeGanancia, FechaDesde, FechaHasta) VALUES
+(1, 1, 1310400.00, 800000.00, 208000.00, 1008000.00, 30.00, SYSDATETIME(), NULL),
+(2, 1, 2457.00, 1500.00, 390.00, 1890.00, 30.00, SYSDATETIME(), NULL);
 GO
 
 -- 16. MovimientoStock (Registro de auditoría inmutable del ingreso)
-INSERT INTO MovimientoStock (TipoMovimiento, Cantidad, Observaciones, IdInventario, IdEmpleado) VALUES 
+INSERT INTO MovimientoStock (TipoMovimiento, Cantidad, Observaciones, IdInventario, IdEmpleado) VALUES
 ('Ingreso por Compra', 5, 'Lote de celulares recibido correctamente', 1, 3),
 ('Ingreso por Compra', 20, 'Fundas para exhibición', 2, 3);
 GO
 
 
 --- MÓDULO BITÁCORA Y CAJA ---
-
--- 17. Acciones (Catálogo de auditoría)
-INSERT INTO Accion (Nombre, IdPermiso) VALUES 
-('Login exitoso', NULL),
-('Login fallido', NULL),
-('Apertura de caja', 10),
-('Cierre de caja', 10),
-('Venta registrada', 3);
-GO
 
 -- 18. Turno Caja (Simulamos una caja abierta por el usuario vendedor, Id 3, en Sucursal 1)
 INSERT INTO TurnoCaja (MontoInicial, TotalIngresos, TotalEgresos, MontoCierreFisico, Observaciones, IdSucursal, IdEmpleadoApertura, IdEmpleadoCierre) VALUES 
@@ -1086,8 +1157,8 @@ INSERT INTO MovimientoCaja (Monto, TipoMovimiento, Descripcion, IdTurnoCaja, IdE
 GO
 
 -- 20. Bitácora (El "Gran Hermano")
-INSERT INTO Bitacora (Detalle, IpAddress, IdEmpleado, IdSucursal, IdAccion) VALUES 
-('El usuario inició turno en caja correctamente', '192.168.1.15', 3, 1, 3);
+INSERT INTO Bitacora (Detalle, IpAddress, IdEmpleado, IdSucursal, Accion) VALUES
+('El usuario inició turno en caja correctamente', '192.168.1.15', 3, 1, 'Apertura de caja');
 GO
 
 
@@ -1140,19 +1211,25 @@ GO
 
 --- MÓDULO COMPRAS ---
 
--- 28. Compra (Cabecera de la factura al proveedor)
-INSERT INTO Compra (TotalCosto, IdProveedor, IdSucursalDestino, IdEmpleado) VALUES 
-(4000000.00, 2, 1, 3);
+-- 28. Compra (Cabecera de la factura al proveedor) — pagada al contado, por eso EstadoPago=3 y SaldoPendiente=0
+INSERT INTO Compra (TotalCosto, EstadoPago, SaldoPendiente, IdProveedor, IdSucursalDestino, IdEmpleado) VALUES
+(4000000.00, 3, 0.00, 2, 1, 3);
 GO
 
 -- 29. Detalle Compra
-INSERT INTO DetalleCompra (Cantidad, PrecioCostoUnitario, IdCompra, IdInventario) VALUES 
+INSERT INTO DetalleCompra (Cantidad, PrecioCostoUnitario, IdCompra, IdInventario) VALUES
 (5, 800000.00, 1, 1);
 GO
 
 -- 30. Pago Compra (Pagamos al proveedor por Transferencia - MetodoPago 3)
-INSERT INTO PagoCompra (Monto, IdCompra, IdMetodoPago, IdTurnoCaja) VALUES 
+INSERT INTO PagoCompra (Monto, IdCompra, IdMetodoPago, IdTurnoCaja) VALUES
 (4000000.00, 1, 3, 1);
+GO
+
+-- 30b. Cuenta corriente del proveedor: la compra genera la deuda completa (Debe) y el pago la cancela (Haber) en el mismo momento.
+INSERT INTO CuentaCorrienteProveedor (IdProveedor, Concepto, Debe, Haber, SaldoAcumulado, IdCompra, IdPagoCompra) VALUES
+(2, 'Factura de Compra', 4000000.00, 0.00, 4000000.00, 1, NULL),
+(2, 'Pago a cuenta/total', 0.00, 4000000.00, 0.00, 1, 1);
 GO
 
 

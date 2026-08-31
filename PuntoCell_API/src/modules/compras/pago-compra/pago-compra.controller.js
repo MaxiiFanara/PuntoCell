@@ -21,28 +21,13 @@ export default class PagoCompraController {
     }
   };
 
+  // POST = registrar un pago posterior sobre una Compra existente. Un pago registrado
+  // es inmutable: no hay update ni delete.
   create = async (req, res, next) => {
     try {
-      const data = await this.service.create(req.body);
+      const ctx = { IdEmpleado: req.user?.id, IdSucursal: req.user?.sucursal, Ip: req.ip };
+      const data = await this.service.create(req.body, ctx);
       return res.status(201).json({ status: 'success', data });
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  update = async (req, res, next) => {
-    try {
-      const data = await this.service.update(req.params.id, req.body);
-      return res.status(200).json({ status: 'success', data });
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  delete = async (req, res, next) => {
-    try {
-      await this.service.delete(req.params.id);
-      return res.status(200).json({ status: 'success', data: { message: 'Pago de compra eliminado exitosamente' } });
     } catch (err) {
       next(err);
     }

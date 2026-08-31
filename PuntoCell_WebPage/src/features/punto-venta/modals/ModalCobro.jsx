@@ -141,6 +141,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
   const eliminarPago = (index) => setPagos(pagos.filter((_, i) => i !== index));
 
   const procesarVenta = async () => {
+    if (!cliente?.id) return alert('⚠️ Seleccioná un cliente antes de cobrar.');
     if (restante > 0.01) return alert(`⚠️ Aún falta cubrir U$S ${restante.toFixed(2)}`);
     if (pagos.length === 0) return alert('No hay pagos registrados');
 
@@ -168,7 +169,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
 
     const ventaRequest = {
       Fecha: new Date().toISOString(),
-      IdCliente: parseInt(cliente?.id) || 1,
+      IdCliente: parseInt(cliente?.id),
       IdSucursal: parseInt(idSucursal) || 1,
       IdTurnoCaja: 1,
       // Cotización activa en el navbar al momento del cobro (antes quedaba fija en Id=1)

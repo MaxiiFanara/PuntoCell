@@ -25,6 +25,7 @@ const PuntoVentaContent = () => {
     setCliente,
     datosConfig,
     idSucursal,
+    totalCosto,
     vaciarTodo
   } = useVenta();
 
@@ -80,7 +81,7 @@ const PuntoVentaContent = () => {
         Fecha: payloadVenta.Fecha,
         TotalVenta: payloadVenta.TotalVenta,
         TotalVentaARS: payloadVenta.TotalVenta * (datosConfig?.valorDolar || 1),
-        TotalCosto: 0,
+        TotalCosto: Number((totalCosto || 0).toFixed(2)),
         Observaciones: payloadVenta.ObservacionesVenta || "",
         EstadoPago: true,
         IdTurnoCaja: datosConfig?.idTurnoCaja,

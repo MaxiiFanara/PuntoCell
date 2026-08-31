@@ -1,3 +1,5 @@
+import { mapVigentePorInventario, valorFinalVigente, LISTA_MINORISTA_ID } from './preciosServices'
+
 export const API_URL = 'http://localhost:3000/api'
 
 // Fetch para rutas protegidas
@@ -254,16 +256,26 @@ export const getOrdenById = async (id) => {
 }
 
 // Repuestos de orden
+// El precio ya no vive en Inventario: se resuelve del PrecioArticulo vigente
+// (lista Minorista) mergeando client-side, igual que en inventarioService.getConPrecios.
 export const getRepuestosDisponibles = async () => {
-  const res = await fetchApi('/reparaciones/inventario/repuestos-disponibles')
-  return (res?.data ?? []).map(item => ({
-    id:     item.id ?? item.Id,
-    nombre: item.articulo?.Nombre ?? '',
-    stock:  item.Stock ?? 0,
-    precio: Number(item.PrecioMenor) || 0,
-    marca:  item.articulo?.modelo?.marca?.Nombre ?? '',
-    modelo: item.articulo?.modelo?.Nombre ?? '',
-  }))
+  const [res, preciosRes] = await Promise.all([
+    fetchApi('/reparaciones/inventario/repuestos-disponibles'),
+    fetchApi('/precios/precios-articulos').catch(() => ({ data: [] })),
+  ])
+  const precios = Array.isArray(preciosRes?.data) ? preciosRes.data : (preciosRes ?? [])
+  const mapa = mapVigentePorInventario(precios)
+  return (res?.data ?? []).map(item => {
+    const idInv = item.id ?? item.Id
+    return {
+      id:     idInv,
+      nombre: item.articulo?.Nombre ?? '',
+      stock:  item.Stock ?? 0,
+      precio: valorFinalVigente(mapa, idInv, LISTA_MINORISTA_ID),
+      marca:  item.articulo?.modelo?.marca?.Nombre ?? '',
+      modelo: item.articulo?.modelo?.Nombre ?? '',
+    }
+  })
 }
 
 export const agregarRepuestoOrden = (datos) =>
