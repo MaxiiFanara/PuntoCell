@@ -226,6 +226,20 @@ export const setupAssociations = (models) => {
     DevolucionCompra.belongsTo(Usuario, { foreignKey: 'IdEmpleado', as: 'empleado' });
   }
 
+  // Cuenta corriente de proveedor
+  if (Proveedor && models.CuentaCorrienteProveedor) {
+    Proveedor.hasMany(models.CuentaCorrienteProveedor, { foreignKey: 'IdProveedor', as: 'cuentaCorriente' });
+    models.CuentaCorrienteProveedor.belongsTo(Proveedor, { foreignKey: 'IdProveedor', as: 'proveedor' });
+  }
+  if (Compra && models.CuentaCorrienteProveedor) {
+    Compra.hasMany(models.CuentaCorrienteProveedor, { foreignKey: 'IdCompra', as: 'movimientosCuentaCorriente' });
+    models.CuentaCorrienteProveedor.belongsTo(Compra, { foreignKey: 'IdCompra', as: 'compra' });
+  }
+  if (PagoCompra && models.CuentaCorrienteProveedor) {
+    PagoCompra.hasOne(models.CuentaCorrienteProveedor, { foreignKey: 'IdPagoCompra', as: 'movimientoCuentaCorriente' });
+    models.CuentaCorrienteProveedor.belongsTo(PagoCompra, { foreignKey: 'IdPagoCompra', as: 'pagoCompra' });
+  }
+
   // Inventario
   if (MarcaArticulo && ModeloArticulo) {
     MarcaArticulo.hasMany(ModeloArticulo, { foreignKey: 'IdMarcaArticulo', as: 'modelos' });
@@ -312,6 +326,20 @@ export const setupAssociations = (models) => {
     models.Transferencia.belongsTo(models.MovimientoStock, { foreignKey: 'IdMovimientoSalida', as: 'movimientoSalida' });
     models.MovimientoStock.hasOne(models.Transferencia, { foreignKey: 'IdMovimientoIngreso', as: 'transferenciaIngreso' });
     models.Transferencia.belongsTo(models.MovimientoStock, { foreignKey: 'IdMovimientoIngreso', as: 'movimientoIngreso' });
+  }
+
+  // Precios
+  if (CategoriaArticulo && models.ListaPrecio) {
+    CategoriaArticulo.hasMany(models.ListaPrecio, { foreignKey: 'IdCategoriaProducto', as: 'listasPrecio' });
+    models.ListaPrecio.belongsTo(CategoriaArticulo, { foreignKey: 'IdCategoriaProducto', as: 'categoria' });
+  }
+  if (Inventario && models.PrecioArticulo) {
+    Inventario.hasMany(models.PrecioArticulo, { foreignKey: 'IdInventario', as: 'precios' });
+    models.PrecioArticulo.belongsTo(Inventario, { foreignKey: 'IdInventario', as: 'inventario' });
+  }
+  if (models.ListaPrecio && models.PrecioArticulo) {
+    models.ListaPrecio.hasMany(models.PrecioArticulo, { foreignKey: 'IdListaPrecio', as: 'precios' });
+    models.PrecioArticulo.belongsTo(models.ListaPrecio, { foreignKey: 'IdListaPrecio', as: 'listaPrecio' });
   }
 
   // Caja

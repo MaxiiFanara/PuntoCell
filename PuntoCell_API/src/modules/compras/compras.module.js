@@ -24,18 +24,26 @@ import PagoCompraDAO from './pago-compra/pago-compra.dao.js';
 import PagoCompraService from './pago-compra/pago-compra.service.js';
 import PagoCompraController from './pago-compra/pago-compra.controller.js';
 
-export function createComprasModule() {
+import CuentaCorrienteProveedorDAO from './cuenta-corriente-proveedor/cuenta-corriente-proveedor.dao.js';
+import CuentaCorrienteProveedorService from './cuenta-corriente-proveedor/cuenta-corriente-proveedor.service.js';
+import CuentaCorrienteProveedorController from './cuenta-corriente-proveedor/cuenta-corriente-proveedor.controller.js';
+
+export function createComprasModule(bitacoraService = null) {
   const proveedorDAO = new ProveedorDAO(models.Proveedor);
   const proveedorService = new ProveedorService(proveedorDAO);
   const proveedorController = new ProveedorController(proveedorService);
 
-  const compraDAO = new CompraDAO(models.Compra);
-  const compraService = new CompraService(compraDAO);
-  const compraController = new CompraController(compraService);
+  const cuentaCorrienteProveedorDAO = new CuentaCorrienteProveedorDAO(models.CuentaCorrienteProveedor);
+  const cuentaCorrienteProveedorService = new CuentaCorrienteProveedorService(cuentaCorrienteProveedorDAO);
+  const cuentaCorrienteProveedorController = new CuentaCorrienteProveedorController(cuentaCorrienteProveedorService);
 
   const detalleCompraDAO = new DetalleCompraDAO(models.DetalleCompra);
   const detalleCompraService = new DetalleCompraService(detalleCompraDAO);
   const detalleCompraController = new DetalleCompraController(detalleCompraService);
+
+  const compraDAO = new CompraDAO(models.Compra);
+  const compraService = new CompraService(compraDAO, detalleCompraDAO, cuentaCorrienteProveedorService, bitacoraService);
+  const compraController = new CompraController(compraService);
 
   const detalleDevolucionCompraDAO = new DetalleDevolucionCompraDAO(models.DetalleDevolucionCompra);
   const detalleDevolucionCompraService = new DetalleDevolucionCompraService(detalleDevolucionCompraDAO);
@@ -46,7 +54,7 @@ export function createComprasModule() {
   const devolucionCompraController = new DevolucionCompraController(devolucionCompraService);
 
   const pagoCompraDAO = new PagoCompraDAO(models.PagoCompra);
-  const pagoCompraService = new PagoCompraService(pagoCompraDAO);
+  const pagoCompraService = new PagoCompraService(pagoCompraDAO, cuentaCorrienteProveedorService);
   const pagoCompraController = new PagoCompraController(pagoCompraService);
 
   return {
@@ -55,6 +63,7 @@ export function createComprasModule() {
     detalleCompraController,
     detalleDevolucionCompraController,
     devolucionCompraController,
-    pagoCompraController
+    pagoCompraController,
+    cuentaCorrienteProveedorController
   };
 }

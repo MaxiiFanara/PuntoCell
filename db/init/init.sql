@@ -196,14 +196,23 @@ CREATE TABLE Producto (
 GO
 
 CREATE TABLE Proveedor ( -- Quienes nos suministran el stock de artículos o repuestos.
-    Id          INT           PRIMARY KEY IDENTITY, 
-    Nombre      NVARCHAR(100) NOT NULL UNIQUE, 
-    Email       NVARCHAR(100) NULL UNIQUE, 
-    Celular     NVARCHAR(20)  NULL, 
-    Activo      BIT           NOT NULL DEFAULT 1, 
+    Id          INT           PRIMARY KEY IDENTITY,
+    Nombre      NVARCHAR(100) NOT NULL UNIQUE,
+    Email       NVARCHAR(100) NULL, -- UNIQUE real vía índice filtrado más abajo (ver UQ_Proveedor_Email)
+    Celular     NVARCHAR(20)  NULL, -- UNIQUE real vía índice filtrado más abajo (ver UQ_Proveedor_Celular)
+    Activo      BIT           NOT NULL DEFAULT 1,
     IdLocalidad INT           NULL,
-    CONSTRAINT FK_Proveedor_Localidad FOREIGN KEY (IdLocalidad) REFERENCES Localidad (Id) 
+    CONSTRAINT FK_Proveedor_Localidad FOREIGN KEY (IdLocalidad) REFERENCES Localidad (Id)
 );
+GO
+
+-- Índices únicos FILTRADOS sobre Email/Celular: mismo motivo que UQ_Inventario_IMEI —
+-- un UNIQUE de columna estándar en SQL Server solo permite UN NULL en toda la tabla,
+-- así que un segundo proveedor sin email (o sin celular) rompería como si fuera un
+-- duplicado. Filtrando a "IS NOT NULL" solo se exige unicidad entre los valores reales.
+SET QUOTED_IDENTIFIER ON;
+CREATE UNIQUE INDEX UQ_Proveedor_Email ON Proveedor(Email) WHERE Email IS NOT NULL;
+CREATE UNIQUE INDEX UQ_Proveedor_Celular ON Proveedor(Celular) WHERE Celular IS NOT NULL;
 GO
 
 CREATE TABLE Color ( -- Catálogo de colores para las variantes de los productos.
@@ -261,8 +270,7 @@ CREATE TABLE Inventario ( -- Representa la cantidad FÍSICA actual de un product
     CONSTRAINT FK_Inventario_Sucursal           FOREIGN KEY (IdSucursal)         REFERENCES Sucursal (Id), 
     CONSTRAINT FK_Inventario_Producto           FOREIGN KEY (IdProducto)         REFERENCES Producto (Id),
     CONSTRAINT FK_Inventario_Estado             FOREIGN KEY (IdEstadoInventario) REFERENCES EstadoInventario (Id),
-    CONSTRAINT FK_Inventario_Proveedor          FOREIGN KEY (IdProveedor)        REFERENCES Proveedor (Id),
-    CONSTRAINT UQ_Inventario_SucursalProducto   UNIQUE (IdSucursal, IdProducto, IdEstadoInventario) -- Ahora la unicidad es por Sucursal + Artículo + ESTADO. Permite tener "5 iPhone 13 Nuevos" y "2 iPhone 13 Defectuosos" sin que la base tire error de duplicado.
+    CONSTRAINT FK_Inventario_Proveedor          FOREIGN KEY (IdProveedor)        REFERENCES Proveedor (Id)
 );
 GO
 
@@ -271,6 +279,15 @@ GO
 -- estándar no sirve acá: SQL Server trata todos los NULL como iguales entre sí en un índice
 -- único, así que solo dejaría cargar UN producto sin IMEI en todo el inventario.
 CREATE UNIQUE INDEX UQ_Inventario_IMEI ON Inventario(IMEI) WHERE IMEI IS NOT NULL;
+GO
+
+-- Índice único FILTRADO sobre Sucursal+Producto+Estado: un producto NO serializado
+-- (IMEI NULL) tiene una sola fila de stock por sucursal/estado (se incrementa, no se
+-- duplica). Filtrado a IMEI IS NULL para no chocar con productos serializados, donde
+-- cada unidad es su propia fila (identificada por IMEI, ver índice de arriba) y puede
+-- haber varias filas para el mismo Sucursal+Producto+Estado.
+SET QUOTED_IDENTIFIER ON;
+CREATE UNIQUE INDEX UQ_Inventario_SucursalProducto ON Inventario(IdSucursal, IdProducto, IdEstadoInventario) WHERE IMEI IS NULL;
 GO
 
 CREATE TABLE ListaPrecio ( -- Regla de formación de precio por categoría de producto (Ej: "Mayorista Smartphones"). La lista Id=1 es el fallback default cuando un producto no tiene lista activa para su categoría.
@@ -335,15 +352,17 @@ GO
 -----------------------------
 
 CREATE TABLE Compra ( -- Cabecera de la factura de compra
-    Id                INT            PRIMARY KEY IDENTITY, 
-    Fecha             DATETIME2      NOT NULL DEFAULT SYSDATETIME(), 
+    Id                INT            PRIMARY KEY IDENTITY,
+    Fecha             DATETIME2      NOT NULL DEFAULT SYSDATETIME(),
     TotalCosto        DECIMAL(18, 2) NOT NULL CHECK(TotalCosto >= 0), -- Cuánto costó en total el pedido
+    EstadoPago        SMALLINT       NOT NULL DEFAULT 1 CHECK (EstadoPago IN (1, 2, 3)), -- 1=Pendiente, 2=Parcial, 3=Pagado (lo calcula el backend, ver compra.service.js)
+    SaldoPendiente    DECIMAL(18, 2) NOT NULL DEFAULT 0 CHECK (SaldoPendiente >= 0), -- TotalCosto - TotalPagado, nunca negativo
     IdProveedor       INT            NOT NULL, -- A quién le compramos
     IdSucursalDestino INT            NOT NULL, -- Dónde entra la mercadería
     IdEmpleado        INT            NOT NULL, -- Quién cargó la compra
-    CONSTRAINT FK_Compra_Proveedor FOREIGN KEY (IdProveedor)       REFERENCES Proveedor (Id), 
-    CONSTRAINT FK_Compra_Sucursal  FOREIGN KEY (IdSucursalDestino) REFERENCES Sucursal (Id), 
-    CONSTRAINT FK_Compra_Empleado  FOREIGN KEY (IdEmpleado)        REFERENCES Usuario (Id) 
+    CONSTRAINT FK_Compra_Proveedor FOREIGN KEY (IdProveedor)       REFERENCES Proveedor (Id),
+    CONSTRAINT FK_Compra_Sucursal  FOREIGN KEY (IdSucursalDestino) REFERENCES Sucursal (Id),
+    CONSTRAINT FK_Compra_Empleado  FOREIGN KEY (IdEmpleado)        REFERENCES Usuario (Id)
 );
 GO
 
@@ -396,6 +415,22 @@ CREATE TABLE DetalleDevolucionCompra ( -- Los artículos exactos que mandamos de
     CONSTRAINT FK_DetDevCompra_Inventario     FOREIGN KEY (IdInventario)       REFERENCES Inventario (Id),
     CONSTRAINT FK_DetDevCompra_MovStock       FOREIGN KEY (IdMovimientoStock)  REFERENCES MovimientoStock (Id),
     CONSTRAINT UQ_DetalleDevCompra_Inventario UNIQUE (IdDevolucionCompra, IdInventario)
+);
+GO
+
+CREATE TABLE CuentaCorrienteProveedor ( -- Historial cronológico de deuda con cada proveedor (Debe = nueva deuda, Haber = pago que la cancela).
+    Id              INT            PRIMARY KEY IDENTITY,
+    IdProveedor     INT            NOT NULL,
+    FechaMovimiento DATETIME2      NOT NULL DEFAULT SYSDATETIME(),
+    Concepto        NVARCHAR(100)  NOT NULL, -- Valores fijos que arma el backend (ej. "Factura de Compra", "Pago a cuenta/total"), nunca texto libre del frontend.
+    Debe            DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    Haber           DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    SaldoAcumulado  DECIMAL(18, 2) NOT NULL, -- Saldo del proveedor después de aplicar este movimiento; lo calcula el backend, nunca se recibe del frontend.
+    IdCompra        INT            NULL,
+    IdPagoCompra    INT            NULL,
+    CONSTRAINT FK_CCProv_Proveedor  FOREIGN KEY (IdProveedor)  REFERENCES Proveedor (Id),
+    CONSTRAINT FK_CCProv_Compra     FOREIGN KEY (IdCompra)     REFERENCES Compra (Id),
+    CONSTRAINT FK_CCProv_PagoCompra FOREIGN KEY (IdPagoCompra) REFERENCES PagoCompra (Id)
 );
 GO
 
@@ -1188,19 +1223,25 @@ GO
 
 --- MÓDULO COMPRAS ---
 
--- 28. Compra (Cabecera de la factura al proveedor)
-INSERT INTO Compra (TotalCosto, IdProveedor, IdSucursalDestino, IdEmpleado) VALUES 
-(4000000.00, 2, 1, 3);
+-- 28. Compra (Cabecera de la factura al proveedor) — pagada al contado, por eso EstadoPago=3 y SaldoPendiente=0
+INSERT INTO Compra (TotalCosto, EstadoPago, SaldoPendiente, IdProveedor, IdSucursalDestino, IdEmpleado) VALUES
+(4000000.00, 3, 0.00, 2, 1, 3);
 GO
 
 -- 29. Detalle Compra
-INSERT INTO DetalleCompra (Cantidad, PrecioCostoUnitario, IdCompra, IdInventario) VALUES 
+INSERT INTO DetalleCompra (Cantidad, PrecioCostoUnitario, IdCompra, IdInventario) VALUES
 (5, 800000.00, 1, 1);
 GO
 
 -- 30. Pago Compra (Pagamos al proveedor por Transferencia - MetodoPago 3)
-INSERT INTO PagoCompra (Monto, IdCompra, IdMetodoPago, IdTurnoCaja) VALUES 
+INSERT INTO PagoCompra (Monto, IdCompra, IdMetodoPago, IdTurnoCaja) VALUES
 (4000000.00, 1, 3, 1);
+GO
+
+-- 30b. Cuenta corriente del proveedor: la compra genera la deuda completa (Debe) y el pago la cancela (Haber) en el mismo momento.
+INSERT INTO CuentaCorrienteProveedor (IdProveedor, Concepto, Debe, Haber, SaldoAcumulado, IdCompra, IdPagoCompra) VALUES
+(2, 'Factura de Compra', 4000000.00, 0.00, 4000000.00, 1, NULL),
+(2, 'Pago a cuenta/total', 0.00, 4000000.00, 0.00, 1, 1);
 GO
 
 

@@ -24,6 +24,7 @@ import detalleCompraModel from '../modules/compras/detalle-compra/detalle-compra
 import detalleDevolucionCompraModel from '../modules/compras/detalle-devolucion-compra/detalle-devolucion-compra.model.js';
 import devolucionCompraModel from '../modules/compras/devolucion-compra/devolucion-compra.model.js';
 import pagoCompraModel from '../modules/compras/pago-compra/pago-compra.model.js';
+import cuentaCorrienteProveedorModel from '../modules/compras/cuenta-corriente-proveedor/cuenta-corriente-proveedor.model.js';
 import bateriaModel from '../modules/inventario/bateria/bateria.model.js';
 import colorModel from '../modules/inventario/color/color.model.js';
 import estadoInventarioModel from '../modules/inventario/estado-inventario/estado-inventario.model.js';
@@ -94,6 +95,8 @@ export const models = {
   DetalleDevolucionCompra: detalleDevolucionCompraModel(sequelize),
   DevolucionCompra: devolucionCompraModel(sequelize),
   PagoCompra: pagoCompraModel(sequelize)
+  ,
+  CuentaCorrienteProveedor: cuentaCorrienteProveedorModel(sequelize)
   ,
   Bateria: bateriaModel(sequelize)
   ,

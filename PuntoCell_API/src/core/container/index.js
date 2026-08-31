@@ -20,7 +20,7 @@ export function createContainer() {
   return {
     usuariosEmpresa: createUsuariosEmpresaModule(usuarioDAO, auditoriaModule.bitacoraService),
     reparaciones: createReparacionesModule(usuarioDAO),
-    compras: createComprasModule(),
+    compras: createComprasModule(auditoriaModule.bitacoraService),
     auth: createAuthModule(usuarioDAO),
     inventario: createInventarioModule(auditoriaModule.bitacoraService),
     precios: createPreciosModule(auditoriaModule.bitacoraService),

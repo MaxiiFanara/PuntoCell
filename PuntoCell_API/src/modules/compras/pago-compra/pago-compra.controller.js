@@ -30,21 +30,4 @@ export default class PagoCompraController {
     }
   };
 
-  update = async (req, res, next) => {
-    try {
-      const data = await this.service.update(req.params.id, req.body);
-      return res.status(200).json({ status: 'success', data });
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  delete = async (req, res, next) => {
-    try {
-      await this.service.delete(req.params.id);
-      return res.status(200).json({ status: 'success', data: { message: 'Pago de compra eliminado exitosamente' } });
-    } catch (err) {
-      next(err);
-    }
-  };
 }

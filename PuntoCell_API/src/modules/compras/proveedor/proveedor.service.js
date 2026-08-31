@@ -18,22 +18,35 @@ export default class ProveedorService {
     return proveedor;
   }
 
+  // Nombre, Email y Celular son únicos — se valida acá (mensaje de negocio limpio) en
+  // vez de depender del índice único de la base, que tiraría un error crudo de SQL.
+  async _validarDuplicados(data, { excluirId } = {}) {
+    const campos = [
+      ['Nombre', 'nombre'],
+      ['Email', 'email'],
+      ['Celular', 'celular']
+    ];
+
+    for (const [campo, etiqueta] of campos) {
+      if (!data[campo]) continue;
+      const existe = await this.proveedorDAO.findOne({ where: { [campo]: data[campo] } });
+      if (existe && (excluirId === undefined || existe.Id !== excluirId)) {
+        throw new Error(`Ya existe un proveedor con ese ${etiqueta}`);
+      }
+    }
+  }
+
   async create(data) {
-    const existe = await this.proveedorDAO.findOne({ where: { Nombre: data.Nombre } });
-    if (existe) throw new Error('Ya existe un proveedor con ese nombre');
-    
+    await this._validarDuplicados(data);
     return await this.proveedorDAO.create(data);
   }
 
   async update(id, data) {
     const proveedor = await this.proveedorDAO.getById(id);
     if (!proveedor) throw new Error('Proveedor no encontrado');
-    
-    if (data.Nombre) {
-      const existe = await this.proveedorDAO.findOne({ where: { Nombre: data.Nombre } });
-      if (existe && existe.Id !== parseInt(id)) throw new Error('Ya existe un proveedor con ese nombre');
-    }
-    
+
+    await this._validarDuplicados(data, { excluirId: parseInt(id) });
+
     return await this.proveedorDAO.update(id, data);
   }
 
