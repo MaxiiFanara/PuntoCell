@@ -5,6 +5,9 @@ import LogoutIcon from '@mui/icons-material/Logout'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useVenta } from '../../features/punto-venta/context/VentaContext'
+import { useDolarOficial } from '../../hooks/useDolarOficial'
+
+const fmtPeso = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 
 const ROL_CONFIG = {
   1: { label: 'Admin',     color: '#f59e0b', bg: '#fffbeb' },
@@ -42,6 +45,7 @@ const NavLink = ({ label, active, onClick }) => (
 const Navbar = () => {
   const { usuario, cerrarSesion } = useAuth()
   const { dolarGlobal, actualizarCotizacion } = useVenta()
+  const { dato: dolarOficial } = useDolarOficial()
   const navigate = useNavigate()
   const location = useLocation()
   const rol = ROL_CONFIG[usuario?.rol] ?? ROL_CONFIG[3]
@@ -91,6 +95,27 @@ const Navbar = () => {
         
 
         <Box sx={{ flex: 1 }} />
+
+        {/* Dólar oficial (referencia, dolarapi.com) — solo lectura, no toca la cotización operativa */}
+        {dolarOficial && (
+          <Tooltip title={`Dólar oficial de referencia (dolarapi.com)${dolarOficial.fechaActualizacion ? ` · actualizado ${new Date(dolarOficial.fechaActualizacion).toLocaleString('es-AR')}` : ''}`}>
+            <Box sx={{
+              display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1,
+              px: 1.5, py: 0.6, borderRadius: 2,
+              bgcolor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+              whiteSpace: 'nowrap',
+            }}>
+              <Typography sx={{ color: '#94a3b8', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                Oficial
+              </Typography>
+              <Typography sx={{ color: '#cbd5e1', fontSize: '0.78rem', fontWeight: 600 }}>
+                Compra <Box component="span" sx={{ color: '#f1f5f9', fontWeight: 800 }}>${fmtPeso(dolarOficial.compra)}</Box>
+                {'  ·  '}
+                Venta <Box component="span" sx={{ color: '#f1f5f9', fontWeight: 800 }}>${fmtPeso(dolarOficial.venta)}</Box>
+              </Typography>
+            </Box>
+          </Tooltip>
+        )}
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography sx={{ color: '#f1f5f9', fontWeight: 700, fontSize: '0.85rem', letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
