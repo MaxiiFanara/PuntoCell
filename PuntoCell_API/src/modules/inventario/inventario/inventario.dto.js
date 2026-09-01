@@ -14,7 +14,9 @@ export const inventarioSchema = Joi.object({
   IdColor: Joi.number().integer().optional().allow(null),
   IdMemoria: Joi.number().integer().optional().allow(null),
   IdBateria: Joi.number().integer().optional().allow(null),
-  IdAlmacenamiento: Joi.number().integer().optional().allow(null)
+  IdAlmacenamiento: Joi.number().integer().optional().allow(null),
+  // No es columna de Inventario: si viene, el service genera el PrecioArticulo por categoría.
+  CostoBase: Joi.number().precision(2).min(0).optional().allow(null)
 });
 
 export const inventarioUpdateSchema = Joi.object({

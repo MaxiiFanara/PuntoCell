@@ -40,6 +40,24 @@ export default class AuthController {
     }
   };
 
+  // GET /auth/me — resuelve el usuario desde la cookie firmada (ruta pública).
+  // Lo usa el front al montar para recuperar la sesión si perdió el perfil local.
+  me = async (req, res, next) => {
+    try {
+      const payload = verifyToken(req.signedCookies?.jwt_punto_cell || '');
+      if (!payload || payload.type !== 'session') {
+        return res.status(401).json({ status: 'error', message: 'Sin sesión activa' });
+      }
+      const user = await this.service.getUsuarioActual(payload.id);
+      if (!user) {
+        return res.status(401).json({ status: 'error', message: 'Sesión inválida' });
+      }
+      return res.status(200).json({ status: 'success', data: { user } });
+    } catch (err) {
+      next(err);
+    }
+  };
+
   logout = async (req, res) => {
     // La ruta es pública (no pasa por requireAuth): resolvemos el usuario desde la
     // cookie firmada para poder auditar el cierre de sesión.

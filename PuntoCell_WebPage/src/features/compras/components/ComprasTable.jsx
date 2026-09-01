@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Card, Box, TextField, MenuItem, Button, Table, TableHead, TableBody, TableRow, TableCell, Chip } from '@mui/material';
+import { usePaginacion } from '../../../hooks/usePaginacion';
+import PaginadorTabla from '../../../components/PaginadorTabla';
 
 const fmt = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -21,6 +23,8 @@ export default function ComprasTable({ compras, onVerDetalle }) {
       (estado === 'adeudadas' && c.saldo > 0);
     return okTexto && okEstado;
   }), [compras, busqueda, estado]);
+
+  const { pagina, setPagina, totalPaginas, itemsPagina, hayPaginacion } = usePaginacion(filtradas);
 
   return (
     <Card sx={{ borderRadius: 2, boxShadow: '0 2px 8px -3px rgba(15,23,41,.08)' }}>
@@ -54,7 +58,7 @@ export default function ComprasTable({ compras, onVerDetalle }) {
           <TableBody>
             {filtradas.length === 0 ? (
               <TableRow><TableCell colSpan={7} align="center" sx={{ py: 4, color: '#8695ad' }}>Sin compras registradas.</TableCell></TableRow>
-            ) : filtradas.map((c) => (
+            ) : itemsPagina.map((c) => (
               <TableRow key={c.id} hover>
                 <TableCell sx={{ fontFamily: 'monospace' }}>#{c.id}</TableCell>
                 <TableCell sx={{ fontFamily: 'monospace' }}>{c.fecha}</TableCell>
@@ -72,6 +76,7 @@ export default function ComprasTable({ compras, onVerDetalle }) {
           </TableBody>
         </Table>
       </Box>
+      <PaginadorTabla pagina={pagina} totalPaginas={totalPaginas} onChange={setPagina} mostrar={hayPaginacion} />
     </Card>
   );
 }

@@ -11,6 +11,7 @@ export default (container) => {
 console.log('forgotPassword:', typeof authController.forgotPassword);
 
   router.post('/login',preventDoubleLogin,validateFields(loginSchema), authController.login);
+  router.get('/me', authController.me);
   router.post('/logout', authController.logout);
   router.post('/forgot-password', validateFields(forgotPasswordSchema), authController.forgotPassword);
   router.post('/reset-password', validateFields(resetPasswordSchema), authController.resetPassword);

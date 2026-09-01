@@ -319,7 +319,9 @@ const HistorialVentas = () => {
                 : `Cliente #${item.IdCliente ?? '?'}`;
               const fecha = item.Fecha ? new Date(item.Fecha).toLocaleString('es-AR') : '-';
               const totalUsd = Number(item.TotalVenta ?? 0);
-              const totalArsActual = totalUsd * cotizacionActual;
+              // El valor en pesos de una venta pasada es el que se guardó al cobrarla,
+              // no se recalcula con el dólar de hoy.
+              const totalArs = Number(item.TotalVentaARS) || (totalUsd * cotizacionActual);
               return (
                 <TableRow key={item.Id} hover>
                   <TableCell sx={{ fontWeight: 'bold', color: 'text.primary' }}>#{item.Id}</TableCell>
@@ -329,9 +331,9 @@ const HistorialVentas = () => {
                     <Typography sx={{ fontWeight: 'bold', color: 'success.main', fontSize: '0.9rem', lineHeight: 1.2 }}>
                       U$S {totalUsd.toLocaleString('en-US')}
                     </Typography>
-                    {cotizacionActual > 0 && (
+                    {totalArs > 0 && (
                       <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
-                        ≈ $ {totalArsActual.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+                        $ {totalArs.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
                       </Typography>
                     )}
                   </TableCell>

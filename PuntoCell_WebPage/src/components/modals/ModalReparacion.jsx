@@ -32,6 +32,7 @@ import {
   getPagosOrden, enviarComprobanteEmail, getMetodosPagoReparacion,
 } from '../../services/api'
 import ModalRegistroFalla from './ModalRegistroFalla'
+import { soloImei, esImeiValido } from '../../utils/validators'
 
 // Transiciones válidas por estado actual
 const TRANS = { 1: [1, 2, 5], 2: [2, 3, 5], 3: [3, 4], 4: [4], 5: [5] }
@@ -380,7 +381,7 @@ const ModalReparacion = ({
       if (!form.idTipo)        return 'Seleccioná el tipo de dispositivo.'
       if (!form.idMarca)       return 'Seleccioná la marca.'
       if (!form.idModelo)      return 'Seleccioná el modelo.'
-      if (!form.imei)          return 'El IMEI del dispositivo es obligatorio.'
+      if (!esImeiValido(form.imei)) return 'El IMEI del dispositivo es obligatorio y debe tener exactamente 15 dígitos.'
     }
     if (form.fallasAgregadas.length === 0) return 'Agregá al menos una falla.'
     if (form.tienePassword && !form.passwordDispositivo) return 'Ingresá la contraseña del dispositivo.'
@@ -709,8 +710,11 @@ const ModalReparacion = ({
                       </IconButton>
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField fullWidth label="IMEI *" value={form.imei} onChange={setSoloDigitos('imei', 15)}
-                        placeholder="Ej: 356938035643809" inputProps={{ maxLength: 15, inputMode: 'numeric' }} />
+                      <TextField fullWidth label="IMEI *" value={form.imei}
+                        onChange={(e) => setForm((f) => ({ ...f, imei: soloImei(e.target.value) }))}
+                        placeholder="Ej: 356938035643809" inputProps={{ maxLength: 15, inputMode: 'numeric' }}
+                        error={form.imei.length > 0 && !esImeiValido(form.imei)}
+                        helperText={`${form.imei.length}/15 dígitos`} />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <TextField fullWidth label="Observaciones del dispositivo" value={form.observacionesDispositivo}
@@ -820,6 +824,7 @@ const ModalReparacion = ({
                       <Autocomplete
                         options={inventarioParaAutocompletar}
                         getOptionLabel={(o) => o.nombre}
+                        getOptionDisabled={(o) => o.sinPrecio}
                         inputValue={repuestoInput}
                         onInputChange={(_, v) => setRepuestoInput(v)}
                         onChange={(_, v) => agregarRepuesto(v)}
@@ -842,9 +847,11 @@ const ModalReparacion = ({
                           )
                         }}
                         noOptionsText={
-                          repuestoInput.trim().length < 2
-                            ? `Sin sugerencias para ${ordenEditar?.MarcaDispositivo ?? 'este dispositivo'} — escribí para buscar`
-                            : 'Sin resultados'
+                          inventarioDisponible.length === 0
+                            ? 'No hay repuestos con stock. Cargá repuestos desde Compras (clasificación "Repuesto").'
+                            : repuestoInput.trim().length < 2
+                              ? `Sin sugerencias para ${ordenEditar?.MarcaDispositivo ?? 'este dispositivo'} — escribí para buscar`
+                              : 'Sin resultados'
                         }
                         renderOption={(props, option) => (
                           <Box component="li" {...props} key={option.id}
@@ -854,8 +861,8 @@ const ModalReparacion = ({
                               <Typography sx={{ fontSize: '0.75rem', color: '#64748b' }}>{option.marca} · {option.modelo}</Typography>
                             </Box>
                             <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                              <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', color: '#0f766e' }}>
-                                ${option.precio.toLocaleString('es-AR')}
+                              <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', color: option.sinPrecio ? '#dc2626' : '#0f766e' }}>
+                                {option.sinPrecio ? 'sin precio' : `$${option.precio.toLocaleString('es-AR')}`}
                               </Typography>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
                                 <InventoryIcon sx={{ fontSize: 11, color: option.stock <= 3 ? '#dc2626' : '#64748b' }} />

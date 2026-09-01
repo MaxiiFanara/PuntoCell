@@ -5,6 +5,8 @@ import {
   DialogContentText, TextField, DialogActions, Box, Checkbox, FormControlLabel, Tooltip
 } from '@mui/material';
 import { Edit, Delete, Add, Shield, WarningAmber } from '@mui/icons-material';
+import { usePaginacion } from '../../../../hooks/usePaginacion';
+import PaginadorTabla from '../../../../components/PaginadorTabla';
 
 const RolesScreen = () => {
   // Mock local, no conectado al backend (existe /usuarios/roles con CRUD real)
@@ -78,6 +80,8 @@ const RolesScreen = () => {
   // Lista de permisos disponibles en el sistema
   const permisosDisponibles = ['Ventas', 'Inventario', 'Usuarios', 'Reparaciones', 'Configuración', 'Ver Stock'];
 
+  const { pagina, setPagina, totalPaginas, itemsPagina, hayPaginacion } = usePaginacion(roles);
+
   return (
     <Box className="animate-fade-in">
       {/* HEADER */}
@@ -116,7 +120,7 @@ const RolesScreen = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {roles.map((row) => (
+            {itemsPagina.map((row) => (
               <TableRow key={row.id} hover>
                 <TableCell sx={{ fontFamily: 'monospace', color: '#94a3b8' }}>#{row.id}</TableCell>
                 <TableCell sx={{ fontWeight: 'bold', color: '#334155' }}>{row.name}</TableCell>
@@ -159,6 +163,7 @@ const RolesScreen = () => {
             ))}
           </TableBody>
         </Table>
+        <PaginadorTabla pagina={pagina} totalPaginas={totalPaginas} onChange={setPagina} mostrar={hayPaginacion} />
       </TableContainer>
 
       {/* Modal crear/editar */}

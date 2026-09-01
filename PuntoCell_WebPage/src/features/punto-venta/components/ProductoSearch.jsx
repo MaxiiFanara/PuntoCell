@@ -37,16 +37,20 @@ export const ProductoSearch = ({ inventario = [], onTerminoChange }) => {
     const nombre = item.articulo?.Nombre || 'Sin nombre';
     const precio = precioDe(item);
     const stock = item.Stock ?? 0;
-    const idUnico = item.Id || Math.random();
+    const serial = !!(item.articulo?.EsSerializado || item.IMEI);
+    const detalle = serial
+      ? [item.IMEI ? `IMEI ${item.IMEI}` : null, item.estado?.Nombre, item.color?.Nombre, item.memoria?.Capacidad].filter(Boolean).join(' · ')
+      : `Stock: ${stock}`;
 
     return {
-      label: `${nombre} - U$S ${precio} (Stock: ${stock})`,
+      label: `${nombre} — U$S ${precio}${serial ? (item.IMEI ? ` (IMEI ${item.IMEI})` : '') : ` (Stock: ${stock})`}`,
       value: nombre,
       datos: item,
       nombreLimpio: nombre,
       precioLimpio: precio,
-      stockLimpio: stock,
-      id: idUnico
+      detalle,
+      serial,
+      id: item.Id ?? Math.random(),
     };
   });
 
@@ -99,10 +103,10 @@ export const ProductoSearch = ({ inventario = [], onTerminoChange }) => {
             <li {...props} key={option.id}>
               <Box>
                 <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                  {option.nombreLimpio}
+                  {option.nombreLimpio}{option.serial && ' 📱'}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  U$S {option.precioLimpio} | Stock: {option.stockLimpio}
+                  U$S {option.precioLimpio} · {option.detalle}
                 </Typography>
               </Box>
             </li>

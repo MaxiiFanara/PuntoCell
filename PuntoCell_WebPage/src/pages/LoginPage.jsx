@@ -10,7 +10,7 @@ import {
   PersonOutline, LightMode, DarkMode, CheckCircleOutline,
 } from '@mui/icons-material'
 import { useAuth } from '../context/AuthContext'
-import { loginUsuario } from '../services/api'
+import { loginUsuario, getSesionActual, mapUsuario } from '../services/api'
 
 // ─── Temas del login ──────────────────────────────────────────────────────────
 const lightTheme = createTheme({
@@ -98,7 +98,7 @@ export default function LoginPage() {
   // Si ya hay una sesión activa (cookie + estado local vigentes), no tiene sentido
   // mostrar el form de nuevo — evita el 400 "Ya tienes una sesión activa" del backend.
   useEffect(() => {
-    if (usuario) navigate('/app', { replace: true })
+    if (usuario) navigate('/app/punto-venta', { replace: true })
   }, [usuario, navigate])
 
   const [darkMode,      setDarkMode]      = useState(false)
@@ -122,7 +122,7 @@ export default function LoginPage() {
   // Navega al sistema tras la animación de éxito
   useEffect(() => {
     if (!success) return
-    const id = setTimeout(() => navigate('/app'), 1500)
+    const id = setTimeout(() => navigate('/app/punto-venta'), 1500)
     return () => clearTimeout(id)
   }, [success, navigate])
 
@@ -150,15 +150,15 @@ export default function LoginPage() {
     setLoading(true); setError('')
     try {
       const res = await loginUsuario(form.usuario, form.password)
-      const u = res.data.user
-      login({
-        userID:   u.Id,
-        user:     `${u.Nombre ?? ''} ${u.Apellido ?? ''}`.trim() || u.UsuarioEmpleado,
-        rol:      u.IdRol,
-        sucursal: u.IdSucursal,
-      })
+      login(mapUsuario(res.data.user))
       setSuccess(true)
     } catch (err) {
+      // El backend rechaza el login si la cookie de sesión sigue viva. En ese caso
+      // recuperamos el perfil con /auth/me y entramos igual (en vez de trabar al usuario).
+      if (err.status === 400 && /sesión activa/i.test(err.message || '')) {
+        const u = await getSesionActual()
+        if (u) { login(mapUsuario(u)); setSuccess(true); return }
+      }
       // err.status presente = el backend respondió (credenciales, validación, sesión activa, etc.)
       // sin err.status = falló el fetch en sí (servidor caído / sin red)
       if (err.status) {

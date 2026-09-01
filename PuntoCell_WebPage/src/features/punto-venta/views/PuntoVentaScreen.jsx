@@ -77,12 +77,21 @@ const PuntoVentaContent = () => {
 
   const ejecutarVentaFinal = async (payloadVenta) => {
     try {
+      // La bonificación (monto + motivo) no tiene columna propia en Venta: se guarda como
+      // una línea con formato fijo al inicio de Observaciones y el ticket la parsea.
+      const bonif = Number(payloadVenta.Bonificacion) || 0;
+      const obsUsuario = payloadVenta.ObservacionesVenta || "";
+      const observaciones = (bonif > 0
+        ? `[BONIF] ${bonif.toFixed(2)}|${(payloadVenta.MotivoBonificacion || '').replace(/\|/g, ' ').slice(0, 100)}\n${obsUsuario}`.trim()
+        : obsUsuario
+      ).slice(0, 255);
+
       const ventaLimpia = {
         Fecha: payloadVenta.Fecha,
         TotalVenta: payloadVenta.TotalVenta,
         TotalVentaARS: payloadVenta.TotalVenta * (datosConfig?.valorDolar || 1),
         TotalCosto: Number((totalCosto || 0).toFixed(2)),
-        Observaciones: payloadVenta.ObservacionesVenta || "",
+        Observaciones: observaciones,
         EstadoPago: true,
         IdTurnoCaja: datosConfig?.idTurnoCaja,
         IdCliente: payloadVenta.IdCliente,

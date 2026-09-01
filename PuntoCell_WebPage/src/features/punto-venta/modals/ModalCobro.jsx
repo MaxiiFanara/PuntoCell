@@ -12,6 +12,7 @@ import AddIcon from '@mui/icons-material/Add';
 import { useVenta } from '../context/VentaContext';
 import InventarioForm from '../../inventario/components/InventarioForm';
 import { inventarioService } from '../../../services/inventarioServices';
+import { fetchApi } from '../../../services/api';
 import { soloDecimalNoNegativo } from '../../../utils/validators';
 
 const formatArs = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
@@ -26,7 +27,7 @@ const sumarMeses = (fechaISO, meses) => {
 export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
   const {
     carrito, totalVenta, pagos, setPagos, dolarGlobal,
-    cliente, idSucursal, datosConfig
+    cliente, setCliente, idSucursal, datosConfig
   } = useVenta();
 
   // String (no number) para no perder el punto decimal mientras se tipea (ej. "10.")
@@ -71,9 +72,10 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
   const esPermuta = /permuta|canje/.test(metodoSeleccionado?.label?.toLowerCase() || '');
   const esCredito = metodoSeleccionado?.label?.toLowerCase().includes('cuotas');
   const esEfectivo = metodoSeleccionado?.label?.toLowerCase().includes('efectivo');
-  // Solo en efectivo el vendedor puede cargar un monto distinto al que falta cobrar (vuelto);
-  // en el resto de métodos el monto se autocompleta y queda de solo lectura.
-  const montoEditable = esEfectivo;
+  // Venta en varios pagos: el monto es editable para todos los medios (parcial mientras
+  // sea menor al restante). Sólo transferencia queda de solo lectura porque su monto sale
+  // del desglose por banco. En efectivo, además, se admite superar el restante (vuelto).
+  const montoEditable = !esTransferencia;
   // Vuelto: solo aplica si lo que sobra vino de un pago en efectivo.
   const vuelto = esEfectivo ? Math.max(0, (parseFloat(montoPago) || 0) - restante) : 0;
 
@@ -94,6 +96,13 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
   const agregarPago = () => {
     const monto = parseFloat(montoPago);
     if (isNaN(monto) || monto <= 0) return alert('Ingresá un monto válido');
+
+    // El total de los pagos no puede superar el total de la venta. En efectivo se admite
+    // exceso solo como vuelto (lo aplicado se topea con Math.min más abajo); en el resto
+    // de los métodos un monto mayor al saldo restante es un error.
+    if (!esEfectivo && monto > restante + 0.01) {
+      return alert(`El pago (U$S ${monto.toFixed(2)}) supera lo que falta cobrar (U$S ${restante.toFixed(2)}).`);
+    }
 
     let observacionPago = ''; let datosExtra = {};
 
@@ -144,6 +153,27 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
     if (!cliente?.id) return alert('⚠️ Seleccioná un cliente antes de cobrar.');
     if (restante > 0.01) return alert(`⚠️ Aún falta cubrir U$S ${restante.toFixed(2)}`);
     if (pagos.length === 0) return alert('No hay pagos registrados');
+
+    // El cliente puede haber quedado cacheado (localStorage/estado del POS) apuntando a un
+    // Id que ya no existe (ej. tras reinicializar la base). Antes revalidábamos solo al
+    // montar el POS; ahora también acá, justo antes de facturar, para no mandar la venta
+    // y comerse un error crudo de FK (FK_Venta_Cliente).
+    try {
+      const res = await fetchApi(`/usuarios/${cliente.id}`);
+      const u = res?.data ?? res;
+      if (!u || !(u.Id ?? u.id) || !(u.EsCliente ?? u.esCliente)) {
+        setCliente(null);
+        onClose();
+        return alert('⚠️ El cliente seleccionado ya no existe en el sistema. Buscalo o registralo de nuevo.');
+      }
+    } catch (err) {
+      if (err?.status === 404) {
+        setCliente(null);
+        onClose();
+        return alert('⚠️ El cliente seleccionado ya no existe en el sistema. Buscalo o registralo de nuevo.');
+      }
+      return alert('❌ No se pudo verificar el cliente: ' + (err?.message || 'error de red'));
+    }
 
     // Los equipos de canje se dan de alta en Inventario recién acá (si se cancela la venta
     // no queda ningún registro fantasma). El precio de toma es el monto cargado en el pago.
@@ -221,11 +251,21 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
               <TextField
                 label="Bonificación ($)" fullWidth size="small" value={bonificacionInput}
                 inputProps={{ inputMode: 'decimal' }}
-                // Filtra a mano: type="number" del HTML permite "-", "+" y notación científica
-                onChange={(e) => setBonificacionInput(soloDecimalNoNegativo(e.target.value))}
+                // Filtra a mano: type="number" del HTML permite "-", "+" y notación científica.
+                // No puede bonificar más que el total de la venta.
+                onChange={(e) => {
+                  const limpio = soloDecimalNoNegativo(e.target.value);
+                  const capado = Number(limpio) > totalVenta ? String(totalVenta) : limpio;
+                  setBonificacionInput(capado);
+                }}
+                helperText={Number(bonificacionInput) > 0 && Number(bonificacionInput) >= totalVenta ? 'Tope: total de la venta' : ''}
                 InputProps={{ startAdornment: <Typography sx={{ color: '#ed6c02', fontWeight: 'bold', mr: 1 }}>-</Typography> }} />
-              <TextField label="Motivo del descuento" fullWidth size="small" value={motivoBonif} onChange={(e) => setMotivoBonif(e.target.value)} placeholder="Ej: Atención comercial..." />
-              <TextField label="Observaciones" multiline rows={3} fullWidth size="small" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} placeholder="Notas internas..." />
+              <TextField label="Motivo del descuento" fullWidth size="small" value={motivoBonif}
+                onChange={(e) => setMotivoBonif(e.target.value.slice(0, 150))}
+                inputProps={{ maxLength: 150 }} placeholder="Ej: Atención comercial..." />
+              <TextField label="Observaciones" multiline rows={3} fullWidth size="small" value={observaciones}
+                onChange={(e) => setObservaciones(e.target.value.slice(0, 150))}
+                inputProps={{ maxLength: 150 }} placeholder="Notas internas..." />
             </Box>
 
             <Divider sx={{ my: 2 }} />
@@ -322,15 +362,19 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
 
                 <Box>
                   <TextField
-                    label="Monto (U$S)" type="number" fullWidth size="small" value={montoPago}
-                    onChange={(e) => montoEditable && setMontoPago(e.target.value)}
+                    label="Monto (U$S)" fullWidth size="small" value={montoPago}
+                    onChange={(e) => montoEditable && setMontoPago(soloDecimalNoNegativo(e.target.value))}
                     disabled={esTransferencia}
                     InputProps={{
                       readOnly: !montoEditable,
                       startAdornment: <Typography sx={{ bgcolor: '#2e7d32', color: 'white', px: 1.5, py: 0.5, borderRadius: 1, mr: 1, fontSize: '0.875rem' }}>U$S</Typography>,
                     }}
-                    inputProps={{ min: 0 }}
-                    helperText={montoEditable ? 'Monto recibido en efectivo (puede superar lo que falta cobrar)' : 'Cobro real — no editable para este medio de pago'}
+                    inputProps={{ inputMode: 'decimal' }}
+                    helperText={
+                      esTransferencia ? 'Sale del desglose por banco'
+                        : esEfectivo ? 'Monto recibido (puede superar lo que falta cobrar → vuelto)'
+                        : `Podés cobrar un monto parcial (máx. lo que resta: U$S ${Math.max(0, restante).toFixed(2)})`
+                    }
                   />
                   <Typography variant="caption" sx={{ textAlign: 'right', display: 'block', color: 'text.secondary', mt: 0.5 }}>
                     ≈ {formatArs.format((parseFloat(montoPago) || 0) * dolarGlobal)}

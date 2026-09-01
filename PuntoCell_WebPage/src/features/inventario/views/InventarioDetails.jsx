@@ -6,7 +6,7 @@ import {
   CalendarToday, ShoppingCart, Receipt, BatteryChargingFull, Sync, Warning
 } from '@mui/icons-material';
 import { inventarioService } from '../../../services/inventarioServices';
-import { preciosService, mapVigentePorInventario, LISTA_MINORISTA_ID } from '../../../services/preciosServices';
+import { preciosService, mapVigentePorInventario, idsListasMayoristas, resolverPrecioInventario } from '../../../services/preciosServices';
 
 const InventarioDetails = () => {
   const { id } = useParams();
@@ -21,23 +21,26 @@ const InventarioDetails = () => {
     const fetchDetalle = async () => {
       try {
         setCargando(true);
-        const [res, preciosArticulos] = await Promise.all([
+        const [res, preciosArticulos, listas] = await Promise.all([
           inventarioService.getById(id),
           preciosService.getPreciosArticulos().catch(() => []),
+          preciosService.getListas().catch(() => []),
         ]);
         const data = res.data || res;
         const art = data.articulo || data.Articulo || {};
+        const idInv = data.Id || data.id;
 
-        // Precio de venta vigente por lista (modelo nuevo: PrecioArticulo)
+        // Precio de venta vigente (modelo nuevo: PrecioArticulo), por cualquier lista.
         const mapa = mapVigentePorInventario(preciosArticulos);
-        const preciosInv = mapa[data.Id || data.id] || {};
-        const minorista = preciosInv[LISTA_MINORISTA_ID];
-        const otras = Object.entries(preciosInv)
-          .filter(([lista]) => Number(lista) !== LISTA_MINORISTA_ID)
-          .map(([lista, p]) => ({ lista: Number(lista), valorFinal: Number(p.ValorFinal) || 0 }));
+        const listasMay = idsListasMayoristas(listas);
+        const { minorista, mayorista, costoBase } = resolverPrecioInventario(mapa, idInv, listasMay);
+        const nombreLista = (lid) => (listas.find((l) => (l.Id ?? l.id) === lid)?.Nombre) || `Lista #${lid}`;
+        const otras = Object.entries(mapa[idInv] || {})
+          .filter(([lid]) => listasMay.includes(Number(lid)))
+          .map(([lid, p]) => ({ lista: nombreLista(Number(lid)), valorFinal: Number(p.ValorFinal) || 0 }));
 
         setItem({
-          id: data.Id || data.id,
+          id: idInv,
           producto: art.Nombre || 'Equipo sin nombre',
           modelo: art.modelo?.Nombre || '---',
           imei: data.IMEI || null,
@@ -46,8 +49,8 @@ const InventarioDetails = () => {
           bateria: null,
           ciclos: null,
           observaciones: data.Observaciones,
-          costoBase: minorista ? Number(minorista.CostoBase) || 0 : 0,
-          precioMenor: minorista ? Number(minorista.ValorFinal) || 0 : 0,
+          costoBase,
+          precioMenor: minorista || mayorista || 0,
           preciosOtrasListas: otras,
           sucursal: data.sucursal?.Nombre || 'Sin asignar',
           stock: data.Stock || 0,
@@ -183,7 +186,7 @@ const InventarioDetails = () => {
                   )}
                   {item.preciosOtrasListas.map((p) => (
                     <Box key={p.lista}>
-                      <Typography sx={labelStyles}>Lista #{p.lista}</Typography>
+                      <Typography sx={labelStyles}>{p.lista}</Typography>
                       <Typography sx={{ color: 'text.primary', fontWeight: 'bold', fontSize: '1.25rem', mt: 0.5 }}>U$S {p.valorFinal.toLocaleString()}</Typography>
                     </Box>
                   ))}

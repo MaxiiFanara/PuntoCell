@@ -9,6 +9,8 @@ import { Edit, Delete, PersonAdd, Group, Email, WarningAmber } from '@mui/icons-
 import { usuariosService } from '../../../../services/usuariosServices';
 import { soloLetrasYEspacios, soloDigitos } from '../../../../utils/validators';
 import { capitalizar } from '../../../../utils/format';
+import { usePaginacion } from '../../../../hooks/usePaginacion';
+import PaginadorTabla from '../../../../components/PaginadorTabla';
 
 const EMPTY_FORM = { DNI: '', Nombre: '', Apellido: '', Email: '', Celular: '', IdRol: '', IdSucursal: '' };
 
@@ -51,6 +53,8 @@ const UsersScreen = () => {
   }, []);
 
   useEffect(() => { cargarDatos(); }, [cargarDatos]);
+
+  const { pagina, setPagina, totalPaginas, itemsPagina, hayPaginacion } = usePaginacion(users);
 
   const nombreRol = (idRol) => capitalizar(roles.find((r) => (r.Id ?? r.id) === idRol)?.Nombre) || '—';
   const nombreSucursal = (idSucursal) => capitalizar(sucursales.find((s) => (s.Id ?? s.id) === idSucursal)?.Nombre) || '—';
@@ -173,7 +177,7 @@ const UsersScreen = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              users.map((row) => (
+              itemsPagina.map((row) => (
                 <TableRow key={row.Id} hover>
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -229,6 +233,7 @@ const UsersScreen = () => {
             )}
           </TableBody>
         </Table>
+        <PaginadorTabla pagina={pagina} totalPaginas={totalPaginas} onChange={setPagina} mostrar={hayPaginacion} />
       </TableContainer>
 
       {/* ========================================== */}

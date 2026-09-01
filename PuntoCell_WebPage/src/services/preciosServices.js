@@ -116,3 +116,42 @@ export const valorFinalVigente = (mapa, idInventario, idLista = LISTA_MINORISTA_
   const p = mapa?.[idInventario]?.[idLista];
   return p ? Number(p.ValorFinal) || 0 : 0;
 };
+
+// El PrecioArticulo vigente "más nuevo" de un inventario entre las listas indicadas
+// (o entre todas si no se pasan). `incluir` / `excluir` son sets/arrays de IdListaPrecio.
+export const precioVigenteEntreListas = (mapa, idInventario, { incluir, excluir } = {}) => {
+  const porLista = mapa?.[idInventario];
+  if (!porLista) return null;
+  const inc = incluir ? new Set(incluir) : null;
+  const exc = excluir ? new Set(excluir) : null;
+  let mejor = null;
+  for (const [lista, p] of Object.entries(porLista)) {
+    const id = Number(lista);
+    if (inc && !inc.has(id)) continue;
+    if (exc && exc.has(id)) continue;
+    if (!mejor || new Date(p.FechaDesde) > new Date(mejor.FechaDesde)) mejor = p;
+  }
+  return mejor;
+};
+
+// Ids de las ListaPrecio consideradas "mayoristas" (por nombre).
+export const idsListasMayoristas = (listas = []) =>
+  listas
+    .filter((l) => /mayor/i.test(l.Nombre || '') && (l.Activo === true || l.Activo === 1))
+    .map((l) => l.Id ?? l.id);
+
+// Precio minorista / mayorista vigente de un inventario, resolviendo por cualquier lista
+// que exista (no se hardcodea la lista Id 1): minorista = mejor precio vigente en una
+// lista NO mayorista; mayorista = mejor en una lista mayorista, con fallback a minorista.
+export const resolverPrecioInventario = (mapa, idInventario, listasMayoristas = []) => {
+  const may = precioVigenteEntreListas(mapa, idInventario, { incluir: listasMayoristas });
+  const min = precioVigenteEntreListas(mapa, idInventario, { excluir: listasMayoristas })
+    || precioVigenteEntreListas(mapa, idInventario); // si solo hay precio en lista mayorista
+  const minorista = min ? Number(min.ValorFinal) || 0 : 0;
+  return {
+    minorista,
+    mayorista: may ? Number(may.ValorFinal) || 0 : minorista,
+    costoReal: (min || may) ? Number((min || may).CostoReal) || 0 : 0,
+    costoBase: (min || may) ? Number((min || may).CostoBase) || 0 : 0,
+  };
+};

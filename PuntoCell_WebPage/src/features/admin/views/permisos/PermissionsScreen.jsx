@@ -5,6 +5,8 @@ import {
   DialogContent, DialogContentText, TextField, DialogActions, FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import { VerifiedUser, InfoOutlined, Add, LockOpen, Edit, Delete, WarningAmber } from '@mui/icons-material';
+import { usePaginacion } from '../../../../hooks/usePaginacion';
+import PaginadorTabla from '../../../../components/PaginadorTabla';
 
 const PermissionsScreen = () => {
   // Mock local, no conectado al backend (existe /usuarios/permisos con CRUD real)
@@ -63,6 +65,8 @@ const PermissionsScreen = () => {
     setPermToDelete(null);
   };
 
+  const { pagina, setPagina, totalPaginas, itemsPagina, hayPaginacion } = usePaginacion(permissions);
+
   return (
     <Box className="animate-fade-in">
       {/* HEADER */}
@@ -110,7 +114,7 @@ const PermissionsScreen = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {permissions.map((perm) => (
+            {itemsPagina.map((perm) => (
               <TableRow key={perm.id} hover>
                 <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#94a3b8' }}>
                   {perm.id}
@@ -156,6 +160,7 @@ const PermissionsScreen = () => {
             ))}
           </TableBody>
         </Table>
+        <PaginadorTabla pagina={pagina} totalPaginas={totalPaginas} onChange={setPagina} mostrar={hayPaginacion} />
       </TableContainer>
 
       {/* Modal crear/editar */}

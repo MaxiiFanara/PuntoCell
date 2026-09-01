@@ -39,7 +39,7 @@ const BitacoraList = () => {
 
   const [filtros, setFiltros] = useState({ buscar: '', fecha: '' });
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const cargar = async () => {
     setCargando(true);
@@ -199,7 +199,7 @@ const BitacoraList = () => {
             onPageChange={(_, p) => setPage(p)}
             rowsPerPage={rowsPerPage}
             onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
-            rowsPerPageOptions={[25, 50, 100]}
+            rowsPerPageOptions={[10, 25, 50, 100]}
           />
         </TableContainer>
       )}

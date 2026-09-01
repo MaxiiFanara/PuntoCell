@@ -3,7 +3,7 @@ import { ventasService } from "../../../services/ventasServices";
 import { inventarioService } from "../../../services/inventarioServices";
 import { fetchApi } from "../../../services/api";
 import {
-    preciosService, mapVigentePorInventario, LISTA_MINORISTA_ID
+    preciosService, mapVigentePorInventario, idsListasMayoristas, resolverPrecioInventario
 } from "../../../services/preciosServices";
 import { useAuth } from '../../../context/AuthContext';
 
@@ -31,10 +31,10 @@ export const VentaProvider = ({ children }) => {
     const [esMayorista, setEsMayorista] = useState(false);
     const [bonificacion, setBonificacion] = useState(0);
 
-    // Precios del modelo nuevo (ListaPrecio + PrecioArticulo). Se cargan una vez y se
-    // resuelven client-side por renglón de Inventario.
+    // Precios del modelo nuevo (ListaPrecio + PrecioArticulo). Se cargan y se resuelven
+    // client-side por renglón de Inventario, contra cualquier lista vigente.
     const [preciosMap, setPreciosMap] = useState({});
-    const [idListaMayorista, setIdListaMayorista] = useState(null);
+    const [listasMayoristas, setListasMayoristas] = useState([]);
 
     const recargarPrecios = useCallback(async () => {
         try {
@@ -43,10 +43,7 @@ export const VentaProvider = ({ children }) => {
                 preciosService.getListas(),
             ]);
             setPreciosMap(mapVigentePorInventario(precios));
-            const mayorista = (listas || []).find(l =>
-                /mayor/i.test(l.Nombre || '') && (l.Activo === true || l.Activo === 1)
-            );
-            setIdListaMayorista(mayorista ? (mayorista.Id ?? mayorista.id) : null);
+            setListasMayoristas(idsListasMayoristas(listas || []));
         } catch (e) {
             console.error('No se pudieron cargar los precios:', e);
         }
@@ -54,19 +51,11 @@ export const VentaProvider = ({ children }) => {
 
     useEffect(() => { recargarPrecios(); }, [recargarPrecios]);
 
-    // Precio de venta vigente (ValorFinal) + costo real de un renglón de Inventario.
-    const resolverPrecios = useCallback((idInventario) => {
-        const porLista = preciosMap[idInventario] || {};
-        const minoristaP = porLista[LISTA_MINORISTA_ID];
-        const mayoristaP = idListaMayorista ? porLista[idListaMayorista] : null;
-        const minorista = minoristaP ? Number(minoristaP.ValorFinal) || 0 : 0;
-        return {
-            minorista,
-            mayorista: mayoristaP ? Number(mayoristaP.ValorFinal) || 0 : minorista,
-            costoReal: minoristaP ? Number(minoristaP.CostoReal) || 0
-                : (mayoristaP ? Number(mayoristaP.CostoReal) || 0 : 0),
-        };
-    }, [preciosMap, idListaMayorista]);
+    // Precio de venta vigente (minorista/mayorista) + costo real de un renglón de Inventario.
+    const resolverPrecios = useCallback(
+        (idInventario) => resolverPrecioInventario(preciosMap, idInventario, listasMayoristas),
+        [preciosMap, listasMayoristas]
+    );
 
     const [datosConfig, setDatosConfig] = useState({
         idTurnoCaja: null,
@@ -252,14 +241,23 @@ export const VentaProvider = ({ children }) => {
         }
     };
 
-    // Al cambiar mayorista/minorista, recalcula precio y subtotal de lo que ya está en el carrito
+    // Al cambiar mayorista/minorista (o al llegar/actualizarse los precios), re-resuelve
+    // el precio de cada renglón del carrito desde la lista de precios real, en vivo.
     useEffect(() => {
         setCarrito(prev => prev.map(item => {
-            const precio = esMayorista ? (item.PrecioMayor ?? item.PrecioUnitario) : (item.PrecioMenor ?? item.PrecioUnitario);
-            return { ...item, PrecioUnitario: precio, Subtotal: precio * item.Cantidad };
+            const { minorista, mayorista, costoReal } = resolverPrecios(item.IdInventario);
+            const precio = (esMayorista ? mayorista : minorista) || item.PrecioUnitario || 0;
+            return {
+                ...item,
+                PrecioUnitario: precio,
+                Subtotal: precio * item.Cantidad,
+                PrecioMenor: minorista || item.PrecioMenor,
+                PrecioMayor: mayorista || item.PrecioMayor,
+                CostoReal: costoReal || item.CostoReal,
+            };
         }));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [esMayorista]);
+    }, [esMayorista, resolverPrecios]);
 
     const eliminarDelCarrito = (index) => {
         setCarrito(carrito.filter((_, i) => i !== index));
@@ -287,7 +285,7 @@ export const VentaProvider = ({ children }) => {
             dolarGlobal: datosConfig.valorDolar || 1000,
             actualizarCotizacion,
             totalVenta, totalAjustado, totalCosto,
-            preciosMap, idListaMayorista, resolverPrecios, recargarPrecios,
+            preciosMap, listasMayoristas, resolverPrecios, recargarPrecios,
             agregarAlCarrito, eliminarDelCarrito, vaciarTodo,
             toggleMayorista: setEsMayorista
         }}>

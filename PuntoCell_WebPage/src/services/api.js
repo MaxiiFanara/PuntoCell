@@ -1,4 +1,4 @@
-import { mapVigentePorInventario, valorFinalVigente, LISTA_MINORISTA_ID } from './preciosServices'
+import { mapVigentePorInventario, precioVigenteEntreListas } from './preciosServices'
 
 export const API_URL = 'http://localhost:3000/api'
 
@@ -53,6 +53,28 @@ export const loginUsuario = async (identificador, pwd) => {
 
 export const logoutUsuario = () =>
   fetchApi('/auth/logout', { method: 'POST' })
+
+// Perfil plano que consume el front (AuthContext / LoginPage). El backend devuelve
+// la fila cruda en PascalCase; acá la normalizamos a un único shape.
+export const mapUsuario = (u) => ({
+  userID:   u.Id,
+  user:     `${u.Nombre ?? ''} ${u.Apellido ?? ''}`.trim() || u.UsuarioEmpleado,
+  nombre:   `${u.Nombre ?? ''} ${u.Apellido ?? ''}`.trim() || u.UsuarioEmpleado,
+  rol:      u.IdRol,
+  sucursal: u.IdSucursal,
+})
+
+// GET /auth/me — devuelve el usuario si la cookie de sesión sigue viva, o null.
+export const getSesionActual = async () => {
+  try {
+    const res = await fetch(`${API_URL}/auth/me`, { credentials: 'include' })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data?.data?.user ?? null
+  } catch {
+    return null
+  }
+}
 
 export const olvideMiContrasena = async (email) => {
   const res = await fetch(`${API_URL}/auth/forgot-password`, {
@@ -257,7 +279,9 @@ export const getOrdenById = async (id) => {
 
 // Repuestos de orden
 // El precio ya no vive en Inventario: se resuelve del PrecioArticulo vigente
-// (lista Minorista) mergeando client-side, igual que en inventarioService.getConPrecios.
+// (cualquier lista) mergeando client-side. El backend exige que el repuesto tenga
+// un precio vigente para agregarlo a la orden, así que descartamos los que no lo tienen
+// (marcándolos con sinPrecio para poder avisar en la UI).
 export const getRepuestosDisponibles = async () => {
   const [res, preciosRes] = await Promise.all([
     fetchApi('/reparaciones/inventario/repuestos-disponibles'),
@@ -267,13 +291,15 @@ export const getRepuestosDisponibles = async () => {
   const mapa = mapVigentePorInventario(precios)
   return (res?.data ?? []).map(item => {
     const idInv = item.id ?? item.Id
+    const p = precioVigenteEntreListas(mapa, idInv)
     return {
-      id:     idInv,
-      nombre: item.articulo?.Nombre ?? '',
-      stock:  item.Stock ?? 0,
-      precio: valorFinalVigente(mapa, idInv, LISTA_MINORISTA_ID),
-      marca:  item.articulo?.modelo?.marca?.Nombre ?? '',
-      modelo: item.articulo?.modelo?.Nombre ?? '',
+      id:       idInv,
+      nombre:   item.articulo?.Nombre ?? '',
+      stock:    item.Stock ?? 0,
+      precio:   p ? Number(p.ValorFinal) || 0 : 0,
+      sinPrecio: !p,
+      marca:    item.articulo?.modelo?.marca?.Nombre ?? '',
+      modelo:   item.articulo?.modelo?.Nombre ?? '',
     }
   })
 }

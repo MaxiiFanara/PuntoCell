@@ -8,6 +8,7 @@ import {
   Save, Store, Smartphone, QrCode2, BatteryChargingFull
 } from '@mui/icons-material';
 import { inventarioService } from '../../../services/inventarioServices';
+import { soloImei, esImeiValido } from '../../../utils/validators';
 
 const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = false, excludeIdImei, onReingreso }) => {
   const [formData, setFormData] = useState(initialData);
@@ -97,8 +98,7 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
   };
 
   const handleImeiChange = (e) => {
-    const value = e.target.value.replace(/\D/g, '').slice(0, 15);
-    setFormData({ ...formData, imei: value });
+    setFormData({ ...formData, imei: soloImei(e.target.value) });
   };
 
   // Stock: INT NOT NULL CHECK(>= 0) — solo dígitos, sin decimales ni negativos.
@@ -109,6 +109,10 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
 
   const handleFormSubmit = (e) => {
     e.preventDefault();
+    if (formData.esSerializado && !esImeiValido(formData.imei)) {
+      alert('⚠️ El IMEI es obligatorio y debe tener exactamente 15 dígitos.');
+      return;
+    }
     if (formData.esSerializado && imeiEstado.error) {
       alert(`⚠️ ${imeiEstado.error}`);
       return;
@@ -289,13 +293,15 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
             {isEdit && <FormHelperText sx={{ color: '#f59e0b', fontWeight: 'bold' }}>* Para mover, usá Traspaso.</FormHelperText>}
           </FormControl>
 
-          <FormControl fullWidth size="small" required error={!formData.idProveedor}>
-            <InputLabel>Proveedor *</InputLabel>
-            <Select name="idProveedor" value={formData.idProveedor || ''} onChange={handleChange} label="Proveedor *">
+          <FormControl fullWidth size="small" required={!modoCanje} error={!modoCanje && !formData.idProveedor} disabled={modoCanje}>
+            <InputLabel>Proveedor {modoCanje ? '' : '*'}</InputLabel>
+            <Select name="idProveedor" value={formData.idProveedor || ''} onChange={handleChange} label={modoCanje ? 'Proveedor' : 'Proveedor *'}>
               <MenuItem value=""><em>-- Seleccionar --</em></MenuItem>
               {listaProveedores.map(p => <MenuItem key={p.Id || p.id} value={p.Id || p.id}>{p.Nombre || p.nombre}</MenuItem>)}
             </Select>
-            {!formData.idProveedor && <FormHelperText>Obligatorio</FormHelperText>}
+            {modoCanje
+              ? <FormHelperText>Canje: siempre "Canje de Clientes"</FormHelperText>
+              : (!formData.idProveedor && <FormHelperText>Obligatorio</FormHelperText>)}
           </FormControl>
 
           <FormControl fullWidth size="small">
@@ -314,10 +320,15 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
 
           <TextField
             label="Stock Actual" name="stock" size="small"
-            value={formData.stock || 1} onChange={setSoloEntero('stock')}
-            inputProps={{ inputMode: 'numeric', readOnly: formData.esSerializado }}
-            sx={formData.esSerializado ? { bgcolor: '#f8fafc' } : {}}
-            helperText={formData.esSerializado ? 'Fijo en 1: los equipos serializados se cargan de a uno' : undefined}
+            value={(modoCanje || formData.esSerializado) ? 1 : (formData.stock || 1)}
+            onChange={setSoloEntero('stock')}
+            inputProps={{ inputMode: 'numeric', readOnly: modoCanje || formData.esSerializado }}
+            sx={(modoCanje || formData.esSerializado) ? { bgcolor: '#f8fafc' } : {}}
+            helperText={
+              modoCanje ? 'Canje: siempre ingresa 1 unidad'
+                : formData.esSerializado ? 'Fijo en 1: los equipos serializados se cargan de a uno'
+                : undefined
+            }
           />
         </Box>
       </Box>

@@ -119,30 +119,36 @@ export default class TransferenciaService {
     const t = await sequelize.transaction();
 
     try {
-      const invOrigen = await Inventario.findOne({
-        where: { IdArticulo: data.IdArticulo, IdSucursal: data.IdSucursalOrigen },
-        transaction: t
-      });
+      // Preferimos IdInventario (fila puntual — obligatorio para serializados: cada IMEI
+      // es su propia fila). Si no viene, se cae al modo viejo por Articulo + sucursal
+      // (stock fungible no serializado).
+      const invOrigen = data.IdInventario
+        ? await Inventario.findByPk(data.IdInventario, { transaction: t })
+        : await Inventario.findOne({
+            where: { IdArticulo: data.IdArticulo, IdSucursal: data.IdSucursalOrigen },
+            transaction: t
+          });
 
-      if (!invOrigen || invOrigen.Stock < data.Cantidad) {
+      if (!invOrigen) {
+        throw new Error('No se encontró el renglón de inventario a transferir en la sucursal de origen.');
+      }
+      if (Number(invOrigen.IdSucursal) !== Number(data.IdSucursalOrigen)) {
+        throw new Error('El renglón de inventario indicado no pertenece a la sucursal de origen.');
+      }
+      if (invOrigen.Stock < data.Cantidad) {
         throw new Error('Stock insuficiente en la sucursal de origen');
       }
 
-      const articulo = await Articulo.findByPk(data.IdArticulo, { transaction: t });
+      const articulo = await Articulo.findByPk(invOrigen.IdArticulo, { transaction: t });
       let invDestino;
 
-      if (articulo?.EsSerializado) {
-        // Serializado (con IMEI): es una unidad física puntual, no se puede partir con
-        // matemática de Stock. Se relocaliza la misma fila a la sucursal destino.
+      if (articulo?.EsSerializado || invOrigen.IMEI) {
+        // Serializado (con IMEI): es una unidad física puntual. Se relocaliza esa MISMA
+        // fila a la sucursal destino. El IMEI es único global (UQ_Inventario_IMEI), así que
+        // mover la fila nunca genera un duplicado — y que en destino ya haya otras unidades
+        // del mismo modelo (otros IMEI) es perfectamente válido.
         if (Number(data.Cantidad) !== 1) {
           throw new Error('Los productos serializados (con IMEI) se transfieren de a una unidad: Cantidad debe ser 1.');
-        }
-        const yaExisteEnDestino = await Inventario.findOne({
-          where: { IdArticulo: data.IdArticulo, IdSucursal: data.IdSucursalDestino },
-          transaction: t
-        });
-        if (yaExisteEnDestino) {
-          throw new Error('Ya existe un registro de este artículo serializado en la sucursal destino.');
         }
 
         const movSalida = await MovimientoStock.create({
@@ -194,8 +200,15 @@ export default class TransferenciaService {
         IdEmpleado: data.IdEmpleado || 1
       }, { transaction: t });
 
+      // El índice único filtrado UQ_Inventario_SucursalProducto es por
+      // (Sucursal, Producto, Estado) sólo cuando IMEI IS NULL: buscamos/creamos esa fila.
       invDestino = await Inventario.findOne({
-        where: { IdArticulo: data.IdArticulo, IdSucursal: data.IdSucursalDestino },
+        where: {
+          IdArticulo: invOrigen.IdArticulo,
+          IdSucursal: data.IdSucursalDestino,
+          IdEstadoInventario: invOrigen.IdEstadoInventario,
+          IMEI: null
+        },
         transaction: t
       });
 
@@ -205,7 +218,7 @@ export default class TransferenciaService {
         // Fila nueva: copia del origen los campos NOT NULL (garantías, proveedor, atributos).
         // No serializado => IMEI queda null.
         invDestino = await Inventario.create({
-          IdArticulo: data.IdArticulo,
+          IdArticulo: invOrigen.IdArticulo,
           IdSucursal: data.IdSucursalDestino,
           IdEstadoInventario: invOrigen.IdEstadoInventario,
           Stock: data.Cantidad,

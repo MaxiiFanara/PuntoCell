@@ -1,10 +1,7 @@
 import { registerAudit } from '../../../core/utils/audit.util.js';
+import { resolverListasPrecioCategoria, reprecificarInventario } from '../../../core/utils/precios.util.js';
 
 const round2 = (value) => Number(Number(value || 0).toFixed(2));
-
-// % de costos indirectos que se aplica sobre el CostoBase para formar el CostoReal.
-// Mismo valor que precios-articulos.service.js::computeFields — mantener en sync.
-const FACTOR_COSTOS_VARIABLES = 0.26;
 
 const bizError = (message, statusCode = 400) => {
   const err = new Error(message);
@@ -140,58 +137,16 @@ export default class CompraService {
     return [{ inventario, cantidadDetalle: item.Cantidad }];
   }
 
-  // Resuelve la ListaPrecio vigente para una categoría: la ListaPrecio activa cuyo
-  // IdCategoriaProducto coincida; si no hay ninguna, fallback a la Id=1 (default).
-  // IMPORTANTE: IdCategoriaProducto NUNCA se usa como IdListaPrecio.
-  async _resolverListaPrecio(idCategoria, models, t, advertencias) {
-    const { ListaPrecio } = models;
-
-    let lista = idCategoria
-      ? await ListaPrecio.findOne({
-          where: { IdCategoriaProducto: idCategoria, Activo: true },
-          order: [['Id', 'DESC']],
-          transaction: t
-        })
-      : null;
-
-    if (!lista) {
-      advertencias.push(`No hay lista de precios activa para la categoría ${idCategoria ?? '(sin categoría)'}. Se usó la lista por defecto (Id=1).`);
-      lista = await ListaPrecio.findByPk(1, { transaction: t });
-      if (!lista) throw bizError('No existe la lista de precios por defecto (Id=1).', 500);
+  // Resuelve las listas de precio de la categoría y deja el precio del renglón de
+  // Inventario en cada una (minorista + mayorista) con el costo de compra como CostoBase.
+  // Misma lógica que usa el alta directa de Inventario (canje) — ver core/utils/precios.util.js.
+  async _reprecificarPorCompra(inventarioId, idCategoria, costoUnitario, sequelize, t, advertencias) {
+    const listas = await resolverListasPrecioCategoria(sequelize, idCategoria, t);
+    if (!listas.length) throw bizError('No existe ninguna lista de precios (ni la Id=1 por defecto).', 500);
+    if (idCategoria && !listas.some((l) => Number(l.IdCategoriaProducto) === Number(idCategoria))) {
+      advertencias.push(`No hay lista de precios activa para la categoría ${idCategoria}. Se usó la lista por defecto (Id=1).`);
     }
-
-    return lista;
-  }
-
-  // Cierra el PrecioArticulo vigente del renglón de Inventario y crea el nuevo a
-  // partir del costo de compra. Un renglón de Inventario tiene un solo precio vigente
-  // a la vez (ver comentario de la tabla PrecioArticulo en init.sql).
-  async _actualizarPrecioArticulo(inventarioId, costoUnitario, lista, models, t) {
-    const { PrecioArticulo } = models;
-    const ahora = new Date();
-
-    await PrecioArticulo.update(
-      { FechaHasta: ahora },
-      { where: { IdInventario: inventarioId, FechaHasta: null }, transaction: t }
-    );
-
-    const CostoBase = round2(costoUnitario);
-    const CostosVariables = round2(CostoBase * FACTOR_COSTOS_VARIABLES);
-    const CostoReal = round2(CostoBase + CostosVariables);
-    const PorcentajeGanancia = Number(lista.PorcentajeRentabilidad || 0);
-    const ValorFinal = round2(CostoReal * (1 + PorcentajeGanancia / 100));
-
-    return await PrecioArticulo.create({
-      IdInventario: inventarioId,
-      IdListaPrecio: lista.Id,
-      CostoBase,
-      CostosVariables,
-      CostoReal,
-      PorcentajeGanancia,
-      ValorFinal,
-      FechaDesde: ahora,
-      FechaHasta: null
-    }, { transaction: t });
+    return reprecificarInventario(sequelize, { IdInventario: inventarioId, CostoBase: costoUnitario, listas }, t);
   }
 
   // Registra la compra completa en una única transacción: cabecera (con su estado
@@ -283,9 +238,8 @@ export default class CompraService {
 
           const articulo = await Articulo.findByPk(inventario.IdArticulo, { transaction: t });
           const modelo = await ModeloArticulo.findByPk(articulo.IdModeloArticulo, { transaction: t });
-          const lista = await this._resolverListaPrecio(modelo?.IdCategoriaArticulo, models, t, advertencias);
 
-          await this._actualizarPrecioArticulo(inventario.Id, item.PrecioCostoUnitario, lista, models, t);
+          await this._reprecificarPorCompra(inventario.Id, modelo?.IdCategoriaArticulo, item.PrecioCostoUnitario, sequelize, t, advertencias);
         }
       }
 

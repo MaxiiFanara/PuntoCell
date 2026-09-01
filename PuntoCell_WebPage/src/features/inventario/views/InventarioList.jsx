@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Button, TextField, Dialog, DialogTitle, DialogContent,
@@ -50,44 +50,46 @@ const InventarioList = () => {
     return s ? capitalizar(s.Nombre ?? s.nombre) : '—';
   };
 
-  useEffect(() => {
-    const cargarInventario = async () => {
-      try {
-        setCargando(true);
-        const paramsFiltro = {
-          vendibles: { soloVendibles: true },
-          repuestos: { soloRepuestos: true },
-          canje: { soloCanje: true },
-          todos: {},
-        }[filtroTipo];
-        // getConPrecios mergea el PrecioArticulo vigente (el modelo nuevo no lo trae en /inventarios)
-        const datosBackend = await inventarioService.getConPrecios({ IdSucursal: sucursalActual, ...paramsFiltro });
+  const cargarInventario = useCallback(async () => {
+    try {
+      setCargando(true);
+      const paramsFiltro = {
+        vendibles: { soloVendibles: true },
+        repuestos: { soloRepuestos: true },
+        canje: { soloCanje: true },
+        todos: {},
+      }[filtroTipo];
+      // getConPrecios mergea el PrecioArticulo vigente (el modelo nuevo no lo trae en /inventarios)
+      const datosBackend = await inventarioService.getConPrecios({ IdSucursal: sucursalActual, ...paramsFiltro });
 
-        const inventarioAdaptado = datosBackend.map(row => {
-          const art = row.articulo || row.Articulo || {};
-          return {
-            id: row.Id || row.id,
-            idArticulo: art.Id || art.id,
-            producto: art.Nombre || 'Equipo sin nombre',
-            // modelo/color/memoria solo vienen en el detalle (getById), no en este listado
-            modelo: art.modelo?.Nombre || '',
-            imei: row.IMEI || null,
-            color: null,
-            memoria: null,
-            stock: row.Stock || 0,
-            precioMenor: row.PrecioVenta || 0,
-            esSerializado: art.EsSerializado || false
-          };
-        });
-        setInventario(inventarioAdaptado);
-      } catch (error) {
-        console.error("Error al cargar el inventario real:", error);
-      } finally {
-        setCargando(false);
-      }
-    };
-    cargarInventario();
+      const inventarioAdaptado = datosBackend.map(row => {
+        const art = row.articulo || row.Articulo || {};
+        const bat = row.bateria || row.Bateria;
+        const batPct = bat && bat.Porcentaje != null ? Number(bat.Porcentaje) : null;
+        return {
+          id: row.Id || row.id,
+          idArticulo: art.Id || art.id,
+          producto: art.Nombre || 'Equipo sin nombre',
+          modelo: art.modelo?.Nombre || row.modelo?.Nombre || '',
+          imei: row.IMEI || null,
+          // Características: solo vienen si el renglón las tiene (accesorios/repuestos → null)
+          color: row.color?.Nombre || row.Color?.Nombre || null,
+          memoria: row.memoria?.Capacidad || row.Memoria?.Capacidad || null,
+          bateria: Number.isFinite(batPct) ? `${batPct}%` : null,
+          stock: row.Stock || 0,
+          precioMenor: row.PrecioVenta || 0,
+          esSerializado: art.EsSerializado || false
+        };
+      });
+      setInventario(inventarioAdaptado);
+    } catch (error) {
+      console.error("Error al cargar el inventario real:", error);
+    } finally {
+      setCargando(false);
+    }
   }, [sucursalActual, filtroTipo]);
+
+  useEffect(() => { cargarInventario(); }, [cargarInventario]);
 
   const inventarioFiltrado = inventario.filter(item => {
     const coincideBusqueda = item.producto.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -112,20 +114,25 @@ const InventarioList = () => {
   const confirmarTraspaso = async () => {
     try {
       // Destino = mi propia sucursal (adonde quiero traer el stock), no una asumida a mano.
+      // IdInventario = la fila puntual (ese IMEI). Es clave para serializados: puede haber
+      // varias unidades del mismo modelo en la misma sucursal.
       const payload = {
+        IdInventario: productoTransferir.id,
         IdArticulo: productoTransferir.idArticulo,
         IdSucursalOrigen: sucursalActual,
         IdSucursalDestino: miSucursalReal,
-        Cantidad: productoTransferir.cantidadPedir,
+        Cantidad: productoTransferir.esSerializado ? 1 : productoTransferir.cantidadPedir,
         IdEmpleado: usuario?.userID
       };
       await inventarioService.ejecutarTraspaso(payload);
       alert(`✅ ¡Traspaso completado! Se enviaron ${payload.Cantidad} unidades.`);
       setOpenModal(false);
-      // Acá deberías trigger un refetch
+      setProductoTransferir(null);
+      await cargarInventario();
     } catch (error) {
       console.error("Error en traspaso:", error);
-      alert("❌ Hubo un error al procesar la transferencia.");
+      // fetchApi arma error.message con el mensaje real del backend
+      alert(`❌ No se pudo hacer el traspaso: ${error.message || 'Error desconocido'}`);
     }
   };
 
@@ -247,10 +254,15 @@ const InventarioList = () => {
                     </TableCell>
 
                     <TableCell>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
-                        {item.color && <Box component="span" sx={{ px: 1, py: 0.25, fontSize: '0.75rem', fontWeight: 'bold', bgcolor: 'white', border: '1px solid #e2e8f0', borderRadius: 1 }}>🎨 {item.color}</Box>}
-                        {item.memoria && <Box component="span" sx={{ px: 1, py: 0.25, fontSize: '0.75rem', fontWeight: 'bold', bgcolor: '#1e293b', color: 'white', borderRadius: 1 }}>💾 {item.memoria}</Box>}
-                      </Box>
+                      {(item.color || item.memoria || item.bateria) ? (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+                          {item.color && <Box component="span" sx={{ px: 1, py: 0.25, fontSize: '0.75rem', fontWeight: 'bold', bgcolor: 'white', border: '1px solid #e2e8f0', borderRadius: 1 }}>🎨 {capitalizar(item.color)}</Box>}
+                          {item.memoria && <Box component="span" sx={{ px: 1, py: 0.25, fontSize: '0.75rem', fontWeight: 'bold', bgcolor: '#1e293b', color: 'white', borderRadius: 1 }}>💾 {item.memoria}</Box>}
+                          {item.bateria && <Box component="span" sx={{ px: 1, py: 0.25, fontSize: '0.75rem', fontWeight: 'bold', bgcolor: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', borderRadius: 1 }}>🔋 {item.bateria}</Box>}
+                        </Box>
+                      ) : (
+                        <Typography sx={{ fontSize: '0.8125rem', color: 'text.disabled' }}>—</Typography>
+                      )}
                     </TableCell>
 
                     <TableCell align="center">

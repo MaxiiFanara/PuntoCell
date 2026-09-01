@@ -13,6 +13,8 @@ import PriceChangeIcon from '@mui/icons-material/PriceChange';
 
 import { preciosService, mapVigentePorInventario, LISTA_MINORISTA_ID } from '../../services/preciosServices';
 import { inventarioService } from '../../services/inventarioServices';
+import { usePaginacion } from '../../hooks/usePaginacion';
+import PaginadorTabla from '../../components/PaginadorTabla';
 
 const fmt = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -60,6 +62,9 @@ export default function PreciosScreen() {
   }, []);
 
   useEffect(() => { cargarTodo(); }, [cargarTodo]);
+
+  const pagListas = usePaginacion(listas);
+  const pagInv = usePaginacion(inventario);
 
   const [listaSel, setListaSel] = useState(LISTA_MINORISTA_ID);
   const listaSelObj = useMemo(
@@ -124,7 +129,7 @@ export default function PreciosScreen() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {listas.map((l) => {
+                  {pagListas.itemsPagina.map((l) => {
                     const id = l.Id ?? l.id;
                     return (
                       <TableRow key={id} hover>
@@ -155,6 +160,8 @@ export default function PreciosScreen() {
                   })}
                 </TableBody>
               </Table>
+              <PaginadorTabla pagina={pagListas.pagina} totalPaginas={pagListas.totalPaginas}
+                onChange={pagListas.setPagina} mostrar={pagListas.hayPaginacion} />
             </Box>
           </Box>
         )}
@@ -189,7 +196,7 @@ export default function PreciosScreen() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {inventario.map((inv) => {
+                  {pagInv.itemsPagina.map((inv) => {
                     const id = inv.Id ?? inv.id;
                     const p = preciosMap[id]?.[listaSel];
                     return (
@@ -217,6 +224,8 @@ export default function PreciosScreen() {
                   })}
                 </TableBody>
               </Table>
+              <PaginadorTabla pagina={pagInv.pagina} totalPaginas={pagInv.totalPaginas}
+                onChange={pagInv.setPagina} mostrar={pagInv.hayPaginacion} />
             </Box>
           </Box>
         )}

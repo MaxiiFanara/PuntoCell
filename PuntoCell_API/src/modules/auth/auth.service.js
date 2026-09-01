@@ -63,6 +63,14 @@ export default class AuthService {
     return { user: userResponse, token };
   }
 
+  // Devuelve el usuario logueado a partir del id del token (para GET /auth/me).
+  async getUsuarioActual(id) {
+    const user = await this.usuarioDAO.getById(id);
+    if (!user || !user.Activo || user.EsCliente) return null;
+    const { Pwd, ...userResponse } = user.toJSON ? user.toJSON() : user;
+    return userResponse;
+  }
+
   // El cierre de sesión llega sin req.user (la ruta es pública); el controller
   // resuelve al usuario desde la cookie firmada y lo pasa por ctx.
   async logout(ctx = {}) {

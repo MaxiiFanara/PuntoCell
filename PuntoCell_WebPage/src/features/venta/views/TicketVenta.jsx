@@ -52,6 +52,13 @@ const mapearVenta = (raw) => {
     };
   });
 
+  // La bonificación viaja como primera línea de Observaciones: "[BONIF] monto|motivo"
+  const obsRaw = raw.Observaciones || '';
+  const bonifMatch = obsRaw.match(/^\[BONIF\]\s*([\d.]+)\|([^\n]*)\n?/);
+  const bonificacion = bonifMatch ? Number(bonifMatch[1]) || 0 : 0;
+  const motivoBonif = bonifMatch ? (bonifMatch[2] || '').trim() : '';
+  const observacionesLimpias = bonifMatch ? obsRaw.slice(bonifMatch[0].length).trim() : obsRaw;
+
   return {
     id: raw.Id,
     fecha: raw.Fecha ? new Date(raw.Fecha).toLocaleString('es-AR') : '-',
@@ -61,8 +68,9 @@ const mapearVenta = (raw) => {
     clienteDni: raw.cliente?.DNI || '-',
     vendedorNombre: `${raw.empleado?.Nombre ?? ''} ${raw.empleado?.Apellido ?? ''}`.trim() || 'Sistema',
     totalVenta: Number(raw.TotalVenta) || 0,
-    bonificacion: 0,
-    observaciones: raw.Observaciones || '',
+    bonificacion,
+    motivoBonif,
+    observaciones: observacionesLimpias,
     pagos,
     detalleVenta,
   };
@@ -189,7 +197,7 @@ const TicketDetalle = () => {
                   <Typography variant="body2">U$S {(venta.totalVenta + venta.bonificacion).toLocaleString()}</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', color: 'error.main', fontSize: '0.875rem' }}>
-                  <Typography variant="body2">Bonificación (-)</Typography>
+                  <Typography variant="body2">Bonificación (-){venta.motivoBonif ? ` · ${venta.motivoBonif}` : ''}</Typography>
                   <Typography variant="body2">- U$S {venta.bonificacion.toLocaleString()}</Typography>
                 </Box>
               </>
