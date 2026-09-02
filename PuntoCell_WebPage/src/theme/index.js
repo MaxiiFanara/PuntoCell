@@ -360,4 +360,39 @@ const theme = createTheme({
   },
 })
 
+// Tokens que consume la vitrina pública (features/catalogo/*). Antes vivían en un tema
+// propio del catálogo (theme/presets/puntocell.js); ahora el catálogo hereda este tema
+// único, así que se exponen acá apuntando a las CSS vars del tema para que respondan a
+// claro/oscuro. Los valores de acento usan el verde primary del sistema.
+theme.custom = {
+  navbar: {
+    background: 'var(--pc-palette-background-paper)',
+    blur: 'blur(10px)',
+    border: '1px solid var(--pc-palette-divider)',
+  },
+  hero: {
+    overlay: 'linear-gradient(90deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.25) 100%)',
+    blur: 'var(--pc-palette-pc-accentSoft)',
+    buttonGradient: 'var(--pc-palette-primary-main)',
+  },
+  cards: {
+    hover: 'var(--pc-palette-pc-liftPop)',
+    border: 'var(--pc-palette-divider)',
+    softBackground: 'var(--pc-palette-pc-surfaceMuted)',
+  },
+  footer: {
+    background: 'var(--pc-palette-background-paper)',
+  },
+  chips: {
+    activeBg: 'var(--pc-palette-primary-main)',
+    activeColor: 'var(--pc-palette-primary-contrastText)',
+    defaultBg: 'var(--pc-palette-background-paper)',
+    defaultColor: 'var(--pc-palette-text-secondary)',
+    hoverBg: 'var(--pc-palette-pc-surfaceMuted)',
+  },
+  grid: {
+    spacing: 3,
+  },
+}
+
 export default theme
