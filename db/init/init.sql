@@ -677,6 +677,10 @@ GO
 -- renglón de Inventario, tras migrar el modelo de precios a ListaPrecio/PrecioArticulo.
 -- Si el renglón todavía no tiene un precio cargado, las columnas de precio quedan NULL
 -- (OUTER APPLY). Si hubiera más de una lista vigente, se toma la de FechaDesde más reciente.
+-- IMPORTANTE: ValorFinal/CostoReal en PrecioArticulo son USD (moneda central del sistema,
+-- ver catalogo.service.js) — las columnas de esta vista se nombran ...USD para no sugerir
+-- lo contrario. Cualquier equivalente en ARS se calcula en el momento de mostrar, con la
+-- cotización vigente, nunca acá.
 GO
 CREATE VIEW vw_Inventario_PuntoCell AS
 SELECT
@@ -688,9 +692,9 @@ SELECT
     p.Nombre                        AS Producto,
     i.Stock,
     pa.IdListaPrecio,
-    pa.ValorFinal                   AS PrecioVentaARS,
-    pa.CostoReal                    AS CostoRealARS,
-    (pa.ValorFinal - pa.CostoReal)  AS GananciaEstimadaARS
+    pa.ValorFinal                   AS PrecioVentaUSD,
+    pa.CostoReal                    AS CostoRealUSD,
+    (pa.ValorFinal - pa.CostoReal)  AS GananciaEstimadaUSD
 FROM Inventario i
 INNER JOIN Sucursal           s  ON i.IdSucursal = s.Id
 INNER JOIN Producto           p  ON i.IdProducto = p.Id

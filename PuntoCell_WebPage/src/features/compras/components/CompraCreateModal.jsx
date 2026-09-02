@@ -13,8 +13,11 @@ import { ventasService } from '../../../services/ventasServices';
 import { getMarcas } from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
 import { soloImei, esImeiValido } from '../../../utils/validators';
+import Money from '../../../components/ui/Money';
+import NumberField from '../../../components/ui/NumberField';
+import EntityAutocomplete from '../../../components/ui/EntityAutocomplete';
+import { useVenta } from '../../punto-venta/context/VentaContext';
 
-const fmt = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const ID_TURNO_CAJA = 1; // seed fijo — el módulo de caja de la API todavía no está expuesto
 const hoy = () => new Date().toISOString().slice(0, 10);
 
@@ -23,13 +26,6 @@ const CATEGORIAS_EXCLUIDAS_NO_SERIAL = /smartphone|notebook|tablet/i;
 
 // Sólo enteros positivos (para Cantidad).
 const soloEnteroPositivo = (v) => String(v).replace(/\D/g, '').replace(/^0+(?=\d)/, '');
-// Sólo números positivos con decimales (para Costo unitario). Bloquea signos, "e", segundos puntos.
-const soloDecimalPositivo = (v) => {
-  let s = String(v).replace(/[^\d.]/g, '');
-  const i = s.indexOf('.');
-  if (i !== -1) s = s.slice(0, i + 1) + s.slice(i + 1).replace(/\./g, '');
-  return s;
-};
 
 // clasificacion: 'serializado' | 'no_serializado' | 'repuesto'
 const lineaVacia = () => ({
@@ -73,6 +69,9 @@ const ComboId = ({ label, options, valueId, onPick, disabled }) => (
 
 export default function CompraCreateModal({ open, onClose, onGuardado }) {
   const { usuario } = useAuth();
+  // El costo cargado es USD (fuente de verdad, ver compra.service.js); dolarGlobal solo
+  // se usa para mostrar el equivalente en pesos.
+  const { dolarGlobal } = useVenta();
 
   const [cat, setCat] = useState({
     proveedores: [], sucursales: [], articulos: [], categorias: [], marcas: [],
@@ -423,33 +422,29 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
                   helperText={serial ? 'Serializado: 1' : ' '} />
               </Grid>
               <Grid item xs={4} sm={2}>
-                <TextField fullWidth size="small" label="Costo Unit. (U$S)" value={l.costo}
-                  inputProps={{ inputMode: 'decimal' }}
-                  onChange={(e) => setLinea(i, { costo: soloDecimalPositivo(e.target.value) })} />
+                <NumberField fullWidth size="small" label="Costo Unit. (U$S)" value={l.costo}
+                  onChange={(e) => setLinea(i, { costo: e.target.value })}
+                  helperText={Number(l.costo) > 0 ? `≈ $ ${Math.round(Number(l.costo) * dolarGlobal).toLocaleString('es-AR')}` : ' '} />
               </Grid>
 
               {mostrarColor && (
                 <Grid item xs={4} sm={2}>
-                  <TextField select fullWidth size="small" label="Color" value={l.idColor} onChange={(e) => setLinea(i, { idColor: e.target.value })}>
-                    <MenuItem value="">—</MenuItem>
-                    {cat.colores.map((c) => <MenuItem key={c.Id ?? c.id} value={c.Id ?? c.id}>{c.Nombre ?? c.nombre}</MenuItem>)}
-                  </TextField>
+                  <EntityAutocomplete label="Color" options={cat.colores}
+                    value={l.idColor} onChange={(id) => setLinea(i, { idColor: id })} />
                 </Grid>
               )}
 
               {serial && (
                 <>
                   <Grid item xs={4} sm={3}>
-                    <TextField select fullWidth size="small" label="Memoria" value={l.idMemoria} onChange={(e) => setLinea(i, { idMemoria: e.target.value })}>
-                      <MenuItem value="">—</MenuItem>
-                      {cat.memorias.map((m) => <MenuItem key={m.Id ?? m.id} value={m.Id ?? m.id}>{m.Capacidad ?? m.capacidad}</MenuItem>)}
-                    </TextField>
+                    <EntityAutocomplete label="Memoria" options={cat.memorias}
+                      getLabel={(m) => m.Capacidad ?? m.capacidad ?? ''}
+                      value={l.idMemoria} onChange={(id) => setLinea(i, { idMemoria: id })} />
                   </Grid>
                   <Grid item xs={4} sm={3}>
-                    <TextField select fullWidth size="small" label="Batería" value={l.idBateria} onChange={(e) => setLinea(i, { idBateria: e.target.value })}>
-                      <MenuItem value="">—</MenuItem>
-                      {cat.baterias.map((b) => <MenuItem key={b.Id ?? b.id} value={b.Id ?? b.id}>{(b.Porcentaje ?? b.porcentaje) ?? b.Nombre}%</MenuItem>)}
-                    </TextField>
+                    <EntityAutocomplete label="Batería" options={cat.baterias}
+                      getLabel={(b) => (b.Porcentaje ?? b.porcentaje) != null ? `${b.Porcentaje ?? b.porcentaje}%` : (b.Nombre ?? b.nombre ?? '')}
+                      value={l.idBateria} onChange={(id) => setLinea(i, { idBateria: id })} />
                   </Grid>
                   <Grid item xs={12}>
                     <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -504,15 +499,15 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
           )}
           {condicion === 'parcial' && (
             <Grid item xs={12} sm={4}>
-              <TextField fullWidth size="small" label="Monto a pagar ahora" value={montoParcial}
-                inputProps={{ inputMode: 'decimal' }}
-                onChange={(e) => setMontoParcial(soloDecimalPositivo(e.target.value))} />
+              <NumberField fullWidth size="small" label="Monto a pagar ahora" value={montoParcial}
+                onChange={(e) => setMontoParcial(e.target.value)} />
             </Grid>
           )}
           <Grid item xs={12} sx={{ textAlign: 'right' }}>
-            <Typography className="num" sx={{ fontSize: '1.19rem', fontWeight: 600, letterSpacing: '-.02em', color: 'primary.main' }}>
-              Total: U$S {fmt(total)}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: 1 }}>
+              <Typography sx={{ fontSize: '.84rem', color: 'text.secondary', fontWeight: 600 }}>Total:</Typography>
+              <Money ars={total * dolarGlobal} usd={total} size="lg" />
+            </Box>
           </Grid>
         </Grid>
       </DialogContent>

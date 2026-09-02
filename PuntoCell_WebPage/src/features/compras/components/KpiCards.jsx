@@ -1,10 +1,13 @@
 import { Box } from '@mui/material';
 import KpiCard from '../../../components/ui/KpiCard';
 import StatusPill from '../../../components/ui/StatusPill';
-
-const fmt = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import Money from '../../../components/ui/Money';
+import { useVenta } from '../../punto-venta/context/VentaContext';
 
 export default function KpiCards({ compras }) {
+  // c.total/c.saldo son USD (fuente de verdad, ver compra.service.js); dolarGlobal solo
+  // se usa para mostrar el equivalente en pesos.
+  const { dolarGlobal } = useVenta();
   const totalComprado = compras.reduce((acc, c) => acc + c.total, 0);
   const adeudadas = compras.filter((c) => c.saldo > 0);
   const deuda = adeudadas.reduce((acc, c) => acc + c.saldo, 0);
@@ -15,13 +18,13 @@ export default function KpiCards({ compras }) {
       <KpiCard
         eyebrow="Total comprado"
         tone="accent"
-        value={`U$S ${fmt(totalComprado)}`}
+        value={<Money ars={totalComprado * dolarGlobal} usd={totalComprado} align="left" size="lg" />}
         sub={`${compras.length} ${compras.length === 1 ? 'factura registrada' : 'facturas registradas'}`}
       />
       <KpiCard
         eyebrow="Cuentas por pagar"
         tone="warn"
-        value={`U$S ${fmt(deuda)}`}
+        value={<Money ars={deuda * dolarGlobal} usd={deuda} align="left" size="lg" />}
         sub={`${adeudadas.length} ${adeudadas.length === 1 ? 'factura con saldo' : 'facturas con saldo'}`}
         badge={adeudadas.length > 0 ? <StatusPill tone="due" label="Pendiente" /> : null}
       />

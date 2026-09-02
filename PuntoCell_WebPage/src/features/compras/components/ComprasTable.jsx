@@ -8,12 +8,13 @@ import { usePaginacion } from '../../../hooks/usePaginacion';
 import StatusPill from '../../../components/ui/StatusPill';
 import FilterBar, { FilterField } from '../../../components/ui/FilterBar';
 import TablePager from '../../../components/ui/TablePager';
-
-const fmt = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import Money from '../../../components/ui/Money';
+import { useVenta } from '../../punto-venta/context/VentaContext';
 
 const tonoEstado = (estadoPago) => (estadoPago === 3 ? 'ok' : estadoPago === 2 ? 'flat' : 'due');
 
 export default function ComprasTable({ compras, onVerDetalle }) {
+  const { dolarGlobal } = useVenta();
   const [busqueda, setBusqueda] = useState('');
   const [estado, setEstado] = useState('todos');
 
@@ -99,10 +100,8 @@ export default function ComprasTable({ compras, onVerDetalle }) {
                   <TableCell className="mono" sx={{ fontWeight: 600 }}>#{c.id}</TableCell>
                   <TableCell className="mono" sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>{c.fecha}</TableCell>
                   <TableCell sx={{ fontWeight: 600, letterSpacing: '-.01em' }}>{c.proveedor}</TableCell>
-                  <TableCell align="right" className="num" sx={{ fontWeight: 600 }}>U$S {fmt(c.total)}</TableCell>
-                  <TableCell align="right" className="num" sx={{ fontWeight: 600, color: c.saldo > 0 ? 'error.main' : 'text.disabled' }}>
-                    U$S {fmt(c.saldo)}
-                  </TableCell>
+                  <TableCell align="right"><Money ars={c.total * dolarGlobal} usd={c.total} size="sm" /></TableCell>
+                  <TableCell align="right"><Money ars={c.saldo * dolarGlobal} usd={c.saldo} size="sm" /></TableCell>
                   <TableCell>
                     <StatusPill tone={tonoEstado(c.estadoPago)} label={c.condicion} />
                   </TableCell>

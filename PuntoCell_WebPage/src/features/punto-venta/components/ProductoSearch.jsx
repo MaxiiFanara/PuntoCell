@@ -128,10 +128,10 @@ export const ProductoSearch = ({ inventario = [], onTerminoChange }) => {
           {precioUsd ? (
             <>
               <Box className="num" sx={{ fontSize: '.78rem', fontWeight: 600, lineHeight: 1.1 }}>
-                $ {Math.round(precioArs).toLocaleString('es-AR')}
+                U$S {precioUsd}
               </Box>
               <Box className="num" sx={{ fontSize: '.63rem', color: 'text.disabled', lineHeight: 1.1 }}>
-                U$S {precioUsd}
+                $ {Math.round(precioArs).toLocaleString('es-AR')}
               </Box>
             </>
           ) : (

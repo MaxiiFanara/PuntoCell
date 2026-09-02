@@ -27,7 +27,10 @@ import {
 } from '../../services/api'
 import ModalRegistroFalla from './ModalRegistroFalla'
 import StatusPill from '../ui/StatusPill'
+import Money from '../ui/Money'
+import NumberField from '../ui/NumberField'
 import { soloImei, esImeiValido } from '../../utils/validators'
+import { useVenta } from '../../features/punto-venta/context/VentaContext'
 
 // Transiciones válidas por estado actual
 const TRANS = { 1: [1, 2, 5], 2: [2, 3, 5], 3: [3, 4], 4: [4], 5: [5] }
@@ -95,6 +98,9 @@ const ModalReparacion = ({
   estados, usuario, onGuardado, onAbrirRegistroCliente,
   onAbrirRegistroDispositivo,
 }) => {
+  // CostoRepuestos/PrecioManoObra/Senia se cargan y almacenan en USD (moneda central del
+  // sistema); dolarGlobal es solo para mostrar su equivalente en pesos.
+  const { dolarGlobal } = useVenta()
   const clienteIdRef = useRef(null)
   const [form, setForm]                           = useState(EMPTY)
   const [clienteEncontrado, setClienteEncontrado] = useState(false)
@@ -466,7 +472,13 @@ const ModalReparacion = ({
     const azul  = [37, 99, 235]
     const gris  = [100, 116, 139]
     const negro = [15, 23, 42]
-    const fmt   = (n) => `$${Number(n).toLocaleString('es-AR')}`
+    // Los montos son USD (fuente de verdad); el comprobante muestra el equivalente ARS
+    // calculado con la cotización vigente al momento de imprimir, nunca un valor guardado.
+    const fmt = (n) => {
+      const usd = Number(n)
+      const ars = Math.round(usd * dolarGlobal)
+      return `U$S ${usd.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ($${ars.toLocaleString('es-AR')})`
+    }
     const linea = (y) => { doc.setDrawColor(226, 232, 240); doc.line(14, y, 196, y) }
 
     doc.setFillColor(...azul)
@@ -510,13 +522,13 @@ const ModalReparacion = ({
     doc.setTextColor(...negro).setFontSize(10)
     const costoRows = [['Repuestos', fmt(datosFinancieros.costoRepuestos)], ['Mano de obra', fmt(datosFinancieros.precioManoObra)]]
     if (señaPagada > 0) costoRows.push(['Seña pagada', `− ${fmt(señaPagada)}`])
-    costoRows.forEach(([lbl, val]) => { doc.setFont('helvetica', 'bold').text(lbl + ':', 14, y); doc.setFont('helvetica', 'normal').text(val, 90, y, { align: 'right' }); y += 7 })
+    costoRows.forEach(([lbl, val]) => { doc.setFont('helvetica', 'bold').text(lbl + ':', 14, y); doc.setFont('helvetica', 'normal').text(val, 124, y, { align: 'right' }); y += 7 })
     y += 2; linea(y); y += 6
     doc.setFillColor(...azul)
-    doc.roundedRect(14, y - 3, 76, 10, 2, 2, 'F')
+    doc.roundedRect(14, y - 3, 110, 10, 2, 2, 'F')
     doc.setTextColor(255, 255, 255).setFont('helvetica', 'bold')
     doc.text('Total cobrado:', 17, y + 4)
-    doc.text(fmt(saldoEntrega), 88, y + 4, { align: 'right' })
+    doc.text(fmt(saldoEntrega), 121, y + 4, { align: 'right' })
 
     doc.setTextColor(...gris).setFontSize(8).setFont('helvetica', 'normal')
     doc.text('Documento generado por PuntoCell', 105, 287, { align: 'center' })
@@ -810,9 +822,13 @@ const ModalReparacion = ({
                             <Typography sx={{ fontSize: '.72rem', color: 'text.secondary' }}>{option.marca} · {option.modelo}</Typography>
                           </Box>
                           <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                            <Typography className="num" sx={{ fontWeight: 700, fontSize: '.8125rem', color: option.sinPrecio ? 'error.main' : 'primary.main' }}>
-                              {option.sinPrecio ? 'sin precio' : `$${option.precio.toLocaleString('es-AR')}`}
-                            </Typography>
+                            {option.sinPrecio ? (
+                              <Typography className="num" sx={{ fontWeight: 700, fontSize: '.8125rem', color: 'error.main' }}>
+                                sin precio
+                              </Typography>
+                            ) : (
+                              <Money ars={option.precio * dolarGlobal} usd={option.precio} size="sm" />
+                            )}
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
                               <InventoryIcon sx={{ fontSize: 11, color: option.stock <= 3 ? 'error.main' : 'text.disabled' }} />
                               <Typography sx={{ fontSize: '.68rem', color: option.stock <= 3 ? 'error.main' : 'text.disabled', fontWeight: 600 }}>
@@ -874,14 +890,10 @@ const ModalReparacion = ({
                                 <Typography className="num" sx={{ fontWeight: 700, fontSize: '.875rem' }}>{r.cantidad}</Typography>
                               </TableCell>
                               <TableCell align="right">
-                                <Typography className="num" sx={{ fontWeight: 600, fontSize: '.8125rem' }}>
-                                  ${r.precioCobrado.toLocaleString('es-AR')}
-                                </Typography>
+                                <Money ars={r.precioCobrado * dolarGlobal} usd={r.precioCobrado} size="sm" />
                               </TableCell>
                               <TableCell align="right">
-                                <Typography className="num" sx={{ fontWeight: 700, fontSize: '.875rem', color: 'primary.main' }}>
-                                  ${(r.precioCobrado * r.cantidad).toLocaleString('es-AR')}
-                                </Typography>
+                                <Money ars={r.precioCobrado * r.cantidad * dolarGlobal} usd={r.precioCobrado * r.cantidad} size="sm" />
                               </TableCell>
                               {esEstadoReparacion && (
                                 <TableCell>
@@ -918,14 +930,10 @@ const ModalReparacion = ({
                                 </Box>
                               </TableCell>
                               <TableCell align="right">
-                                <Typography className="num" sx={{ fontWeight: 600, fontSize: '.8125rem' }}>
-                                  ${r.precioCobrado.toLocaleString('es-AR')}
-                                </Typography>
+                                <Money ars={r.precioCobrado * dolarGlobal} usd={r.precioCobrado} size="sm" />
                               </TableCell>
                               <TableCell align="right">
-                                <Typography className="num" sx={{ fontWeight: 700, fontSize: '.875rem', color: 'primary.main' }}>
-                                  ${(r.precioCobrado * r.cantidad).toLocaleString('es-AR')}
-                                </Typography>
+                                <Money ars={r.precioCobrado * r.cantidad * dolarGlobal} usd={r.precioCobrado * r.cantidad} size="sm" />
                               </TableCell>
                               <TableCell>
                                 <IconButton size="small" onClick={() => quitarRepuestoNuevo(r.idInventario)}
@@ -939,9 +947,7 @@ const ModalReparacion = ({
                       </Table>
                       <Box sx={{ px: '15px', py: '10px', bgcolor: 'pc.surfaceMuted', borderTop: 1, borderColor: 'divider', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1.5 }}>
                         <Typography sx={{ fontSize: '.78rem', color: 'text.secondary', fontWeight: 600 }}>Total repuestos:</Typography>
-                        <Typography className="num" sx={{ fontSize: '.95rem', fontWeight: 700, color: 'primary.main' }}>
-                          ${totalRepuestos.toLocaleString('es-AR')}
-                        </Typography>
+                        <Money ars={totalRepuestos * dolarGlobal} usd={totalRepuestos} />
                       </Box>
                     </Box>
                   )}
@@ -954,9 +960,9 @@ const ModalReparacion = ({
           {!modoEdicion && !modoSoloLectura && (
             <Seccion title="Seña" subtitle="Monto entregado por el cliente al dejar el equipo (opcional)">
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0,1fr))' }, gap: 1.5, alignItems: 'end' }}>
-                <Campo label="Monto de seña">
-                  <TextField
-                    fullWidth type="number" value={form.montoSena}
+                <Campo label="Monto de seña (U$S)">
+                  <NumberField
+                    fullWidth value={form.montoSena}
                     onKeyDown={(e) => {
                       if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
                         e.preventDefault()
@@ -969,9 +975,11 @@ const ModalReparacion = ({
                     }}
                     placeholder="0"
                     slotProps={{
-                      input: { startAdornment: <InputAdornment position="start">$</InputAdornment> },
-                      htmlInput: { min: 0 },
+                      input: { startAdornment: <InputAdornment position="start">U$S</InputAdornment> },
                     }}
+                    helperText={Number(form.montoSena) > 0
+                      ? `≈ $ ${Math.round(Number(form.montoSena) * dolarGlobal).toLocaleString('es-AR')}`
+                      : ''}
                   />
                 </Campo>
                 {Number(form.montoSena) > 0 && (
@@ -986,7 +994,8 @@ const ModalReparacion = ({
                 <Box sx={{ mt: 1.5, p: '10px 12px', borderRadius: '9px', bgcolor: 'warning.light', display: 'flex', alignItems: 'center', gap: 1 }}>
                   <LocalAtmIcon sx={{ fontSize: 16, color: 'warning.main' }} />
                   <Typography className="num" sx={{ fontSize: '.8rem', color: 'warning.main', fontWeight: 600 }}>
-                    Seña registrada: ${Number(form.montoSena).toLocaleString('es-AR')} — El resto se cobrará al entregar.
+                    Seña registrada: U$S {Number(form.montoSena).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {' '}(≈ $ {Math.round(Number(form.montoSena) * dolarGlobal).toLocaleString('es-AR')}) — El resto se cobrará al entregar.
                   </Typography>
                 </Box>
               )}
@@ -1000,39 +1009,38 @@ const ModalReparacion = ({
 
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: '15px', py: '11px', borderBottom: 1, borderColor: 'pc.dividerSoft' }}>
                   <Typography sx={{ fontSize: '.8125rem', color: 'text.secondary', fontWeight: 600 }}>Repuestos</Typography>
-                  <Typography className="num" sx={{ fontSize: '.8125rem', fontWeight: 700, color: 'text.primary' }}>
-                    ${costoRepuestosDisplay.toLocaleString('es-AR')}
-                  </Typography>
+                  <Money ars={costoRepuestosDisplay * dolarGlobal} usd={costoRepuestosDisplay} />
                 </Box>
 
                 {puedeEditarManoObra ? (
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, px: '15px', py: '10px', borderBottom: 1, borderColor: 'pc.dividerSoft', bgcolor: 'pc.accentSoft' }}>
-                    <Typography sx={{ fontSize: '.8125rem', color: 'primary.main', fontWeight: 700 }}>Mano de obra</Typography>
-                    <TextField
-                      type="number" size="small"
+                    <Typography sx={{ fontSize: '.8125rem', color: 'primary.main', fontWeight: 700 }}>Mano de obra (U$S)</Typography>
+                    <NumberField
+                      size="small"
                       value={form.precioManoObra} onChange={set('precioManoObra')}
-                      slotProps={{ input: { startAdornment: <InputAdornment position="start">$</InputAdornment> }, htmlInput: { min: 0 } }}
+                      slotProps={{ input: { startAdornment: <InputAdornment position="start">U$S</InputAdornment> } }}
                       placeholder="0"
                       error={Number(form.precioManoObra) < 0}
-                      helperText={Number(form.precioManoObra) < 0 ? 'No puede ser negativo' : ''}
-                      sx={{ width: 170 }}
+                      helperText={Number(form.precioManoObra) < 0
+                        ? 'No puede ser negativo'
+                        : `≈ $ ${Math.round(manoObraActual * dolarGlobal).toLocaleString('es-AR')}`}
+                      sx={{ width: 190 }}
                     />
                   </Box>
                 ) : datosFinancieros.precioManoObra > 0 && (
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: '15px', py: '11px', borderBottom: 1, borderColor: 'pc.dividerSoft' }}>
                     <Typography sx={{ fontSize: '.8125rem', color: 'text.secondary', fontWeight: 600 }}>Mano de obra</Typography>
-                    <Typography className="num" sx={{ fontSize: '.8125rem', fontWeight: 700, color: 'text.primary' }}>
-                      ${datosFinancieros.precioManoObra.toLocaleString('es-AR')}
-                    </Typography>
+                    <Money ars={datosFinancieros.precioManoObra * dolarGlobal} usd={datosFinancieros.precioManoObra} />
                   </Box>
                 )}
 
                 {señaPagada > 0 && (
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: '15px', py: '11px', borderBottom: 1, borderColor: 'pc.dividerSoft' }}>
                     <Typography sx={{ fontSize: '.8125rem', color: 'text.secondary', fontWeight: 600 }}>Seña pagada</Typography>
-                    <Typography className="num" sx={{ fontSize: '.8125rem', fontWeight: 700, color: 'error.main' }}>
-                      − ${señaPagada.toLocaleString('es-AR')}
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Typography sx={{ fontSize: '.8125rem', fontWeight: 700, color: 'error.main' }}>−</Typography>
+                      <Money ars={señaPagada * dolarGlobal} usd={señaPagada} />
+                    </Box>
                   </Box>
                 )}
 
@@ -1040,22 +1048,32 @@ const ModalReparacion = ({
                   <Typography sx={{ fontSize: '.84rem', fontWeight: 700, color: 'primary.main' }}>
                     {showDelivery ? 'A cobrar ahora' : señaPagada > 0 ? 'A cobrar' : 'Total'}
                   </Typography>
-                  <Typography className="num" sx={{
-                    fontSize: '1.1rem', fontWeight: 700, color: 'primary.main',
-                    fontStyle: currentEstadoId === 3 && targetEstadoId !== 4 ? 'italic' : 'normal',
-                    opacity: currentEstadoId === 3 && targetEstadoId !== 4 ? .75 : 1,
-                  }}>
-                    {currentEstadoId === 3 && targetEstadoId !== 4
-                      ? 'Pendiente...'
-                      : `$${Math.max(0,
-                          showDelivery
-                            ? saldoEntrega
-                            : targetEstadoId === 3
-                              ? costoRepuestosDisplay + manoObraActual - señaPagada
-                              : datosFinancieros.totalReparacion - señaPagada
-                        ).toLocaleString('es-AR')}`
-                    }
-                  </Typography>
+                  {(() => {
+                    const pendiente = currentEstadoId === 3 && targetEstadoId !== 4
+                    const totalUsd = Math.max(0,
+                      showDelivery
+                        ? saldoEntrega
+                        : targetEstadoId === 3
+                          ? costoRepuestosDisplay + manoObraActual - señaPagada
+                          : datosFinancieros.totalReparacion - señaPagada
+                    )
+                    return (
+                      <Box sx={{ textAlign: 'right' }}>
+                        <Typography className="num" sx={{
+                          fontSize: '1.1rem', fontWeight: 700, color: 'primary.main', lineHeight: 1.15,
+                          fontStyle: pendiente ? 'italic' : 'normal',
+                          opacity: pendiente ? .75 : 1,
+                        }}>
+                          {pendiente ? 'Pendiente...' : `U$S ${totalUsd.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                        </Typography>
+                        {!pendiente && (
+                          <Typography className="num" sx={{ fontSize: '.72rem', color: 'primary.main', opacity: .75 }}>
+                            $ {Math.round(totalUsd * dolarGlobal).toLocaleString('es-AR')}
+                          </Typography>
+                        )}
+                      </Box>
+                    )
+                  })()}
                 </Box>
 
                 {modoEdicion && targetEstadoId === 4 && (

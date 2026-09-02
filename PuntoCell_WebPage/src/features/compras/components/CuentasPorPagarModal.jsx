@@ -6,11 +6,17 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import { comprasService } from '../../../services/comprasServices';
 import { ventasService } from '../../../services/ventasServices';
+import { useVenta } from '../../punto-venta/context/VentaContext';
+import NumberField from '../../../components/ui/NumberField';
 
 const fmt = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtArs = (usd, dolarGlobal) => `$ ${Math.round((usd || 0) * dolarGlobal).toLocaleString('es-AR')}`;
 const ID_TURNO_CAJA = 1; // seed fijo — el módulo de caja de la API todavía no está expuesto
 
 export default function CuentasPorPagarModal({ open, onClose, compras, onPagado }) {
+  // deuda.saldo/total son USD (fuente de verdad); dolarGlobal solo se usa para mostrar
+  // el equivalente en pesos.
+  const { dolarGlobal } = useVenta();
   const deudas = (compras || []).filter((c) => c.saldo > 0);
   const [metodos, setMetodos] = useState([]);
   const [abierta, setAbierta] = useState(null); // id de compra con el form abierto
@@ -32,7 +38,7 @@ export default function CuentasPorPagarModal({ open, onClose, compras, onPagado 
   const confirmarPago = async (deuda) => {
     const monto = Number(form.monto);
     if (!monto || monto <= 0) return alert('Ingresá un monto válido.');
-    if (monto > deuda.saldo + 0.001) return alert(`El pago no puede superar el saldo (U$S ${fmt(deuda.saldo)}).`);
+    if (monto > deuda.saldo + 0.001) return alert(`El pago no puede superar el saldo (U$S ${fmt(deuda.saldo)} ≈ ${fmtArs(deuda.saldo, dolarGlobal)}).`);
     if (!form.idMetodo) return alert('Elegí un método de pago.');
     setGuardando(true);
     try {
@@ -74,7 +80,9 @@ export default function CuentasPorPagarModal({ open, onClose, compras, onPagado 
               </Box>
               <Box sx={{ textAlign: 'right', flex: 'none' }}>
                 <Typography className="num" sx={{ fontWeight: 700, color: 'error.main', fontSize: '.84rem' }}>U$S {fmt(deuda.saldo)}</Typography>
-                <Typography className="num" sx={{ color: 'text.disabled', fontSize: '.65rem' }}>de U$S {fmt(deuda.total)}</Typography>
+                <Typography className="num" sx={{ color: 'text.disabled', fontSize: '.65rem' }}>
+                  {fmtArs(deuda.saldo, dolarGlobal)} · de U$S {fmt(deuda.total)}
+                </Typography>
               </Box>
               <Button variant={abierta === deuda.id ? 'text' : 'contained'} size="small"
                 onClick={() => (abierta === deuda.id ? setAbierta(null) : abrirPago(deuda))}>
@@ -87,8 +95,8 @@ export default function CuentasPorPagarModal({ open, onClose, compras, onPagado 
                 p: '12px 14px', display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap',
                 borderTop: 1, borderColor: 'pc.dividerSoft', bgcolor: 'pc.surfaceMuted',
               }}>
-                <TextField size="small" type="number" label="Monto" value={form.monto}
-                  onChange={(e) => setForm({ ...form, monto: e.target.value })} sx={{ width: 130 }} />
+                <NumberField size="small" label="Monto" value={form.monto}
+                  onChange={(e) => setForm({ ...form, monto: e.target.value })} sx={{ width: 150 }} />
                 <TextField size="small" select label="Método" value={form.idMetodo}
                   onChange={(e) => setForm({ ...form, idMetodo: e.target.value })} sx={{ minWidth: 180 }}>
                   {metodos.map((m) => (

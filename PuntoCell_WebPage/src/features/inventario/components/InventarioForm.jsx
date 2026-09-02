@@ -5,6 +5,7 @@ import {
 import SaveIcon from '@mui/icons-material/Save';
 import { inventarioService } from '../../../services/inventarioServices';
 import { esImeiValido } from '../../../utils/validators';
+import EntityAutocomplete from '../../../components/ui/EntityAutocomplete';
 
 const Campo = ({ label, children, hint, error, span = 1, sx }) => (
   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0, gridColumn: span > 1 ? `span ${span}` : undefined, ...sx }}>
@@ -239,27 +240,24 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
         )}
 
         <Campo label="Color">
-          <Select name="idColor" size="small" displayEmpty value={formData.idColor || ''} onChange={handleChange}>
-            <MenuItem value="">Sin especificar</MenuItem>
-            {listaColores.map(c => <MenuItem key={c.id || c.Id} value={c.id || c.Id}>{c.Nombre || c.nombre}</MenuItem>)}
-          </Select>
+          <EntityAutocomplete options={listaColores}
+            value={formData.idColor} onChange={(id) => handleChange({ target: { name: 'idColor', value: id } })}
+            placeholder="Sin especificar" />
         </Campo>
 
         <Campo label="Memoria">
-          <Select name="idMemoria" size="small" displayEmpty value={formData.idMemoria || ''} onChange={handleChange}>
-            <MenuItem value="">Sin especificar</MenuItem>
-            {listaMemorias.map(m => <MenuItem key={m.id || m.Id} value={m.id || m.Id}>{m.Capacidad || m.capacidad || m.Nombre}</MenuItem>)}
-          </Select>
+          <EntityAutocomplete options={listaMemorias}
+            getLabel={(m) => m.Capacidad ?? m.capacidad ?? m.Nombre ?? ''}
+            value={formData.idMemoria} onChange={(id) => handleChange({ target: { name: 'idMemoria', value: id } })}
+            placeholder="Sin especificar" />
         </Campo>
 
         {formData.esSerializado && (
           <Campo label="Batería">
-            <Select name="idBateria" size="small" displayEmpty value={formData.idBateria || ''} onChange={handleChange}>
-              <MenuItem value="">Sin especificar</MenuItem>
-              {listaBaterias.map(b => (
-                <MenuItem key={b.id || b.Id} value={b.id || b.Id}>{(b.Porcentaje ?? b.porcentaje)}%</MenuItem>
-              ))}
-            </Select>
+            <EntityAutocomplete options={listaBaterias}
+              getLabel={(b) => (b.Porcentaje ?? b.porcentaje) != null ? `${b.Porcentaje ?? b.porcentaje}%` : ''}
+              value={formData.idBateria} onChange={(id) => handleChange({ target: { name: 'idBateria', value: id } })}
+              placeholder="Sin especificar" />
           </Campo>
         )}
 
@@ -332,10 +330,14 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
           </Select>
         </Campo>
 
-        <Campo label="Proveedor *" error={!formData.idProveedor} hint={!formData.idProveedor ? 'Obligatorio' : undefined}>
+        <Campo label="Proveedor *" error={!formData.idProveedor} hint={
+          modoCanje ? 'Equipo de canje: se asigna automáticamente a "Canje de Clientes"'
+            : !formData.idProveedor ? 'Obligatorio' : undefined
+        }>
           <Select
             name="idProveedor" size="small" displayEmpty error={!formData.idProveedor}
             value={formData.idProveedor || ''} onChange={handleChange}
+            disabled={modoCanje}
           >
             <MenuItem value="" disabled>Elegí un proveedor</MenuItem>
             {listaProveedores.map(p => <MenuItem key={p.Id || p.id} value={p.Id || p.id}>{p.Nombre || p.nombre}</MenuItem>)}

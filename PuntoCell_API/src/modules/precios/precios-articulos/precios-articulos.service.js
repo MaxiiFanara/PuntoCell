@@ -1,4 +1,5 @@
 import { auditar } from '../../../core/utils/audit.util.js';
+import { FACTOR_COSTOS_VARIABLES } from '../../../core/utils/precios.util.js';
 
 export default class PreciosArticulosService {
   constructor(preciosArticulosDAO, listaPreciosService, bitacoraService = null) {
@@ -16,7 +17,7 @@ export default class PreciosArticulosService {
 
   async computeFields(payload) {
     const CostoBase = this.round2(payload.CostoBase || 0);
-    const CostosVariables = this.round2(CostoBase * 0.26);
+    const CostosVariables = this.round2(CostoBase * FACTOR_COSTOS_VARIABLES);
     const CostoReal = this.round2(CostoBase + CostosVariables);
 
     let PorcentajeGanancia = 0;

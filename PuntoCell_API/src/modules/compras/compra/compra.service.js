@@ -24,10 +24,18 @@ export default class CompraService {
 
   async getById(id) {
     const sequelize = this.compraDAO.model.sequelize;
-    const { DetalleCompra, Proveedor } = sequelize.models;
+    const { DetalleCompra, Proveedor, Inventario, Articulo } = sequelize.models;
     const compra = await this.compraDAO.getById(id, {
       include: [
-        { model: DetalleCompra, as: 'detalles' },
+        {
+          model: DetalleCompra, as: 'detalles',
+          // El nombre del producto vive en Articulo, no en Inventario (que es solo el
+          // renglón de stock) — DetalleCompra.inventario -> Inventario.articulo -> Nombre.
+          include: [{
+            model: Inventario, as: 'inventario',
+            include: [{ model: Articulo, as: 'articulo', attributes: ['Id', 'Nombre'] }]
+          }]
+        },
         { model: Proveedor, as: 'proveedor', attributes: ['Id', 'Nombre'] }
       ]
     });

@@ -1,8 +1,8 @@
 import { Box, Paper, Typography, Skeleton } from '@mui/material'
 import { PieChart } from '@mui/x-charts/PieChart'
 import KpiCard from '../ui/KpiCard'
-
-const fmt = (n) => `$ ${Math.round(n ?? 0).toLocaleString('es-AR')}`
+import Money from '../ui/Money'
+import { useVenta } from '../../features/punto-venta/context/VentaContext'
 
 // PieChart no lee palette.pc: mismas CSS variables reactivas a claro/oscuro
 // que usa RankingChartCard.jsx.
@@ -10,6 +10,9 @@ const COSTO_VAR = 'var(--pc-palette-error-main)'
 const GANANCIA_VAR = 'var(--pc-palette-primary-main)'
 
 const FinanzasPanel = ({ finanzas, loading }) => {
+  // TotalIngresos/TotalCostos/Ganancia (vw_Finanzas_Resumen) ya son USD; dolarGlobal
+  // solo se usa para mostrar el equivalente en pesos, nunca para el cálculo del margen.
+  const { dolarGlobal } = useVenta()
   const margen = finanzas && finanzas.TotalIngresos > 0
     ? Math.round((finanzas.Ganancia / finanzas.TotalIngresos) * 100)
     : 0
@@ -19,13 +22,15 @@ const FinanzasPanel = ({ finanzas, loading }) => {
       <Typography sx={{ typography: 'eyebrow', color: 'text.disabled' }}>Finanzas</Typography>
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4,1fr)' }, gap: 1.5 }}>
-        <KpiCard eyebrow="Ingresos" tone="ok" loading={loading} value={fmt(finanzas?.TotalIngresos)} />
-        <KpiCard eyebrow="Costos" tone="error" loading={loading} value={fmt(finanzas?.TotalCostos)} />
+        <KpiCard eyebrow="Ingresos" tone="ok" loading={loading}
+          value={<Money ars={(finanzas?.TotalIngresos ?? 0) * dolarGlobal} usd={finanzas?.TotalIngresos ?? 0} align="left" size="lg" />} />
+        <KpiCard eyebrow="Costos" tone="error" loading={loading}
+          value={<Money ars={(finanzas?.TotalCostos ?? 0) * dolarGlobal} usd={finanzas?.TotalCostos ?? 0} align="left" size="lg" />} />
         <KpiCard
           eyebrow="Ganancia"
           tone="accent"
           loading={loading}
-          value={fmt(finanzas?.Ganancia)}
+          value={<Money ars={(finanzas?.Ganancia ?? 0) * dolarGlobal} usd={finanzas?.Ganancia ?? 0} align="left" size="lg" />}
           sub={finanzas ? `${margen}% de margen` : undefined}
         />
 
@@ -73,18 +78,14 @@ const FinanzasPanel = ({ finanzas, loading }) => {
                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'error.main', flexShrink: 0 }} />
                     <Typography sx={{ fontSize: '.72rem', color: 'text.secondary', fontWeight: 600 }}>Costos</Typography>
                   </Box>
-                  <Typography className="num" sx={{ fontSize: '.72rem', color: 'text.primary', fontWeight: 700 }}>
-                    {fmt(finanzas.TotalCostos)}
-                  </Typography>
+                  <Money ars={finanzas.TotalCostos * dolarGlobal} usd={finanzas.TotalCostos} size="sm" />
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: .75 }}>
                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0 }} />
                     <Typography sx={{ fontSize: '.72rem', color: 'text.secondary', fontWeight: 600 }}>Ganancia</Typography>
                   </Box>
-                  <Typography className="num" sx={{ fontSize: '.72rem', color: 'text.primary', fontWeight: 700 }}>
-                    {fmt(finanzas.Ganancia)}
-                  </Typography>
+                  <Money ars={finanzas.Ganancia * dolarGlobal} usd={finanzas.Ganancia} size="sm" />
                 </Box>
               </Box>
             </>

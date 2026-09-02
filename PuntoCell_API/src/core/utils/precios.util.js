@@ -66,3 +66,39 @@ export async function reprecificarInventario(sequelize, { IdInventario, CostoBas
   }
   return creados;
 }
+
+// Cuando cambia el % de rentabilidad de una ListaPrecio, ningún PrecioArticulo debe quedar
+// calculado con el % viejo: cierra TODOS los renglones vigentes de esa lista y crea uno
+// nuevo por cada uno con el mismo CostoBase/CostoReal (el costo no cambió) pero el nuevo
+// % y ValorFinal. Mismo patrón de historial que reprecificarInventario — nunca se pisa un
+// registro. Devuelve los PrecioArticulo recreados (longitud = cuántos productos se vieron
+// afectados). No hace nada si la lista no tiene ningún precio vigente todavía.
+export async function repreciarPorLista(sequelize, { IdListaPrecio, PorcentajeRentabilidad }, t = null) {
+  const { PrecioArticulo } = sequelize.models;
+  const opts = t ? { transaction: t } : {};
+
+  const vigentes = await PrecioArticulo.findAll({ where: { IdListaPrecio, FechaHasta: null }, ...opts });
+  if (!vigentes.length) return [];
+
+  const ahora = new Date();
+  const pct = Number(PorcentajeRentabilidad || 0);
+
+  await PrecioArticulo.update(
+    { FechaHasta: ahora },
+    { where: { IdListaPrecio, FechaHasta: null }, ...opts }
+  );
+
+  const nuevos = vigentes.map((p) => ({
+    IdInventario: p.IdInventario,
+    IdListaPrecio,
+    CostoBase: p.CostoBase,
+    CostosVariables: p.CostosVariables,
+    CostoReal: p.CostoReal,
+    PorcentajeGanancia: pct,
+    ValorFinal: round2(Number(p.CostoReal) * (1 + pct / 100)),
+    FechaDesde: ahora,
+    FechaHasta: null
+  }));
+
+  return PrecioArticulo.bulkCreate(nuevos, opts);
+}

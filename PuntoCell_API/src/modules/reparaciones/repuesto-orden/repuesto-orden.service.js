@@ -59,17 +59,22 @@ export default class RepuestoOrdenService {
       await inventario.decrement('Stock', { by: Cantidad, transaction: t });
 
       // El precio de venta ya no vive en Inventario: se toma del PrecioArticulo vigente
-      // (FechaHasta IS NULL) de ese renglón de inventario.
-      const precioVigente = await sequelize.models.PrecioArticulo.findOne({
+      // (FechaHasta IS NULL) de ese renglón de inventario. Un mismo inventario suele tener
+      // un vigente por lista (minorista + mayorista, creados casi al mismo instante), así
+      // que NO alcanza con "el más reciente por fecha" — hay que elegir explícitamente el
+      // de la lista minorista (regla de negocio: el repuesto se cobra a precio minorista
+      // por defecto; este flujo todavía no tiene selector de mayorista).
+      const vigentes = await sequelize.models.PrecioArticulo.findAll({
         where: { IdInventario, FechaHasta: null },
-        order: [['FechaDesde', 'DESC']],
+        include: [{ association: 'lista', attributes: ['Nombre'] }],
         transaction: t
       });
-      if (!precioVigente) {
+      if (!vigentes.length) {
         const err = new Error('El repuesto seleccionado no tiene un precio vigente cargado. Defina un PrecioArticulo antes de usarlo.');
         err.statusCode = 400;
         throw err;
       }
+      const precioVigente = vigentes.find((p) => !/mayor/i.test(p.lista?.Nombre || '')) || vigentes[0];
       const precioCobrado = Number(precioVigente.ValorFinal || 0);
       const nuevoRepuesto = await this.repuestoOrdenDAO.create({
         Cantidad,

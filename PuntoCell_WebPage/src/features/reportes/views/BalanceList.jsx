@@ -100,18 +100,18 @@ const BalanceList = () => {
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2,1fr)', lg: 'repeat(4,1fr)' }, gap: 1.5 }}>
         <KpiCard
           eyebrow="Ganancia neta (período)" tone="ok"
-          value={`$ ${Math.round(ars(KPIS.gananciaNeta)).toLocaleString('es-AR')}`}
-          sub={`U$S ${KPIS.gananciaNeta.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`}
+          value={`U$S ${KPIS.gananciaNeta.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`}
+          sub={`$ ${Math.round(ars(KPIS.gananciaNeta)).toLocaleString('es-AR')}`}
         />
         <KpiCard
           eyebrow="Facturación total" tone="accent"
-          value={`$ ${Math.round(ars(KPIS.facturacionTotal)).toLocaleString('es-AR')}`}
-          sub={`U$S ${KPIS.facturacionTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`}
+          value={`U$S ${KPIS.facturacionTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`}
+          sub={`$ ${Math.round(ars(KPIS.facturacionTotal)).toLocaleString('es-AR')}`}
         />
         <KpiCard
           eyebrow="Ticket promedio" tone="mute"
-          value={`$ ${Math.round(ars(KPIS.ticketPromedio)).toLocaleString('es-AR')}`}
-          sub={`U$S ${KPIS.ticketPromedio.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`}
+          value={`U$S ${KPIS.ticketPromedio.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`}
+          sub={`$ ${Math.round(ars(KPIS.ticketPromedio)).toLocaleString('es-AR')}`}
         />
         <KpiCard eyebrow="Margen global" tone="warn" value={`${KPIS.margenGlobal}%`} sub="sobre facturación" />
       </Box>

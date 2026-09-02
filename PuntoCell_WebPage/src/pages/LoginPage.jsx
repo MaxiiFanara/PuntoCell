@@ -142,6 +142,23 @@ export default function LoginPage() {
 
       <Box sx={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1 }}>
 
+        {/* Volver a la Landing — no depende de si hay sesión iniciada o no, ni interfiere
+            con el submit del formulario (es un link aparte, no un botón dentro del form). */}
+        <Box sx={{ mb: 1.5 }}>
+          <Typography
+            component="span"
+            variant="body2"
+            onClick={() => navigate('/')}
+            sx={{
+              display: 'inline-flex', alignItems: 'center', gap: 0.5,
+              color: 'text.secondary', fontWeight: 500, fontSize: '0.82rem', cursor: 'pointer',
+              '&:hover': { color: 'primary.main' },
+            }}
+          >
+            ← Volver al inicio
+          </Typography>
+        </Box>
+
         {/* Logo */}
         <Box className="anim-logo" sx={{ textAlign: 'center', mb: 4 }}>
           <Box className="logo-pulse" sx={(theme) => ({

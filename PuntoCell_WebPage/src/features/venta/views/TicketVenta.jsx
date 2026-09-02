@@ -310,13 +310,13 @@ const TicketDetalle = () => {
                     <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.75, p: '8px 15px', fontSize: '.78rem' }}>
                       <Box sx={{ color: 'text.secondary' }}>Subtotal</Box>
                       <Box className="num" sx={{ fontWeight: 600 }}>
-                        $ {Math.round(ars(venta.totalVenta + venta.bonificacion)).toLocaleString('es-AR')}
+                        U$S {(venta.totalVenta + venta.bonificacion).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Box>
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.75, p: '8px 15px', fontSize: '.78rem' }}>
                       <Box sx={{ color: 'text.secondary' }}>Bonificación{venta.motivoBonif ? ` · ${venta.motivoBonif}` : ''}</Box>
                       <Box className="num" sx={{ fontWeight: 600, color: 'error.main' }}>
-                        − $ {Math.round(ars(venta.bonificacion)).toLocaleString('es-AR')}
+                        − U$S {venta.bonificacion.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Box>
                     </Box>
                   </>
@@ -327,12 +327,12 @@ const TicketDetalle = () => {
                 }}>
                   <Box sx={{ fontWeight: 600, fontSize: '.8125rem' }}>Total</Box>
                   <Box className="num" sx={{ fontSize: '1.44rem', fontWeight: 600, letterSpacing: '-.035em', color: 'primary.main' }}>
-                    $ {Math.round(ars(venta.totalVenta)).toLocaleString('es-AR')}
+                    U$S {venta.totalVenta.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </Box>
                 </Box>
               </Box>
               <Typography className="num" sx={{ p: '0 15px 12px', textAlign: 'right', color: 'text.disabled', fontSize: '.72rem' }}>
-                U$S {venta.totalVenta.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                $ {Math.round(ars(venta.totalVenta)).toLocaleString('es-AR')}
                 {cotizacion > 0 && ` a la cotización de la venta ($ ${cotizacion.toLocaleString('es-AR')})`}
               </Typography>
             </Tarjeta>

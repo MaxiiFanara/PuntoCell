@@ -18,6 +18,7 @@ import PageHeader from '../../../components/ui/PageHeader';
 import KpiCard from '../../../components/ui/KpiCard';
 import StatusPill from '../../../components/ui/StatusPill';
 import Money from '../../../components/ui/Money';
+import NumberField from '../../../components/ui/NumberField';
 import FilterBar, { FilterField } from '../../../components/ui/FilterBar';
 import TablePager from '../../../components/ui/TablePager';
 
@@ -283,23 +284,23 @@ const HistorialVentas = () => {
           eyebrow="Facturado"
           tone="accent"
           loading={loading}
-          value={`$ ${Math.round(ars(resumen.facturado)).toLocaleString('es-AR')}`}
-          sub={`U$S ${resumen.facturado.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          value={`U$S ${resumen.facturado.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          sub={`$ ${Math.round(ars(resumen.facturado)).toLocaleString('es-AR')}`}
           spark={resumen.serie}
         />
         <KpiCard
           eyebrow="Cobrado"
           tone="ok"
           loading={loading}
-          value={`$ ${Math.round(ars(resumen.cobrado)).toLocaleString('es-AR')}`}
-          sub={`U$S ${resumen.cobrado.toLocaleString('es-AR', { maximumFractionDigits: 2 })} · ${resumen.cobradoPct}%`}
+          value={`U$S ${resumen.cobrado.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`}
+          sub={`$ ${Math.round(ars(resumen.cobrado)).toLocaleString('es-AR')} · ${resumen.cobradoPct}%`}
         />
         <KpiCard
           eyebrow="Por cobrar"
           tone="warn"
           loading={deudasLoading}
-          value={`$ ${Math.round(ars(resumen.porCobrar)).toLocaleString('es-AR')}`}
-          sub={`U$S ${resumen.porCobrar.toLocaleString('es-AR', { maximumFractionDigits: 2 })} · ${deudas.length} ${deudas.length === 1 ? 'cuota' : 'cuotas'}`}
+          value={`U$S ${resumen.porCobrar.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`}
+          sub={`$ ${Math.round(ars(resumen.porCobrar)).toLocaleString('es-AR')} · ${deudas.length} ${deudas.length === 1 ? 'cuota' : 'cuotas'}`}
           badge={resumen.vencidas > 0
             ? <StatusPill tone="late" label={`${resumen.vencidas} ${resumen.vencidas === 1 ? 'vencida' : 'vencidas'}`} />
             : null}
@@ -308,8 +309,8 @@ const HistorialVentas = () => {
           eyebrow="Ticket promedio"
           tone="mute"
           loading={loading}
-          value={`$ ${Math.round(ars(resumen.ticket)).toLocaleString('es-AR')}`}
-          sub={`U$S ${resumen.ticket.toLocaleString('es-AR', { maximumFractionDigits: 2 })} · mediana $ ${Math.round(ars(resumen.medianaTicket)).toLocaleString('es-AR')}`}
+          value={`U$S ${resumen.ticket.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`}
+          sub={`$ ${Math.round(ars(resumen.ticket)).toLocaleString('es-AR')} · mediana U$S ${resumen.medianaTicket.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`}
         />
       </Box>
 
@@ -388,7 +389,7 @@ const HistorialVentas = () => {
 
             {/* El backend filtra este campo contra TotalVentaARS, así que va en pesos. */}
             <FilterField label="Monto mínimo ($)">
-              <TextField name="montoMin" type="number" placeholder="0,00" fullWidth
+              <NumberField name="montoMin" placeholder="0,00" fullWidth
                 value={filtros.montoMin} onChange={handleInputChange} />
             </FilterField>
           </FilterBar>
@@ -402,6 +403,7 @@ const HistorialVentas = () => {
                     <TableCell sx={{ width: 82 }}>Orden</TableCell>
                     <TableCell sx={{ width: 140 }}>Fecha</TableCell>
                     <TableCell>Cliente</TableCell>
+                    <TableCell>Vendedor</TableCell>
                     <TableCell align="right" sx={{ width: 150 }}>Total</TableCell>
                     <TableCell sx={{ width: 120 }}>Estado</TableCell>
                     <TableCell align="right" sx={{ width: 64 }} />
@@ -410,7 +412,7 @@ const HistorialVentas = () => {
                 <TableBody>
                   {mensajeTabla ? (
                     <TableRow>
-                      <TableCell colSpan={6} sx={{ height: 120, textAlign: 'center', color: error ? 'error.main' : 'text.disabled' }}>
+                      <TableCell colSpan={7} sx={{ height: 120, textAlign: 'center', color: error ? 'error.main' : 'text.disabled' }}>
                         {mensajeTabla}
                       </TableCell>
                     </TableRow>
@@ -418,6 +420,9 @@ const HistorialVentas = () => {
                     const clienteNombre = item.cliente
                       ? `${item.cliente.Nombre ?? ''} ${item.cliente.Apellido ?? ''}`.trim()
                       : `Cliente #${item.IdCliente ?? '?'}`;
+                    const vendedorNombre = item.empleado
+                      ? `${item.empleado.Nombre ?? ''} ${item.empleado.Apellido ?? ''}`.trim()
+                      : `#${item.IdEmpleado ?? '?'}`;
                     const totalUsd = Number(item.TotalVenta ?? 0);
                     // El ARS guardado en la venta es el histórico (congelado a la cotización
                     // de ese día); solo si no está se recalcula con el dólar actual.
@@ -434,6 +439,9 @@ const HistorialVentas = () => {
                         </TableCell>
                         <TableCell sx={{ fontWeight: 600, letterSpacing: '-.01em' }}>
                           {clienteNombre || '—'}
+                        </TableCell>
+                        <TableCell sx={{ color: 'text.secondary' }}>
+                          {vendedorNombre || '—'}
                         </TableCell>
                         <TableCell align="right">
                           <Money ars={totalArsRow} usd={totalUsd} />
@@ -588,10 +596,10 @@ const HistorialVentas = () => {
             </Box>
             <Box sx={{ textAlign: 'right' }}>
               <Box className="num" sx={{ fontSize: '1.18rem', fontWeight: 600, letterSpacing: '-.03em' }}>
-                $ {Math.round(ars(cobroData.montoDeuda)).toLocaleString('es-AR')}
+                U$S {cobroData.montoDeuda.toFixed(2)}
               </Box>
               <Box className="num" sx={{ fontSize: '.69rem', opacity: .75 }}>
-                U$S {cobroData.montoDeuda.toFixed(2)}
+                $ {Math.round(ars(cobroData.montoDeuda)).toLocaleString('es-AR')}
               </Box>
             </Box>
           </Box>
@@ -600,8 +608,8 @@ const HistorialVentas = () => {
             <Box component="label" htmlFor="monto-cobro" sx={{ typography: 'eyebrow', color: 'text.disabled' }}>
               Monto a abonar (U$S)
             </Box>
-            <TextField
-              id="monto-cobro" type="number" fullWidth
+            <NumberField
+              id="monto-cobro" fullWidth
               value={cobroData.montoAAbonar}
               onChange={(e) => setCobroData({ ...cobroData, montoAAbonar: e.target.value })}
             />

@@ -11,8 +11,8 @@ import { useVenta } from '../context/VentaContext';
 import InventarioForm from '../../inventario/components/InventarioForm';
 import { inventarioService } from '../../../services/inventarioServices';
 import { fetchApi } from '../../../services/api';
-import { soloDecimalNoNegativo } from '../../../utils/validators';
 import StatusPill from '../../../components/ui/StatusPill';
+import NumberField from '../../../components/ui/NumberField';
 
 const pesos = (n) => `$ ${Math.round(n || 0).toLocaleString('es-AR')}`;
 const dolares = (n) => `U$S ${(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -292,14 +292,13 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
           {/* ── Ajustes ────────────────────────────────────── */}
           <Columna titulo="Ajustes">
             <Campo label="Bonificación (U$S)">
-              <TextField
+              <NumberField
                 fullWidth value={bonificacionInput}
                 placeholder="0,00"
-                slotProps={{ htmlInput: { inputMode: 'decimal' } }}
-                // Filtra a mano: type="number" del HTML permite "-", "+" y notación científica.
-                // No puede bonificar más que el total de la venta.
+                // No puede bonificar más que el total de la venta. NumberField ya sanea
+                // (soloDecimalNoNegativo) el valor crudo que llega en e.target.value.
                 onChange={(e) => {
-                  const limpio = soloDecimalNoNegativo(e.target.value);
+                  const limpio = e.target.value;
                   setBonificacionInput(Number(limpio) > totalVenta ? String(totalVenta) : limpio);
                 }}
                 helperText={Number(bonificacionInput) > 0 && Number(bonificacionInput) >= totalVenta ? 'Tope: total de la venta' : ''}
@@ -323,20 +322,20 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
             <Box sx={{ mt: 'auto', pt: 1.5, borderTop: 1, borderColor: 'pc.dividerSoft' }}>
               <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.25, fontSize: '.78rem' }}>
                 <Box sx={{ color: 'text.secondary' }}>Total venta</Box>
-                <Box className="num" sx={{ fontWeight: 600 }}>{pesos(ars(totalVenta))}</Box>
+                <Box className="num" sx={{ fontWeight: 600 }}>{dolares(totalVenta)}</Box>
               </Box>
               {bonificacion > 0 && (
                 <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.25, fontSize: '.78rem', mt: 0.5 }}>
                   <Box sx={{ color: 'text.secondary' }}>Bonificación</Box>
-                  <Box className="num" sx={{ fontWeight: 600, color: 'error.main' }}>− {pesos(ars(bonificacion))}</Box>
+                  <Box className="num" sx={{ fontWeight: 600, color: 'error.main' }}>− {dolares(bonificacion)}</Box>
                 </Box>
               )}
               <Box sx={{ mt: 1.25, p: '11px 13px', borderRadius: '9px', bgcolor: 'pc.accentSoft', color: 'primary.main' }}>
                 <Box sx={{ typography: 'eyebrow', color: 'inherit', opacity: .75 }}>Total a pagar</Box>
                 <Box className="num" sx={{ fontSize: '1.6rem', fontWeight: 600, letterSpacing: '-.04em', lineHeight: 1.1 }}>
-                  {pesos(ars(totalAjustado))}
+                  {dolares(totalAjustado)}
                 </Box>
-                <Box className="num" sx={{ fontSize: '.72rem', opacity: .75 }}>{dolares(totalAjustado)}</Box>
+                <Box className="num" sx={{ fontSize: '.72rem', opacity: .75 }}>{pesos(ars(totalAjustado))}</Box>
               </Box>
             </Box>
           </Columna>
@@ -370,10 +369,10 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, flex: 'none' }}>
                     <Box sx={{ textAlign: 'right' }}>
                       <Box className="num" sx={{ fontWeight: 600, fontSize: '.78rem', whiteSpace: 'nowrap' }}>
-                        {pesos(pago.Monto * pago.Cotizacion)}
+                        {dolares(pago.Monto)}
                       </Box>
                       <Box className="num" sx={{ color: 'text.disabled', fontSize: '.65rem', whiteSpace: 'nowrap' }}>
-                        {dolares(pago.Monto)}
+                        {pesos(pago.Monto * pago.Cotizacion)}
                       </Box>
                     </Box>
                     <IconButton size="small" onClick={() => eliminarPago(index)} aria-label="Quitar pago"
@@ -388,7 +387,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
             <Box sx={{ p: '11px 13px', borderRadius: '9px', border: 1, borderColor: 'divider' }}>
               <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.25, fontSize: '.78rem' }}>
                 <Box sx={{ color: 'text.secondary' }}>Pagado</Box>
-                <Box className="num" sx={{ fontWeight: 600 }}>{pesos(ars(totalPagado))}</Box>
+                <Box className="num" sx={{ fontWeight: 600 }}>{dolares(totalPagado)}</Box>
               </Box>
               <Box sx={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.25,
@@ -398,11 +397,11 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
                 {cubierto ? (
                   <StatusPill
                     tone="ok"
-                    label={Math.abs(restante) < 0.01 ? 'Cubierto' : `Cubierto · ${pesos(ars(Math.abs(restante)))} a favor`}
+                    label={Math.abs(restante) < 0.01 ? 'Cubierto' : `Cubierto · ${dolares(Math.abs(restante))} a favor`}
                   />
                 ) : (
                   <Box className="num" sx={{ fontWeight: 600, fontSize: '.95rem', color: 'error.main' }}>
-                    {pesos(ars(restante))}
+                    {dolares(restante)}
                   </Box>
                 )}
               </Box>
@@ -430,11 +429,11 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
             </Campo>
 
             <Campo label="Monto (U$S)">
-              <TextField
+              <NumberField
                 fullWidth value={montoPago}
-                onChange={(e) => montoEditable && setMontoPago(soloDecimalNoNegativo(e.target.value))}
+                onChange={(e) => montoEditable && setMontoPago(e.target.value)}
                 disabled={esTransferencia}
-                slotProps={{ input: { readOnly: !montoEditable }, htmlInput: { inputMode: 'decimal' } }}
+                slotProps={{ input: { readOnly: !montoEditable } }}
               />
               <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1 }}>
                 <Typography sx={{ color: 'text.disabled', fontSize: '.69rem' }}>
@@ -453,7 +452,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
                 }}>
                   <Box sx={{ typography: 'eyebrow', color: 'inherit' }}>Vuelto</Box>
                   <Box className="num" sx={{ fontWeight: 700, fontSize: '.84rem' }}>
-                    {pesos(ars(vuelto))} <Box component="span" sx={{ opacity: .75, fontWeight: 500 }}>· {dolares(vuelto)}</Box>
+                    {dolares(vuelto)} <Box component="span" sx={{ opacity: .75, fontWeight: 500 }}>· {pesos(ars(vuelto))}</Box>
                   </Box>
                 </Box>
               )}
@@ -463,7 +462,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
               <Bloque titulo="Desglose de transferencias">
                 <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.4fr) minmax(0,1fr) auto', gap: 0.75 }}>
                   <TextField placeholder="Banco" value={banco} onChange={(e) => setBanco(e.target.value)} />
-                  <TextField placeholder="Monto" type="number" value={subMonto} onChange={(e) => setSubMonto(e.target.value)} />
+                  <NumberField placeholder="Monto" value={subMonto} onChange={(e) => setSubMonto(e.target.value)} />
                   <Button variant="contained" onClick={agregarSubTransferencia} aria-label="Agregar cuenta" sx={{ minWidth: 32, px: 1 }}>
                     <AddIcon sx={{ fontSize: 17 }} />
                   </Button>
@@ -543,8 +542,8 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
                 </Box>
                 {parseInt(cantidadCuotas) > 1 && montoPago && (
                   <Typography className="num" sx={{ color: 'text.secondary', fontSize: '.72rem' }}>
-                    {cantidadCuotas} cuotas mensuales de {pesos(ars(parseFloat(montoPago) / cantidadCuotas))}
-                    {' · '}{dolares(parseFloat(montoPago) / cantidadCuotas)}
+                    {cantidadCuotas} cuotas mensuales de {dolares(parseFloat(montoPago) / cantidadCuotas)}
+                    {' · '}{pesos(ars(parseFloat(montoPago) / cantidadCuotas))}
                   </Typography>
                 )}
               </Bloque>
@@ -564,7 +563,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
 
       <DialogActions sx={{ justifyContent: 'space-between' }}>
         <Typography sx={{ color: 'text.disabled', fontSize: '.72rem' }}>
-          {cubierto ? 'Los pagos cubren el total' : `Falta cubrir ${pesos(ars(restante))}`}
+          {cubierto ? 'Los pagos cubren el total' : `Falta cubrir ${dolares(restante)}`}
         </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button onClick={onClose}>Cancelar</Button>

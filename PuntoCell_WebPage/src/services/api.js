@@ -1,4 +1,4 @@
-import { mapVigentePorInventario, precioVigenteEntreListas } from './preciosServices'
+import { mapVigentePorInventario, precioVigenteEntreListas, idsListasMayoristas, preciosService } from './preciosServices'
 
 export const API_URL = 'http://localhost:3000/api'
 
@@ -283,15 +283,20 @@ export const getOrdenById = async (id) => {
 // un precio vigente para agregarlo a la orden, así que descartamos los que no lo tienen
 // (marcándolos con sinPrecio para poder avisar en la UI).
 export const getRepuestosDisponibles = async () => {
-  const [res, preciosRes] = await Promise.all([
+  const [res, preciosRes, listas] = await Promise.all([
     fetchApi('/reparaciones/inventario/repuestos-disponibles'),
     fetchApi('/precios/precios-articulos').catch(() => ({ data: [] })),
+    preciosService.getListas().catch(() => []),
   ])
   const precios = Array.isArray(preciosRes?.data) ? preciosRes.data : (preciosRes ?? [])
   const mapa = mapVigentePorInventario(precios)
+  // El repuesto se carga siempre al precio minorista (regla de negocio: mayorista solo
+  // aplica con un selector explícito, que este flujo todavía no tiene).
+  const listasMayoristas = idsListasMayoristas(listas)
   return (res?.data ?? []).map(item => {
     const idInv = item.id ?? item.Id
-    const p = precioVigenteEntreListas(mapa, idInv)
+    const p = precioVigenteEntreListas(mapa, idInv, { excluir: listasMayoristas })
+      || precioVigenteEntreListas(mapa, idInv) // fallback si solo hay precio en lista mayorista
     return {
       id:       idInv,
       nombre:   item.articulo?.Nombre ?? '',

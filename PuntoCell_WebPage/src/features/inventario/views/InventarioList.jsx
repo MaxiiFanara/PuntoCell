@@ -37,6 +37,9 @@ const InventarioList = () => {
   const [sucursalActual, setSucursalActual] = useState(miSucursalReal);
   const esMiStock = sucursalActual === miSucursalReal;
   const [mostrarAgotados, setMostrarAgotados] = useState(false);
+  // Mismo criterio que Punto de Venta (VentaContext): minorista por defecto, mayorista
+  // solo con este switch explícito — no cambia nada en la base, solo qué precio se lee.
+  const [esMayorista, setEsMayorista] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   // Filtro de tipo de producto: 'todos' | 'vendibles' | 'repuestos' | 'canje'
   const [filtroTipo, setFiltroTipo] = useState('todos');
@@ -86,6 +89,7 @@ const InventarioList = () => {
           bateria: Number.isFinite(batPct) ? `${batPct}%` : null,
           stock: row.Stock || 0,
           precioMenor: row.PrecioVenta || 0,
+          precioMayor: row.PrecioMayorista || 0,
           esSerializado: art.EsSerializado || false,
         };
       });
@@ -160,11 +164,13 @@ const InventarioList = () => {
   if (busqueda) chips.push({ campo: 'busqueda', texto: busqueda });
   if (filtroTipo !== 'todos') chips.push({ campo: 'filtroTipo', texto: capitalizar(filtroTipo) });
   if (mostrarAgotados) chips.push({ campo: 'mostrarAgotados', texto: 'Solo agotados' });
+  if (esMayorista) chips.push({ campo: 'esMayorista', texto: 'Precio mayorista' });
 
   const quitarChip = (campo) => {
     if (campo === 'busqueda') setBusqueda('');
     if (campo === 'filtroTipo') setFiltroTipo('todos');
     if (campo === 'mostrarAgotados') setMostrarAgotados(false);
+    if (campo === 'esMayorista') setEsMayorista(false);
   };
 
   const mensajeTabla = cargando
@@ -265,6 +271,19 @@ const InventarioList = () => {
             <Typography sx={{ fontSize: '.75rem', color: 'text.secondary' }}>Ver solo agotados</Typography>
           </Box>
         </FilterField>
+
+        <FilterField label="Precio">
+          <Box component="label" sx={{
+            display: 'flex', alignItems: 'center', gap: .75, height: 32, px: 1.25, cursor: 'pointer',
+            border: 1, borderColor: 'divider', borderRadius: '7px',
+            bgcolor: esMayorista ? 'pc.accentSoft' : 'pc.surfaceMuted', whiteSpace: 'nowrap',
+          }}>
+            <Switch size="small" checked={esMayorista} onChange={(e) => setEsMayorista(e.target.checked)} />
+            <Typography sx={{ fontSize: '.75rem', color: esMayorista ? 'primary.main' : 'text.secondary', fontWeight: esMayorista ? 600 : 400 }}>
+              Precio mayorista
+            </Typography>
+          </Box>
+        </FilterField>
       </FilterBar>
 
       <Paper sx={{ overflow: 'hidden' }}>
@@ -276,7 +295,7 @@ const InventarioList = () => {
                 <TableCell sx={{ width: 150 }}>IMEI</TableCell>
                 <TableCell>Características</TableCell>
                 <TableCell sx={{ width: 110 }}>Stock</TableCell>
-                <TableCell align="right" sx={{ width: 150 }}>Precio venta</TableCell>
+                <TableCell align="right" sx={{ width: 150 }}>{esMayorista ? 'Precio mayorista' : 'Precio venta'}</TableCell>
                 <TableCell align="right" sx={{ width: 90 }} />
               </TableRow>
             </TableHead>
@@ -315,7 +334,10 @@ const InventarioList = () => {
                     <StatusPill tone={tonoStock(item.stock)} label={`${item.stock} un.`} />
                   </TableCell>
                   <TableCell align="right">
-                    <Money ars={item.precioMenor * DOLAR_HOY} usd={item.precioMenor} />
+                    <Money
+                      ars={(esMayorista ? item.precioMayor : item.precioMenor) * DOLAR_HOY}
+                      usd={esMayorista ? item.precioMayor : item.precioMenor}
+                    />
                   </TableCell>
                   <TableCell align="right">
                     <Box sx={{ display: 'inline-flex', gap: .5 }}>

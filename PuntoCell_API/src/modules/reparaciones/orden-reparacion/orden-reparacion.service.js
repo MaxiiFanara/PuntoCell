@@ -183,6 +183,9 @@ if (!idClienteAsignado) {
           throw err;
         }
 
+        // CostoRepuestos ya es USD (hereda de PrecioArticulo.ValorFinal, ver repuesto-orden.service.js);
+        // PrecioManoObra debe cargarse en USD desde el frontend por el mismo motivo — de lo
+        // contrario esta suma mezclaría monedas sin conversión.
         const costoRepuestos = Number(orden.CostoRepuestos);
         const precioManoObra = Number(PrecioManoObra);
         const senia = Number(orden.Senia || 0);

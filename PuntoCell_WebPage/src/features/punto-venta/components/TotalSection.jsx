@@ -44,17 +44,18 @@ export const TotalSection = ({ onCobrar }) => {
         />
       </Box>
 
-      {/* El total en pesos es el número principal; el dólar queda de referencia. */}
+      {/* El dólar es la moneda central del sistema: es el número principal. El peso es
+          solo la representación visual según la cotización cargada. */}
       <Box sx={{ p: '16px 15px 14px', display: 'flex', flexDirection: 'column', gap: 0.25 }}>
         <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>Total a cobrar</Box>
         <Box
           className="num"
           sx={{ fontSize: '2.1rem', fontWeight: 600, letterSpacing: '-.04em', lineHeight: 1.05, color: 'primary.main' }}
         >
-          $ {Math.round(totalArs).toLocaleString('es-AR')}
+          U$S {totalVenta.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </Box>
         <Box className="num" sx={{ fontSize: '.78rem', color: 'text.secondary' }}>
-          U$S {totalVenta.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          $ {Math.round(totalArs).toLocaleString('es-AR')}
         </Box>
       </Box>
 

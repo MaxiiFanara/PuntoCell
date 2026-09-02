@@ -6,11 +6,15 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import { comprasService, ESTADO_PAGO } from '../../../services/comprasServices';
 import StatusPill from '../../../components/ui/StatusPill';
+import Money from '../../../components/ui/Money';
+import { useVenta } from '../../punto-venta/context/VentaContext';
 
-const fmt = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const tonoEstado = (ep) => (ep === 3 ? 'ok' : ep === 2 ? 'flat' : 'due');
 
 export default function CompraDetalleModal({ open, onClose, compraId }) {
+  // Los montos de la compra son USD (fuente de verdad); dolarGlobal solo se usa para
+  // mostrar el equivalente en pesos.
+  const { dolarGlobal } = useVenta();
   const [compra, setCompra] = useState(null);
   const [cargando, setCargando] = useState(true);
 
@@ -50,7 +54,7 @@ export default function CompraDetalleModal({ open, onClose, compraId }) {
                 { label: 'Proveedor', node: <Typography sx={{ fontWeight: 600, fontSize: '.84rem' }}>{compra.proveedor?.Nombre || `#${compra.IdProveedor}`}</Typography> },
                 { label: 'Fecha', node: <Typography className="mono" sx={{ fontWeight: 600, fontSize: '.84rem' }}>{compra.Fecha ? String(compra.Fecha).slice(0, 10) : '—'}</Typography> },
                 { label: 'Estado', node: <StatusPill tone={tonoEstado(compra.EstadoPago)} label={estado} /> },
-                { label: 'Saldo pendiente', node: <Typography className="mono" sx={{ fontWeight: 600, fontSize: '.84rem', color: Number(compra.SaldoPendiente) > 0 ? 'error.main' : 'success.main' }}>U$S {fmt(compra.SaldoPendiente)}</Typography> },
+                { label: 'Saldo pendiente', node: <Money ars={Number(compra.SaldoPendiente) * dolarGlobal} usd={compra.SaldoPendiente} align="left" size="sm" /> },
               ].map((m, i) => (
                 <Box key={m.label} sx={{ p: '12px 14px', borderLeft: { sm: i === 0 ? 0 : 1 }, borderTop: { xs: i > 1 ? 1 : 0, sm: 0 }, borderColor: 'pc.dividerSoft' }}>
                   <Box sx={{ typography: 'eyebrow', color: 'text.disabled', mb: '4px' }}>{m.label}</Box>
@@ -64,6 +68,7 @@ export default function CompraDetalleModal({ open, onClose, compraId }) {
               <Table size="small">
                 <TableHead>
                   <TableRow>
+                    <TableCell>Producto</TableCell>
                     <TableCell>Inventario</TableCell>
                     <TableCell align="center">Cant.</TableCell>
                     <TableCell align="right">Costo unit.</TableCell>
@@ -72,14 +77,15 @@ export default function CompraDetalleModal({ open, onClose, compraId }) {
                 </TableHead>
                 <TableBody>
                   {detalles.length === 0 ? (
-                    <TableRow><TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.disabled' }}>Sin renglones.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.disabled' }}>Sin renglones.</TableCell></TableRow>
                   ) : detalles.map((d, i) => (
                     <TableRow key={d.Id ?? i}>
+                      <TableCell sx={{ fontWeight: 600 }}>{d.inventario?.articulo?.Nombre || '—'}</TableCell>
                       <TableCell className="mono">#{d.IdArticulo ?? d.IdInventario}</TableCell>
                       <TableCell align="center" className="num">{d.Cantidad}</TableCell>
-                      <TableCell align="right" className="num">U$S {fmt(d.PrecioCostoUnitario)}</TableCell>
-                      <TableCell align="right" className="num" sx={{ fontWeight: 700 }}>
-                        U$S {fmt(Number(d.Cantidad) * Number(d.PrecioCostoUnitario))}
+                      <TableCell align="right"><Money ars={d.PrecioCostoUnitario * dolarGlobal} usd={d.PrecioCostoUnitario} size="sm" /></TableCell>
+                      <TableCell align="right">
+                        <Money ars={Number(d.Cantidad) * Number(d.PrecioCostoUnitario) * dolarGlobal} usd={Number(d.Cantidad) * Number(d.PrecioCostoUnitario)} size="sm" />
                       </TableCell>
                     </TableRow>
                   ))}
@@ -88,9 +94,7 @@ export default function CompraDetalleModal({ open, onClose, compraId }) {
             </Box>
 
             <Box sx={{ textAlign: 'right', mt: 2.5 }}>
-              <Typography className="num" sx={{ fontSize: '1.44rem', fontWeight: 600, letterSpacing: '-.035em', color: 'primary.main' }}>
-                U$S {fmt(compra.TotalCosto)}
-              </Typography>
+              <Money ars={Number(compra.TotalCosto) * dolarGlobal} usd={compra.TotalCosto} size="lg" />
             </Box>
           </>
         )}

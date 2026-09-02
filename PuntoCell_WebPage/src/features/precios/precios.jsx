@@ -16,6 +16,9 @@ import { usePaginacion } from '../../hooks/usePaginacion';
 import PaginadorTabla from '../../components/PaginadorTabla';
 import PageHeader from '../../components/ui/PageHeader';
 import StatusPill from '../../components/ui/StatusPill';
+import Money from '../../components/ui/Money';
+import NumberField from '../../components/ui/NumberField';
+import { useVenta } from '../punto-venta/context/VentaContext';
 
 const fmt = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -30,6 +33,9 @@ const calcularPrecio = (costoBase, porcentajeRentabilidad) => {
 };
 
 export default function PreciosScreen() {
+  // CostoBase/ValorFinal son USD (fuente de verdad); dolarGlobal solo se usa para mostrar
+  // el equivalente en pesos.
+  const { dolarGlobal } = useVenta();
   const [tab, setTab] = useState(0);
 
   const [listas, setListas] = useState([]);
@@ -184,8 +190,8 @@ export default function PreciosScreen() {
                   <TableRow>
                     <TableCell>Producto</TableCell>
                     <TableCell align="center">IMEI</TableCell>
-                    <TableCell align="right">Costo Base (U$S)</TableCell>
-                    <TableCell align="right">Precio Venta (U$S)</TableCell>
+                    <TableCell align="right">Costo Base</TableCell>
+                    <TableCell align="right">Precio Venta</TableCell>
                     <TableCell align="center">Vigente desde</TableCell>
                     <TableCell align="right" />
                   </TableRow>
@@ -201,9 +207,13 @@ export default function PreciosScreen() {
                           <Typography variant="caption" color="text.secondary">Inventario #{id} · Stock {inv.Stock ?? 0}</Typography>
                         </TableCell>
                         <TableCell align="center" className="mono" sx={{ fontSize: 12 }}>{inv.IMEI || '—'}</TableCell>
-                        <TableCell align="right" className="num">{p ? fmt(p.CostoBase) : '—'}</TableCell>
-                        <TableCell align="right" className="num" sx={{ fontWeight: 700, color: p ? 'success.main' : 'error.main' }}>
-                          {p ? fmt(p.ValorFinal) : 'Sin precio'}
+                        <TableCell align="right">
+                          {p ? <Money ars={p.CostoBase * dolarGlobal} usd={p.CostoBase} size="sm" /> : <span className="num">—</span>}
+                        </TableCell>
+                        <TableCell align="right">
+                          {p
+                            ? <Money ars={p.ValorFinal * dolarGlobal} usd={p.ValorFinal} size="sm" />
+                            : <Typography className="num" sx={{ fontWeight: 700, color: 'error.main' }}>Sin precio</Typography>}
                         </TableCell>
                         <TableCell align="center" className="mono" sx={{ fontSize: 12, color: 'text.secondary' }}>
                           {p?.FechaDesde ? String(p.FechaDesde).slice(0, 10) : '—'}
@@ -326,6 +336,7 @@ function ListaDialog({ lista, categorias, onClose, onSaved }) {
 
 // ============================================================
 function PrecioDialog({ target, lista, onClose, onSaved }) {
+  const { dolarGlobal } = useVenta();
   const { inv, precioActual } = target;
   const idInventario = inv.Id ?? inv.id;
   const [costoBase, setCostoBase] = useState(precioActual ? String(precioActual.CostoBase) : '');
@@ -365,19 +376,20 @@ function PrecioDialog({ target, lista, onClose, onSaved }) {
         <Alert severity="info" sx={{ mb: 2 }}>
           Lista <b>{lista.Nombre}</b> · rentabilidad <b>{fmt(lista.PorcentajeRentabilidad)} %</b>
         </Alert>
-        <TextField label="Costo Base (U$S)" type="number" fullWidth size="small" autoFocus
+        <NumberField label="Costo Base (U$S)" fullWidth size="small" autoFocus
           value={costoBase} onChange={(e) => setCostoBase(e.target.value)}
-          InputProps={{ startAdornment: <InputAdornment position="start">U$S</InputAdornment> }} />
+          InputProps={{ startAdornment: <InputAdornment position="start">U$S</InputAdornment> }}
+          helperText={Number(costoBase) > 0 ? `≈ $ ${Math.round(Number(costoBase) * dolarGlobal).toLocaleString('es-AR')}` : ''} />
 
         <Divider sx={{ my: 2 }}><Chip label="Cálculo" size="small" /></Divider>
         <Grid container spacing={1}>
-          <Fila label="Costos variables (26%)" valor={preview.CostosVariables} />
-          <Fila label="Costo real" valor={preview.CostoReal} />
-          <Fila label={`Ganancia (${fmt(lista.PorcentajeRentabilidad)}%)`} valor={preview.ValorFinal - preview.CostoReal} />
+          <Fila label="Costos variables (26%)" valor={preview.CostosVariables} dolarGlobal={dolarGlobal} />
+          <Fila label="Costo real" valor={preview.CostoReal} dolarGlobal={dolarGlobal} />
+          <Fila label={`Ganancia (${fmt(lista.PorcentajeRentabilidad)}%)`} valor={preview.ValorFinal - preview.CostoReal} dolarGlobal={dolarGlobal} />
           <Grid item xs={12}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', bgcolor: 'pc.accentSoft', color: 'primary.main', p: 1.5, borderRadius: '9px', mt: 1 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'pc.accentSoft', color: 'primary.main', p: 1.5, borderRadius: '9px', mt: 1 }}>
               <Typography fontWeight={600}>Precio de venta</Typography>
-              <Typography fontWeight={700} className="num">U$S {fmt(preview.ValorFinal)}</Typography>
+              <Money ars={preview.ValorFinal * dolarGlobal} usd={preview.ValorFinal} />
             </Box>
           </Grid>
         </Grid>
@@ -392,12 +404,12 @@ function PrecioDialog({ target, lista, onClose, onSaved }) {
   );
 }
 
-function Fila({ label, valor }) {
+function Fila({ label, valor, dolarGlobal }) {
   return (
     <Grid item xs={12}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="body2" color="text.secondary">{label}</Typography>
-        <Typography variant="body2" className="num">U$S {fmt(valor)}</Typography>
+        <Money ars={valor * dolarGlobal} usd={valor} size="sm" />
       </Box>
     </Grid>
   );
