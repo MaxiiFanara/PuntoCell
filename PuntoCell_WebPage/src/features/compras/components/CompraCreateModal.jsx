@@ -304,16 +304,16 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f2' }}>
-        <Typography fontWeight="bold">Registrar Compra</Typography>
-        <IconButton onClick={onClose} size="small"><CloseIcon /></IconButton>
+      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        Registrar compra
+        <IconButton onClick={onClose} size="small" aria-label="Cerrar"><CloseIcon sx={{ fontSize: 17 }} /></IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ bgcolor: '#f4f7fb', p: 3 }}>
+      <DialogContent>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
         {/* Cabecera */}
-        <Box sx={{ bgcolor: 'white', border: '1px solid #e2e8f2', p: 2, borderRadius: 2, mb: 3 }}>
+        <Box sx={{ bgcolor: 'pc.surfaceMuted', border: 1, borderColor: 'divider', p: 2, borderRadius: '9px', mb: 3 }}>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={4}>
               <Autocomplete
@@ -348,7 +348,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
         </Box>
 
         {/* Ítems */}
-        <Typography variant="overline" fontWeight="bold" color="textSecondary">Ítems de la compra</Typography>
+        <Box sx={{ typography: 'eyebrow', color: 'text.disabled', mb: 1 }}>Ítems de la compra</Box>
         {lineas.map((l, i) => {
           const serial = esSerial(l);
           const repuesto = esRepuesto(l);
@@ -356,7 +356,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
             ? (l.clasificacion === 'serializado' || l.clasificacion === 'no_serializado')
             : (serial); // en modo "artículo existente" se conserva el comportamiento previo
           return (
-          <Box key={i} sx={{ bgcolor: 'white', border: '1px solid #e2e8f2', p: 2, borderRadius: 2, mb: 2 }}>
+          <Box key={i} sx={{ bgcolor: 'background.paper', border: 1, borderColor: 'divider', p: 2, borderRadius: '9px', mb: 2 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
               <FormControlLabel
                 control={<Switch size="small" checked={l.nuevo} onChange={(e) => setLinea(i, { nuevo: e.target.checked })} />}
@@ -471,7 +471,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
             {l.nuevo && l.idModelo && (
               <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <TextField fullWidth size="small" label="Producto (calculado)" value={nombreCalculado(l)}
-                  InputProps={{ readOnly: true }} disabled sx={{ '& .Mui-disabled': { WebkitTextFillColor: '#334155' } }} />
+                  InputProps={{ readOnly: true }} />
                 {resolverArticuloExistente(l) && (
                   <Chip label="ya existe: se reutiliza" size="small" color="info" sx={{ flexShrink: 0 }} />
                 )}
@@ -510,16 +510,17 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
             </Grid>
           )}
           <Grid item xs={12} sx={{ textAlign: 'right' }}>
-            <Typography variant="h6" fontFamily="monospace" fontWeight="bold" color="primary">Total: U$S {fmt(total)}</Typography>
+            <Typography className="num" sx={{ fontSize: '1.19rem', fontWeight: 600, letterSpacing: '-.02em', color: 'primary.main' }}>
+              Total: U$S {fmt(total)}
+            </Typography>
           </Grid>
         </Grid>
       </DialogContent>
 
-      <DialogActions sx={{ p: 2, borderTop: '1px solid #e2e8f2' }}>
-        <Button onClick={onClose} sx={{ color: '#52607a', textTransform: 'none' }}>Cancelar</Button>
-        <Button variant="contained" onClick={guardar} disabled={guardando}
-          sx={{ bgcolor: '#0e7a56', '&:hover': { bgcolor: '#0a5a3f' }, textTransform: 'none' }}>
-          {guardando ? 'Guardando…' : 'Registrar Compra'}
+      <DialogActions>
+        <Button onClick={onClose}>Cancelar</Button>
+        <Button variant="contained" onClick={guardar} disabled={guardando}>
+          {guardando ? 'Guardando…' : 'Registrar compra'}
         </Button>
       </DialogActions>
     </Dialog>

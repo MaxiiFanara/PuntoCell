@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Button, Typography, Stack, CircularProgress, Alert } from '@mui/material';
+import { useState, useEffect, useCallback } from 'react';
+import { Box, Button, CircularProgress, Alert } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 
@@ -8,6 +8,7 @@ import ComprasTable from '../components/ComprasTable';
 import CuentasPorPagarModal from '../components/CuentasPorPagarModal';
 import CompraDetalleModal from '../components/CompraDetalleModal';
 import CompraCreateModal from '../components/CompraCreateModal';
+import PageHeader from '../../../components/ui/PageHeader';
 
 import { comprasService, ESTADO_PAGO } from '../../../services/comprasServices';
 
@@ -52,26 +53,36 @@ export default function ComprasList() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  return (
-    <Box sx={{ p: 3, maxWidth: 1400, margin: '0 auto', bgcolor: '#f4f7fb', minHeight: '100vh' }}>
-      <Box display="flex" justifyContent="space-between" alignItems="flex-end" mb={3} flexWrap="wrap" gap={2}>
-        <Box>
-          <Typography variant="overline" sx={{ color: '#8695ad', fontWeight: 700, letterSpacing: 1 }}>Gestión de Abastecimiento</Typography>
-          <Typography variant="h4" sx={{ fontWeight: 700, color: '#0f1729' }}>Historial de Compras</Typography>
-        </Box>
-        <Stack direction="row" spacing={2}>
-          <Button variant="contained" startIcon={<ReceiptLongIcon />} onClick={() => setOpenDeudas(true)}
-            sx={{ bgcolor: '#9c5f07', '&:hover': { bgcolor: '#7a4a05' }, borderRadius: 2, textTransform: 'none', fontWeight: 600 }}>
-            Cuentas por Pagar
-          </Button>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenCreate(true)}
-            sx={{ bgcolor: '#2456d6', '&:hover': { bgcolor: '#1b429f' }, borderRadius: 2, textTransform: 'none', fontWeight: 600 }}>
-            Registrar Compra
-          </Button>
-        </Stack>
-      </Box>
+  const adeudadas = compras.filter((c) => c.saldo > 0).length;
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+  return (
+    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+
+      <PageHeader
+        eyebrow="Abastecimiento"
+        title="Historial de compras"
+        meta={`${compras.length} ${compras.length === 1 ? 'factura registrada' : 'facturas registradas'}`}
+        action={
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap' }}>
+            <Button
+              variant="outlined"
+              startIcon={<ReceiptLongIcon sx={{ fontSize: '16px !important' }} />}
+              onClick={() => setOpenDeudas(true)}
+            >
+              Cuentas por pagar{adeudadas > 0 ? ` (${adeudadas})` : ''}
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon sx={{ fontSize: '16px !important' }} />}
+              onClick={() => setOpenCreate(true)}
+            >
+              Registrar compra
+            </Button>
+          </Box>
+        }
+      />
+
+      {error && <Alert severity="error">{error}</Alert>}
 
       {cargando ? (
         <Box sx={{ textAlign: 'center', py: 6 }}><CircularProgress /></Box>

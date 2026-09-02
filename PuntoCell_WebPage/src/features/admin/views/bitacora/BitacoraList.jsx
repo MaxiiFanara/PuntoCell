@@ -1,11 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
-  TextField, InputAdornment, Chip, Box, Typography, Paper,
+  TextField, Box, Typography, Paper, Button, Tooltip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  CircularProgress, Button, TablePagination
+  CircularProgress, TablePagination,
 } from '@mui/material';
-
-import Security from '@mui/icons-material/Security';
 import Search from '@mui/icons-material/Search';
 import Login from '@mui/icons-material/Login';
 import Warning from '@mui/icons-material/Warning';
@@ -18,6 +16,11 @@ import Person from '@mui/icons-material/Person';
 import { bitacoraService } from '../../../../services/bitacoraServices';
 import { usuariosService } from '../../../../services/usuariosServices';
 import { inventarioService } from '../../../../services/inventarioServices';
+
+import PageHeader from '../../../../components/ui/PageHeader';
+import KpiCard from '../../../../components/ui/KpiCard';
+import StatusPill from '../../../../components/ui/StatusPill';
+import FilterBar, { FilterField } from '../../../../components/ui/FilterBar';
 
 const getEstiloAccion = (accion = '') => {
   const acc = accion.toLowerCase();
@@ -85,113 +88,130 @@ const BitacoraList = () => {
 
   useEffect(() => { setPage(0); }, [filtros]);
 
+  const resumen = useMemo(() => ({
+    total: logs.length,
+    fallidos: logs.filter((l) => (l.Accion || '').toLowerCase().includes('fallido') || (l.Accion || '').toLowerCase().includes('rechaz')).length,
+    hoy: logs.filter((l) => String(l.Fecha).slice(0, 10) === new Date().toISOString().slice(0, 10)).length,
+    usuarios: new Set(logs.map((l) => l.IdEmpleado).filter(Boolean)).size,
+  }), [logs]);
+
   const visibles = logsFiltrados.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
+  const chips = [];
+  if (filtros.buscar) chips.push({ campo: 'buscar', texto: filtros.buscar });
+  if (filtros.fecha) chips.push({ campo: 'fecha', texto: filtros.fecha });
+
   return (
-    <Box sx={{ p: { xs: 2, md: 4 }, backgroundColor: '#f8fafc', minHeight: '100vh' }}>
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, mb: 4, gap: 2 }}>
-        <Typography variant="h5" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: 'text.primary' }}>
-          <Security color="action" fontSize="large" /> Bitácora de Seguridad
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
-          <Chip label={`${logsFiltrados.length} registros`} size="small" sx={{ bgcolor: 'action.selected', color: 'text.secondary', fontWeight: 'bold' }} />
-          <Button variant="outlined" size="small" onClick={cargar}>Actualizar</Button>
-        </Box>
+    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+
+      <PageHeader
+        eyebrow="Seguridad"
+        title="Bitácora"
+        meta={`${logsFiltrados.length} de ${logs.length} ${logs.length === 1 ? 'registro' : 'registros'}`}
+        action={<Button variant="outlined" onClick={cargar}>Actualizar</Button>}
+      />
+
+      {error && <Typography color="error.main" sx={{ fontSize: '.84rem' }}>{error}</Typography>}
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2,1fr)', lg: 'repeat(4,1fr)' }, gap: 1.5 }}>
+        <KpiCard eyebrow="Registros" tone="accent" loading={cargando} value={resumen.total} />
+        <KpiCard eyebrow="Hoy" tone="ok" loading={cargando} value={resumen.hoy} />
+        <KpiCard eyebrow="Accesos fallidos" tone="error" loading={cargando} value={resumen.fallidos}
+          badge={resumen.fallidos > 0 ? <StatusPill tone="late" label="Revisar" /> : null} />
+        <KpiCard eyebrow="Usuarios activos" tone="mute" loading={cargando} value={resumen.usuarios} />
       </Box>
 
-      <Paper elevation={1} sx={{ p: 2.5, mb: 4 }}>
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, alignItems: 'center' }}>
+      <FilterBar
+        columns="minmax(220px,1.8fr) minmax(150px,1fr)"
+        chips={chips.map((c) => (
+          <StatusPill key={c.campo} tone="flat" label={c.texto} />
+        ))}
+        actions={(filtros.buscar || filtros.fecha) && (
+          <Button size="small" onClick={() => setFiltros({ buscar: '', fecha: '' })}>Limpiar</Button>
+        )}
+      >
+        <FilterField label="Buscar">
           <TextField
-            placeholder="Buscar por acción, detalle o usuario…"
-            fullWidth
+            fullWidth placeholder="Acción, detalle o usuario…"
             value={filtros.buscar}
             onChange={(e) => setFiltros({ ...filtros, buscar: e.target.value })}
-            InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> }}
+            slotProps={{ input: { startAdornment: <Search sx={{ fontSize: 15, color: 'text.disabled', mr: .75 }} /> } }}
           />
-          <TextField
-            type="date"
-            value={filtros.fecha}
-            onChange={(e) => setFiltros({ ...filtros, fecha: e.target.value })}
-            sx={{ width: { xs: '100%', md: '250px' } }}
-          />
-          <Button variant="outlined" color="secondary" onClick={() => setFiltros({ buscar: '', fecha: '' })}>
-            Limpiar
-          </Button>
-        </Box>
-      </Paper>
-
-      {error && <Typography color="error" sx={{ mb: 2 }}>{error}</Typography>}
+        </FilterField>
+        <FilterField label="Fecha">
+          <TextField type="date" fullWidth value={filtros.fecha}
+            onChange={(e) => setFiltros({ ...filtros, fecha: e.target.value })} />
+        </FilterField>
+      </FilterBar>
 
       {cargando ? (
         <Box sx={{ textAlign: 'center', py: 6 }}><CircularProgress /></Box>
       ) : (
-        <TableContainer component={Paper} elevation={1}>
-          <Table sx={{ minWidth: 800 }}>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ pl: 3 }}>Fecha / Hora</TableCell>
-                <TableCell>Sucursal</TableCell>
-                <TableCell>Usuario</TableCell>
-                <TableCell>Acción</TableCell>
-                <TableCell>Detalle</TableCell>
-                <TableCell>IP</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {visibles.length === 0 ? (
+        <Paper sx={{ overflow: 'hidden' }}>
+          <TableContainer sx={{ overflowX: 'auto' }}>
+            <Table sx={{ minWidth: 860 }}>
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 6, color: 'text.secondary' }}>
-                    No se encontraron registros con esos filtros.
-                  </TableCell>
+                  <TableCell>Fecha / hora</TableCell>
+                  <TableCell>Sucursal</TableCell>
+                  <TableCell>Usuario</TableCell>
+                  <TableCell>Acción</TableCell>
+                  <TableCell>Detalle</TableCell>
+                  <TableCell>IP</TableCell>
                 </TableRow>
-              ) : visibles.map((item) => {
-                const { color, Icono } = getEstiloAccion(item.Accion);
-                const emp = empleados[item.IdEmpleado];
-                return (
-                  <TableRow key={item.Id}>
-                    <TableCell sx={{ pl: 3 }}>
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace', color: 'text.secondary', whiteSpace: 'nowrap' }}>
-                        {item.Fecha ? new Date(item.Fecha).toLocaleString('es-AR') : '—'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip label={sucursales[item.IdSucursal] || (item.IdSucursal ? `#${item.IdSucursal}` : 'Global')} size="small" variant="outlined" />
-                    </TableCell>
-                    <TableCell>
-                      {emp ? (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Person fontSize="small" color="action" />
-                          <Typography variant="body2" fontWeight="bold" color="text.primary">{emp}</Typography>
-                        </Box>
-                      ) : (
-                        <Typography variant="body2" sx={{ color: 'text.disabled', fontStyle: 'italic' }}>Sistema / Anónimo</Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color }}>
-                        <Icono fontSize="small" />
-                        <Typography variant="body2" fontWeight="bold" sx={{ color, whiteSpace: 'nowrap' }}>
-                          {item.Accion}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary"
-                        sx={{ maxWidth: 320, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                        title={item.Detalle}>
-                        {item.Detalle}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.disabled' }}>
-                        {item.IpAddress}
-                      </Typography>
+              </TableHead>
+              <TableBody>
+                {visibles.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} sx={{ height: 120, textAlign: 'center', color: 'text.disabled' }}>
+                      No se encontraron registros con esos filtros.
                     </TableCell>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                ) : visibles.map((item) => {
+                  const { color, Icono } = getEstiloAccion(item.Accion);
+                  const emp = empleados[item.IdEmpleado];
+                  return (
+                    <TableRow key={item.Id} hover>
+                      <TableCell className="mono" sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                        {item.Fecha ? new Date(item.Fecha).toLocaleString('es-AR') : '—'}
+                      </TableCell>
+                      <TableCell>
+                        <StatusPill tone="neutral" label={sucursales[item.IdSucursal] || (item.IdSucursal ? `#${item.IdSucursal}` : 'Global')} />
+                      </TableCell>
+                      <TableCell>
+                        {emp ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                            <Person sx={{ fontSize: 15, color: 'text.disabled' }} />
+                            <Typography sx={{ fontSize: '.78rem', fontWeight: 600 }}>{emp}</Typography>
+                          </Box>
+                        ) : (
+                          <Typography sx={{ fontSize: '.78rem', color: 'text.disabled', fontStyle: 'italic' }}>Sistema / Anónimo</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color }}>
+                          <Icono sx={{ fontSize: 15 }} />
+                          <Typography sx={{ fontSize: '.78rem', fontWeight: 700, color, whiteSpace: 'nowrap' }}>
+                            {item.Accion}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell sx={{ color: 'text.secondary' }}>
+                        <Tooltip title={item.Detalle || ''}>
+                          <Typography sx={{ fontSize: '.78rem', maxWidth: 320, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.Detalle}
+                          </Typography>
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell className="mono" sx={{ color: 'text.disabled', fontSize: '.72rem' }}>
+                        {item.IpAddress}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
           <TablePagination
             component="div"
             count={logsFiltrados.length}
@@ -201,7 +221,7 @@ const BitacoraList = () => {
             onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
             rowsPerPageOptions={[10, 25, 50, 100]}
           />
-        </TableContainer>
+        </Paper>
       )}
     </Box>
   );

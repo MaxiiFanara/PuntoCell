@@ -30,6 +30,7 @@ import BalanceList from './features/reportes/views/BalanceList';
 import ComprasList from './features/compras/views/ComprasList';
 import PreciosScreen from './features/precios/precios';
 import { VentaProvider } from './features/punto-venta/context/VentaContext';
+import ThemeToggle from './components/ui/ThemeToggle';
 
 
 
@@ -52,6 +53,9 @@ const AdminRoute = ({ children }) => {
 
 const App = () => (
   <AuthProvider>
+    {/* Único switch de tema del sistema: fuera de <Routes> para que aparezca en
+        todas las pantallas, públicas e internas. */}
+    <ThemeToggle />
     <Routes>
       {/* ---------------- PUBLICAS ---------------- */}
       <Route path="/" element={<LandingPage />} />

@@ -1,16 +1,20 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
   Button, IconButton, Typography, Chip, Dialog, DialogTitle, DialogContent,
   DialogContentText, TextField, DialogActions, Box, Tooltip, Avatar, FormControl,
-  InputLabel, Select, MenuItem, Alert, CircularProgress
+  InputLabel, Select, MenuItem, Alert,
 } from '@mui/material';
-import { Edit, Delete, PersonAdd, Group, Email, WarningAmber } from '@mui/icons-material';
+import { Edit, Delete, PersonAdd, Email, WarningAmber } from '@mui/icons-material';
 import { usuariosService } from '../../../../services/usuariosServices';
 import { soloLetrasYEspacios, soloDigitos } from '../../../../utils/validators';
 import { capitalizar } from '../../../../utils/format';
+
+import PageHeader from '../../../../components/ui/PageHeader';
+import KpiCard from '../../../../components/ui/KpiCard';
+import StatusPill from '../../../../components/ui/StatusPill';
+import TablePager from '../../../../components/ui/TablePager';
 import { usePaginacion } from '../../../../hooks/usePaginacion';
-import PaginadorTabla from '../../../../components/PaginadorTabla';
 
 const EMPTY_FORM = { DNI: '', Nombre: '', Apellido: '', Email: '', Celular: '', IdRol: '', IdSucursal: '' };
 
@@ -55,9 +59,21 @@ const UsersScreen = () => {
   useEffect(() => { cargarDatos(); }, [cargarDatos]);
 
   const { pagina, setPagina, totalPaginas, itemsPagina, hayPaginacion } = usePaginacion(users);
+  const desdeFila = users.length ? (pagina - 1) * 10 + 1 : 0;
+  const hastaFila = Math.min(pagina * 10, users.length);
 
   const nombreRol = (idRol) => capitalizar(roles.find((r) => (r.Id ?? r.id) === idRol)?.Nombre) || '—';
   const nombreSucursal = (idSucursal) => capitalizar(sucursales.find((s) => (s.Id ?? s.id) === idSucursal)?.Nombre) || '—';
+
+  const resumen = useMemo(() => {
+    const activos = users.filter((u) => u.Activo).length;
+    return {
+      total: users.length,
+      activos,
+      inactivos: users.length - activos,
+      roles: roles.length,
+    };
+  }, [users, roles]);
 
   // ==========================================
   // LÓGICA DE CREAR / EDITAR
@@ -125,186 +141,172 @@ const UsersScreen = () => {
     }
   };
 
+  const mensajeTabla = loading
+    ? 'Cargando usuarios…'
+    : (users.length === 0 ? 'No hay usuarios cargados.' : null);
+
   return (
-    <Box className="animate-fade-in">
-      {/* HEADER */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <Typography variant="h4" className="font-extrabold text-slate-800 flex items-center gap-3">
-            <Group sx={{ color: '#2563eb', fontSize: 36 }} /> Gestión de Usuarios
-          </Typography>
-          <Typography variant="body1" className="text-slate-500 mt-1">
-            Administra el acceso y los roles de tus empleados.
-          </Typography>
-        </div>
-        <Button
-          variant="contained"
-          startIcon={<PersonAdd />}
-          onClick={() => handleOpen()}
-          sx={{
-            bgcolor: '#2563eb', '&:hover': { bgcolor: '#1d4ed8' },
-            py: 1.25, px: 3, borderRadius: '12px', boxShadow: 3, textTransform: 'none', fontWeight: 600
-          }}
-        >
-          Registrar Usuario
-        </Button>
-      </div>
+    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
 
-      {error && <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }} onClose={() => setError('')}>{error}</Alert>}
+      <PageHeader
+        eyebrow="Administración"
+        title="Usuarios"
+        meta={`${resumen.total} ${resumen.total === 1 ? 'usuario registrado' : 'usuarios registrados'}`}
+        action={
+          <Button variant="contained" startIcon={<PersonAdd />} onClick={() => handleOpen()}>
+            Registrar usuario
+          </Button>
+        }
+      />
 
-      {/* TABLA PRINCIPAL */}
-      <TableContainer component={Paper} sx={{ boxShadow: 1, borderRadius: '16px', border: '1px solid #f1f5f9' }}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Usuario</TableCell>
-              <TableCell>Contacto</TableCell>
-              <TableCell>Rol Asignado</TableCell>
-              <TableCell>Sucursal</TableCell>
-              <TableCell>Estado</TableCell>
-              <TableCell align="right" sx={{ px: 3 }}>Acciones</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loading ? (
+      {error && (
+        <Alert severity="error" onClose={() => setError('')}>{error}</Alert>
+      )}
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2,1fr)', lg: 'repeat(4,1fr)' }, gap: 1.5 }}>
+        <KpiCard eyebrow="Usuarios" tone="accent" loading={loading} value={resumen.total} />
+        <KpiCard eyebrow="Activos" tone="ok" loading={loading} value={resumen.activos} />
+        <KpiCard eyebrow="Inactivos" tone="mute" loading={loading} value={resumen.inactivos} />
+        <KpiCard eyebrow="Roles del sistema" tone="warn" loading={loading} value={resumen.roles} />
+      </Box>
+
+      <Paper sx={{ overflow: 'hidden' }}>
+        <TableContainer sx={{ overflowX: 'auto' }}>
+          <Table sx={{ minWidth: 780 }}>
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={6} sx={{ textAlign: 'center', py: 5 }}><CircularProgress size={28} /></TableCell>
+                <TableCell>Usuario</TableCell>
+                <TableCell>Contacto</TableCell>
+                <TableCell>Rol asignado</TableCell>
+                <TableCell>Sucursal</TableCell>
+                <TableCell>Estado</TableCell>
+                <TableCell align="right" sx={{ width: 96 }}>Acciones</TableCell>
               </TableRow>
-            ) : users.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} sx={{ textAlign: 'center', py: 5, color: 'text.secondary' }}>
-                  No hay usuarios cargados.
-                </TableCell>
-              </TableRow>
-            ) : (
-              itemsPagina.map((row) => (
+            </TableHead>
+            <TableBody>
+              {mensajeTabla ? (
+                <TableRow>
+                  <TableCell colSpan={6} sx={{ height: 120, textAlign: 'center', color: 'text.disabled' }}>
+                    {mensajeTabla}
+                  </TableCell>
+                </TableRow>
+              ) : itemsPagina.map((row) => (
                 <TableRow key={row.Id} hover>
                   <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar sx={{ bgcolor: '#eff6ff', color: '#1d4ed8', fontWeight: 'bold', width: 36, height: 36 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                      <Avatar sx={{ bgcolor: 'pc.accentSoft', color: 'primary.main', fontWeight: 700, width: 32, height: 32, fontSize: '.8rem' }}>
                         {(row.Nombre || '?').charAt(0).toUpperCase()}
                       </Avatar>
-                      <Box>
-                        <Typography sx={{ fontWeight: 600, color: '#334155' }}>{capitalizar(row.Nombre)} {capitalizar(row.Apellido)}</Typography>
-                        <Typography variant="caption" sx={{ color: '#94a3b8' }}>DNI {row.DNI}</Typography>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 600, fontSize: '.8125rem' }}>
+                          {capitalizar(row.Nombre)} {capitalizar(row.Apellido)}
+                        </Typography>
+                        <Typography className="mono" sx={{ color: 'text.disabled', fontSize: '.69rem' }}>
+                          DNI {row.DNI}
+                        </Typography>
                       </Box>
-                    </div>
+                    </Box>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1.5 text-slate-500">
-                      <Email fontSize="small" />
-                      <Typography variant="body2">{row.Email}</Typography>
-                    </div>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: 'text.secondary' }}>
+                      <Email sx={{ fontSize: 15 }} />
+                      <Typography sx={{ fontSize: '.78rem' }}>{row.Email}</Typography>
+                    </Box>
                   </TableCell>
                   <TableCell>
-                    <Chip label={nombreRol(row.IdRol)} size="small" variant="outlined" sx={{ fontWeight: 500, color: '#475569', borderColor: '#cbd5e1' }} />
+                    <Chip label={nombreRol(row.IdRol)} size="small" variant="outlined" />
+                  </TableCell>
+                  <TableCell sx={{ color: 'text.secondary' }}>
+                    {nombreSucursal(row.IdSucursal)}
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" sx={{ color: '#475569' }}>{nombreSucursal(row.IdSucursal)}</Typography>
+                    <StatusPill tone={row.Activo ? 'ok' : 'neutral'} label={row.Activo ? 'Activo' : 'Inactivo'} />
                   </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={row.Activo ? 'Activo' : 'Inactivo'}
-                      size="small"
-                      color={row.Activo ? 'success' : 'default'}
-                      sx={{ fontWeight: 600 }}
-                    />
-                  </TableCell>
-                  <TableCell align="right" sx={{ px: 3 }}>
-                    <Tooltip title="Editar Usuario">
-                      <IconButton
-                        onClick={() => handleOpen(row)}
-                        sx={{ color: '#2563eb', '&:hover': { bgcolor: '#eff6ff' }, mr: 1 }}
-                      >
-                        <Edit fontSize="small" />
+                  <TableCell align="right">
+                    <Tooltip title="Editar usuario">
+                      <IconButton size="small" onClick={() => handleOpen(row)}>
+                        <Edit sx={{ fontSize: 17 }} />
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="Dar de baja">
-                      <IconButton
-                        onClick={() => handleDeleteClick(row)}
-                        sx={{ color: '#e11d48', '&:hover': { bgcolor: '#fff1f2' } }}
-                      >
-                        <Delete fontSize="small" />
+                      <IconButton size="small" onClick={() => handleDeleteClick(row)} sx={{ color: 'error.main' }}>
+                        <Delete sx={{ fontSize: 17 }} />
                       </IconButton>
                     </Tooltip>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-        <PaginadorTabla pagina={pagina} totalPaginas={totalPaginas} onChange={setPagina} mostrar={hayPaginacion} />
-      </TableContainer>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+        {hayPaginacion && (
+          <TablePager
+            page={pagina}
+            pageCount={totalPaginas}
+            from={desdeFila}
+            to={hastaFila}
+            total={users.length}
+            unidad={users.length === 1 ? 'usuario' : 'usuarios'}
+            onChange={setPagina}
+          />
+        )}
+      </Paper>
 
       {/* ========================================== */}
       {/* 1. MODAL DE CREAR / EDITAR                 */}
       {/* ========================================== */}
-      <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth slotProps={{ paper: { sx: { borderRadius: '16px', p: 1 } } }}>
-        <DialogTitle component="div" sx={{ pb: 0 }}>
-          <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1e293b' }}>
-            {editMode ? 'Actualizar Usuario' : 'Registrar Nuevo Usuario'}
-          </Typography>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3, display: 'flex', flexDirection: 'column', gap: 2.5, mt: 1 }}>
-          {formError && <Alert severity="error" sx={{ borderRadius: 2 }}>{formError}</Alert>}
+      <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+        <DialogTitle>{editMode ? 'Actualizar usuario' : 'Registrar nuevo usuario'}</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 0.5 }}>
+          {formError && <Alert severity="error">{formError}</Alert>}
           {!editMode && (
-            <Alert severity="info" sx={{ borderRadius: 2 }}>
+            <Alert severity="info">
               El usuario y la contraseña se generan automáticamente y se envían por email.
             </Alert>
           )}
 
-          <div className="flex gap-4">
-            <TextField
-              label="DNI" fullWidth variant="outlined"
-              value={formData.DNI}
-              onChange={(e) => setFormData({ ...formData, DNI: soloDigitos(e.target.value, 8) })}
-              inputProps={{ inputMode: 'numeric' }}
-              slotProps={{ input: { sx: { borderRadius: '12px' } } }}
-            />
-          </div>
+          <TextField
+            label="DNI" fullWidth
+            value={formData.DNI}
+            onChange={(e) => setFormData({ ...formData, DNI: soloDigitos(e.target.value, 8) })}
+            inputProps={{ inputMode: 'numeric' }}
+          />
 
-          <div className="flex gap-4">
+          <Box sx={{ display: 'flex', gap: 2 }}>
             <TextField
-              label="Nombre" fullWidth variant="outlined"
+              label="Nombre" fullWidth
               value={formData.Nombre}
               onChange={(e) => setFormData({ ...formData, Nombre: soloLetrasYEspacios(e.target.value, 25) })}
               helperText={`${formData.Nombre.length}/25`}
-              slotProps={{ input: { sx: { borderRadius: '12px' } } }}
             />
             <TextField
-              label="Apellido" fullWidth variant="outlined"
+              label="Apellido" fullWidth
               value={formData.Apellido}
               onChange={(e) => setFormData({ ...formData, Apellido: soloLetrasYEspacios(e.target.value, 25) })}
               helperText={`${formData.Apellido.length}/25`}
-              slotProps={{ input: { sx: { borderRadius: '12px' } } }}
             />
-          </div>
+          </Box>
 
           <TextField
-            label="Correo Electrónico"
-            type="email"
-            fullWidth variant="outlined"
+            label="Correo electrónico" type="email" fullWidth
             value={formData.Email}
             onChange={(e) => setFormData({ ...formData, Email: e.target.value })}
-            slotProps={{ input: { sx: { borderRadius: '12px' } } }}
           />
 
           <TextField
-            label="Celular" fullWidth variant="outlined"
+            label="Celular" fullWidth
             value={formData.Celular}
             onChange={(e) => setFormData({ ...formData, Celular: soloDigitos(e.target.value, 11) })}
             inputProps={{ inputMode: 'numeric' }}
-            slotProps={{ input: { sx: { borderRadius: '12px' } } }}
           />
 
-          <div className="flex gap-4">
-            <FormControl fullWidth variant="outlined">
-              <InputLabel>Rol del Sistema</InputLabel>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <FormControl fullWidth>
+              <InputLabel>Rol del sistema</InputLabel>
               <Select
                 value={formData.IdRol}
                 onChange={(e) => setFormData({ ...formData, IdRol: e.target.value })}
-                label="Rol del Sistema"
-                sx={{ borderRadius: '12px' }}
+                label="Rol del sistema"
               >
                 {roles.map((r) => (
                   <MenuItem key={r.Id ?? r.id} value={r.Id ?? r.id}>{r.Nombre}</MenuItem>
@@ -312,30 +314,28 @@ const UsersScreen = () => {
               </Select>
             </FormControl>
 
-            <FormControl fullWidth variant="outlined">
+            <FormControl fullWidth>
               <InputLabel>Sucursal</InputLabel>
               <Select
                 value={formData.IdSucursal}
                 onChange={(e) => setFormData({ ...formData, IdSucursal: e.target.value })}
                 label="Sucursal"
-                sx={{ borderRadius: '12px' }}
               >
                 {sucursales.map((s) => (
                   <MenuItem key={s.Id ?? s.id} value={s.Id ?? s.id}>{s.Nombre}</MenuItem>
                 ))}
               </Select>
             </FormControl>
-          </div>
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 1 }}>
-          <Button onClick={handleClose} sx={{ color: '#64748b', fontWeight: 'bold' }}>CANCELAR</Button>
+        <DialogActions>
+          <Button onClick={handleClose}>Cancelar</Button>
           <Button
             variant="contained"
             onClick={handleSave}
             disabled={saving || !formData.DNI || !formData.Nombre || !formData.Apellido || !formData.Email || !formData.Celular || !formData.IdRol || !formData.IdSucursal}
-            sx={{ bgcolor: '#2563eb', '&:hover': { bgcolor: '#1d4ed8' }, px: 3, borderRadius: '8px', fontWeight: 'bold' }}
           >
-            {saving ? 'GUARDANDO…' : (editMode ? 'GUARDAR CAMBIOS' : 'CREAR USUARIO')}
+            {saving ? 'Guardando…' : (editMode ? 'Guardar cambios' : 'Crear usuario')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -343,34 +343,19 @@ const UsersScreen = () => {
       {/* ========================================== */}
       {/* 2. ALERT DE CONFIRMACIÓN (BAJA)            */}
       {/* ========================================== */}
-      <Dialog
-        open={openDeleteAlert}
-        onClose={() => setOpenDeleteAlert(false)}
-        slotProps={{ paper: { sx: { borderRadius: '16px', p: 1, maxWidth: '400px' } } }}
-      >
-        <DialogTitle component="div" sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#e11d48', pb: 1 }}>
-          <WarningAmber fontSize="large" />
-          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Dar de baja</Typography>
+      <Dialog open={openDeleteAlert} onClose={() => setOpenDeleteAlert(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'error.main' }}>
+          <WarningAmber fontSize="small" /> Dar de baja
         </DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ color: '#475569' }}>
-            ¿Estás seguro que deseas dar de baja a <strong>{capitalizar(userToDelete?.Nombre)} {capitalizar(userToDelete?.Apellido)}</strong>? Perderá acceso inmediatamente. El registro no se borra, queda marcado como inactivo.
+          <DialogContentText>
+            ¿Estás seguro que deseas dar de baja a <strong>{capitalizar(userToDelete?.Nombre)} {capitalizar(userToDelete?.Apellido)}</strong>?
+            Perderá acceso inmediatamente. El registro no se borra, queda marcado como inactivo.
           </DialogContentText>
         </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 0 }}>
-          <Button
-            onClick={() => setOpenDeleteAlert(false)}
-            sx={{ color: '#64748b', fontWeight: 'bold' }}
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={confirmDelete}
-            variant="contained"
-            sx={{ bgcolor: '#e11d48', '&:hover': { bgcolor: '#be123c' }, fontWeight: 'bold', borderRadius: '8px' }}
-          >
-            Sí, dar de baja
-          </Button>
+        <DialogActions>
+          <Button onClick={() => setOpenDeleteAlert(false)}>Cancelar</Button>
+          <Button onClick={confirmDelete} variant="contained" color="error">Sí, dar de baja</Button>
         </DialogActions>
       </Dialog>
 

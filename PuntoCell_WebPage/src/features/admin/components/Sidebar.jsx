@@ -1,54 +1,53 @@
-import React from 'react';
-import { List, ListItem, ListItemButton, ListItemIcon, ListItemText, Divider, Box, Typography } from '@mui/material';
-import { Group, Security, VerifiedUser, Smartphone } from '@mui/icons-material';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { Box } from '@mui/material';
+import { Group, Security, VerifiedUser } from '@mui/icons-material';
+
+// Ya hay un rail principal en AppLayout: esto es una franja liviana de tabs,
+// no un segundo sidebar. Mismo lenguaje visual que los ítems del rail.
+const ITEMS = [
+  { name: 'Usuarios', path: '/app/admin/usuarios', icon: Group },
+  { name: 'Roles', path: '/app/admin/roles', icon: Security },
+  { name: 'Permisos', path: '/app/admin/permisos', icon: VerifiedUser },
+];
 
 const Sidebar = () => {
-  const navigate = useNavigate();
   const location = useLocation();
 
-  const menuItems = [
-    { text: 'Roles', icon: <Security />, path: '/app/admin/roles' },
-    { text: 'Permisos', icon: <VerifiedUser />, path: '/app/admin/permisos' },
-    { text: 'Usuarios', icon: <Group />, path: '/app/admin/usuarios' }
-  ];
-
   return (
-    <Box className="w-64 h-screen bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800">
-      <List className="flex-1 px-3 py-4">
-        {menuItems.map((item) => (
-          <ListItem key={item.text} disablePadding className="mb-1">
-            <ListItemButton 
-              onClick={() => navigate(item.path)}
-              className={`rounded-lg transition-all ${
-                location.pathname === item.path 
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-                : 'hover:bg-slate-800'
-              }`}
-            >
-              <ListItemIcon sx={{ color: location.pathname === item.path ? 'white' : '#94a3b8', minWidth: 40 }}>
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText 
-                primary={item.text} 
-                slotProps={{
-                    primary: {
-                        fontSize: '0.9rem',
-                        fontWeight: location.pathname === item.path ? 600 : 400,
-                        className: location.pathname === item.path ? 'text-white' : 'text-slate-300'
-                    }
-                }}
-              />
-            </ListItemButton>
-          </ListItem>
-        ))}
-      </List>
-      
-      <div className="p-4 border-t border-slate-800">
-        <Typography variant="caption" className="text-slate-500 block text-center">
-          v1.0.0 - Tesis Simón
-        </Typography>
-      </div>
+    <Box component="nav" aria-label="Secciones de administración" sx={{ display: 'flex', gap: 0.5, overflowX: 'auto' }}>
+      {ITEMS.map((item) => {
+        const Icon = item.icon;
+        const activo = location.pathname.startsWith(item.path);
+
+        return (
+          <Box
+            component={Link}
+            to={item.path}
+            key={item.path}
+            aria-current={activo ? 'page' : undefined}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.875,
+              flex: 'none',
+              p: '7px 12px',
+              borderRadius: '8px',
+              textDecoration: 'none',
+              fontSize: '.8125rem',
+              fontWeight: activo ? 600 : 500,
+              color: activo ? 'primary.contrastText' : 'text.secondary',
+              bgcolor: activo ? 'primary.main' : 'transparent',
+              '&:hover': {
+                bgcolor: activo ? 'primary.dark' : 'pc.surfaceMuted',
+                color: activo ? 'primary.contrastText' : 'text.primary',
+              },
+            }}
+          >
+            <Icon sx={{ fontSize: 17, opacity: activo ? 1 : 0.75 }} />
+            {item.name}
+          </Box>
+        );
+      })}
     </Box>
   );
 };

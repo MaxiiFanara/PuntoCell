@@ -4,7 +4,7 @@ import { Box, Pagination } from '@mui/material';
 export default function PaginadorTabla({ pagina, totalPaginas, onChange, mostrar = true }) {
   if (!mostrar || totalPaginas <= 1) return null;
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', py: 2, borderTop: '1px solid #e2e8f0' }}>
+    <Box sx={{ display: 'flex', justifyContent: 'center', py: 1.5, borderTop: 1, borderColor: 'pc.dividerSoft' }}>
       <Pagination
         count={totalPaginas}
         page={pagina}

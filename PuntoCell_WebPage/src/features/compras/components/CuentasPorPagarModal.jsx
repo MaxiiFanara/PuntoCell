@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography, IconButton,
-  TextField, MenuItem, Collapse
+  TextField, MenuItem, Collapse,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { comprasService } from '../../../services/comprasServices';
@@ -53,43 +53,49 @@ export default function CuentasPorPagarModal({ open, onClose, compras, onPagado 
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f2' }}>
-        <Typography fontWeight="bold">Cuentas por Pagar</Typography>
-        <IconButton onClick={onClose} size="small"><CloseIcon /></IconButton>
+      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        Cuentas por pagar
+        <IconButton onClick={onClose} size="small" aria-label="Cerrar"><CloseIcon sx={{ fontSize: 17 }} /></IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ bgcolor: '#f4f7fb', p: 3 }}>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
         {deudas.length === 0 ? (
-          <Typography textAlign="center" color="#0e7a56" fontWeight="bold">Sin cuentas por pagar. 🎉</Typography>
+          <Typography sx={{ textAlign: 'center', color: 'success.main', fontWeight: 600, py: 2 }}>
+            Sin cuentas por pagar. 🎉
+          </Typography>
         ) : deudas.map((deuda) => (
-          <Box key={deuda.id} sx={{ mb: 1.5, bgcolor: '#fff', borderRadius: 2, border: '1px solid #e2e8f2', overflow: 'hidden' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2 }}>
-              <Box>
-                <Typography fontWeight="bold" fontSize={14}>{deuda.proveedor}</Typography>
-                <Typography variant="caption" color="textSecondary" fontFamily="monospace">Compra #{deuda.id} · {deuda.fecha}</Typography>
+          <Box key={deuda.id} sx={{ borderRadius: '9px', border: 1, borderColor: 'divider', overflow: 'hidden' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1.5, p: '12px 14px' }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 600, fontSize: '.8rem' }}>{deuda.proveedor}</Typography>
+                <Typography className="mono" sx={{ color: 'text.disabled', fontSize: '.69rem' }}>
+                  Compra #{deuda.id} · {deuda.fecha}
+                </Typography>
               </Box>
-              <Box textAlign="right" mr={2}>
-                <Typography fontWeight="bold" color="#c0392f" fontFamily="monospace">U$S {fmt(deuda.saldo)}</Typography>
-                <Typography variant="caption" color="textSecondary" fontFamily="monospace">de U$S {fmt(deuda.total)}</Typography>
+              <Box sx={{ textAlign: 'right', flex: 'none' }}>
+                <Typography className="num" sx={{ fontWeight: 700, color: 'error.main', fontSize: '.84rem' }}>U$S {fmt(deuda.saldo)}</Typography>
+                <Typography className="num" sx={{ color: 'text.disabled', fontSize: '.65rem' }}>de U$S {fmt(deuda.total)}</Typography>
               </Box>
-              <Button variant="contained" size="small" color="success" sx={{ textTransform: 'none' }}
+              <Button variant={abierta === deuda.id ? 'text' : 'contained'} size="small"
                 onClick={() => (abierta === deuda.id ? setAbierta(null) : abrirPago(deuda))}>
                 {abierta === deuda.id ? 'Cancelar' : 'Pagar'}
               </Button>
             </Box>
 
             <Collapse in={abierta === deuda.id}>
-              <Box sx={{ p: 2, pt: 0, display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Box sx={{
+                p: '12px 14px', display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap',
+                borderTop: 1, borderColor: 'pc.dividerSoft', bgcolor: 'pc.surfaceMuted',
+              }}>
                 <TextField size="small" type="number" label="Monto" value={form.monto}
-                  onChange={(e) => setForm({ ...form, monto: e.target.value })} sx={{ width: 140 }} />
+                  onChange={(e) => setForm({ ...form, monto: e.target.value })} sx={{ width: 130 }} />
                 <TextField size="small" select label="Método" value={form.idMetodo}
-                  onChange={(e) => setForm({ ...form, idMetodo: e.target.value })} sx={{ minWidth: 200 }}>
+                  onChange={(e) => setForm({ ...form, idMetodo: e.target.value })} sx={{ minWidth: 180 }}>
                   {metodos.map((m) => (
                     <MenuItem key={m.Id ?? m.id} value={m.Id ?? m.id}>{m.Nombre ?? m.nombre}</MenuItem>
                   ))}
                 </TextField>
-                <Button variant="contained" size="small" disabled={guardando}
-                  onClick={() => confirmarPago(deuda)} sx={{ textTransform: 'none', bgcolor: '#0e7a56' }}>
+                <Button variant="contained" size="small" disabled={guardando} onClick={() => confirmarPago(deuda)}>
                   {guardando ? '…' : 'Confirmar pago'}
                 </Button>
               </Box>
@@ -98,8 +104,8 @@ export default function CuentasPorPagarModal({ open, onClose, compras, onPagado 
         ))}
       </DialogContent>
 
-      <DialogActions sx={{ p: 2, bgcolor: '#fff', borderTop: '1px solid #e2e8f2' }}>
-        <Button onClick={onClose} sx={{ color: '#52607a', textTransform: 'none' }}>Cerrar</Button>
+      <DialogActions>
+        <Button onClick={onClose}>Cerrar</Button>
       </DialogActions>
     </Dialog>
   );

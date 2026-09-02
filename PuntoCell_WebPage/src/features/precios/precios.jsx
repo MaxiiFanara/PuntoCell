@@ -9,12 +9,13 @@ import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import PriceChangeIcon from '@mui/icons-material/PriceChange';
 
 import { preciosService, mapVigentePorInventario, LISTA_MINORISTA_ID } from '../../services/preciosServices';
 import { inventarioService } from '../../services/inventarioServices';
 import { usePaginacion } from '../../hooks/usePaginacion';
 import PaginadorTabla from '../../components/PaginadorTabla';
+import PageHeader from '../../components/ui/PageHeader';
+import StatusPill from '../../components/ui/StatusPill';
 
 const fmt = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -84,21 +85,18 @@ export default function PreciosScreen() {
   }
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto', bgcolor: '#f4f7fb', minHeight: '100vh' }}>
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="overline" sx={{ color: '#8695ad', fontWeight: 700, letterSpacing: 1 }}>
-          Ingeniería de Precios
-        </Typography>
-        <Typography variant="h4" sx={{ fontWeight: 700, color: '#0f1729', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <PriceChangeIcon fontSize="large" /> Listas y Precios de Venta
-        </Typography>
-      </Box>
+    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+      <PageHeader
+        eyebrow="Ingeniería de precios"
+        title="Listas y precios de venta"
+        meta={`${listas.length} ${listas.length === 1 ? 'lista' : 'listas'} · ${inventario.length} productos vendibles`}
+      />
 
-      <Card sx={{ borderRadius: 2, boxShadow: '0 2px 8px -3px rgba(15,23,41,.08)' }}>
+      <Card>
         <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
           <Tabs value={tab} onChange={(e, v) => setTab(v)}>
-            <Tab label="Listas de Precios" sx={{ fontWeight: 'bold', textTransform: 'none' }} />
-            <Tab label="Precios por Producto" sx={{ fontWeight: 'bold', textTransform: 'none' }} />
+            <Tab label="Listas de Precios" sx={{ textTransform: 'none' }} />
+            <Tab label="Precios por Producto" sx={{ textTransform: 'none' }} />
           </Tabs>
         </Box>
 
@@ -110,21 +108,20 @@ export default function PreciosScreen() {
                 Cada lista define un <b>% de rentabilidad</b>. El precio de venta se calcula como
                 CostoReal (CostoBase × 1.26) × (1 + % / 100).
               </Typography>
-              <Button variant="contained" startIcon={<AddIcon />} onClick={() => setListaEditar({ nuevo: true })}
-                sx={{ textTransform: 'none', bgcolor: '#2456d6' }}>
+              <Button variant="contained" startIcon={<AddIcon sx={{ fontSize: '16px !important' }} />} onClick={() => setListaEditar({ nuevo: true })}>
                 Nueva Lista
               </Button>
             </Box>
 
             <Box sx={{ overflowX: 'auto' }}>
               <Table size="small">
-                <TableHead sx={{ bgcolor: '#f8fafd' }}>
+                <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold' }}>#</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Nombre</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }} align="center">% Rentabilidad</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Categoría</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }} align="center">Estado</TableCell>
+                    <TableCell>#</TableCell>
+                    <TableCell>Nombre</TableCell>
+                    <TableCell align="center">% Rentabilidad</TableCell>
+                    <TableCell>Categoría</TableCell>
+                    <TableCell align="center">Estado</TableCell>
                     <TableCell align="right" />
                   </TableRow>
                 </TableHead>
@@ -133,16 +130,14 @@ export default function PreciosScreen() {
                     const id = l.Id ?? l.id;
                     return (
                       <TableRow key={id} hover>
-                        <TableCell>{id}</TableCell>
+                        <TableCell className="mono">{id}</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>{l.Nombre}</TableCell>
                         <TableCell align="center">
-                          <Chip size="small" label={`${fmt(l.PorcentajeRentabilidad)} %`}
-                            sx={{ bgcolor: '#e9f0fe', color: '#2456d6', fontWeight: 'bold' }} />
+                          <StatusPill tone="flat" label={`${fmt(l.PorcentajeRentabilidad)} %`} />
                         </TableCell>
                         <TableCell>{l.IdCategoriaProducto ? nombreCategoria(l.IdCategoriaProducto) : 'Genérica'}</TableCell>
                         <TableCell align="center">
-                          <Chip size="small" label={l.Activo ? 'Activa' : 'Inactiva'}
-                            sx={{ bgcolor: l.Activo ? '#e2f4ed' : '#fdeceb', color: l.Activo ? '#0e7a56' : '#c0392f', fontWeight: 'bold' }} />
+                          <StatusPill tone={l.Activo ? 'ok' : 'late'} label={l.Activo ? 'Activa' : 'Inactiva'} />
                         </TableCell>
                         <TableCell align="right">
                           <IconButton size="small" onClick={() => setListaEditar(l)}><EditIcon fontSize="small" /></IconButton>
@@ -171,7 +166,7 @@ export default function PreciosScreen() {
           <Box sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
               <TextField select size="small" label="Lista de precios" value={listaSel}
-                onChange={(e) => setListaSel(Number(e.target.value))} sx={{ minWidth: 260, bgcolor: 'white' }}>
+                onChange={(e) => setListaSel(Number(e.target.value))} sx={{ minWidth: 260 }}>
                 {listas.map((l) => (
                   <MenuItem key={l.Id ?? l.id} value={l.Id ?? l.id}>
                     {l.Nombre} ({fmt(l.PorcentajeRentabilidad)} %)
@@ -185,13 +180,13 @@ export default function PreciosScreen() {
 
             <Box sx={{ overflowX: 'auto' }}>
               <Table size="small">
-                <TableHead sx={{ bgcolor: '#f8fafd' }}>
+                <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Producto</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }} align="center">IMEI</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }} align="right">Costo Base (U$S)</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }} align="right">Precio Venta (U$S)</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }} align="center">Vigente desde</TableCell>
+                    <TableCell>Producto</TableCell>
+                    <TableCell align="center">IMEI</TableCell>
+                    <TableCell align="right">Costo Base (U$S)</TableCell>
+                    <TableCell align="right">Precio Venta (U$S)</TableCell>
+                    <TableCell align="center">Vigente desde</TableCell>
                     <TableCell align="right" />
                   </TableRow>
                 </TableHead>
@@ -205,16 +200,16 @@ export default function PreciosScreen() {
                           <Typography sx={{ fontWeight: 600 }}>{inv.articulo?.Nombre || 'Producto'}</Typography>
                           <Typography variant="caption" color="text.secondary">Inventario #{id} · Stock {inv.Stock ?? 0}</Typography>
                         </TableCell>
-                        <TableCell align="center" sx={{ fontFamily: 'monospace', fontSize: 12 }}>{inv.IMEI || '—'}</TableCell>
-                        <TableCell align="right" sx={{ fontFamily: 'monospace' }}>{p ? fmt(p.CostoBase) : '—'}</TableCell>
-                        <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: 700, color: p ? '#0e7a56' : '#c0392f' }}>
+                        <TableCell align="center" className="mono" sx={{ fontSize: 12 }}>{inv.IMEI || '—'}</TableCell>
+                        <TableCell align="right" className="num">{p ? fmt(p.CostoBase) : '—'}</TableCell>
+                        <TableCell align="right" className="num" sx={{ fontWeight: 700, color: p ? 'success.main' : 'error.main' }}>
                           {p ? fmt(p.ValorFinal) : 'Sin precio'}
                         </TableCell>
-                        <TableCell align="center" sx={{ fontSize: 12, color: 'text.secondary' }}>
+                        <TableCell align="center" className="mono" sx={{ fontSize: 12, color: 'text.secondary' }}>
                           {p?.FechaDesde ? String(p.FechaDesde).slice(0, 10) : '—'}
                         </TableCell>
                         <TableCell align="right">
-                          <Button size="small" variant="outlined" sx={{ textTransform: 'none' }}
+                          <Button size="small" variant="outlined"
                             onClick={() => setPrecioTarget({ inv, precioActual: p })}>
                             {p ? 'Actualizar' : 'Fijar precio'}
                           </Button>
@@ -286,8 +281,8 @@ function ListaDialog({ lista, categorias, onClose, onSaved }) {
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography fontWeight="bold">{esNuevo ? 'Nueva Lista de Precios' : `Editar Lista #${lista.Id ?? lista.id}`}</Typography>
-        <IconButton onClick={onClose} size="small"><CloseIcon /></IconButton>
+        {esNuevo ? 'Nueva lista de precios' : `Editar lista #${lista.Id ?? lista.id}`}
+        <IconButton onClick={onClose} size="small" aria-label="Cerrar"><CloseIcon sx={{ fontSize: 17 }} /></IconButton>
       </DialogTitle>
       <DialogContent sx={{ pt: 3 }}>
         <Grid container spacing={2} sx={{ mt: 0 }}>
@@ -319,10 +314,9 @@ function ListaDialog({ lista, categorias, onClose, onSaved }) {
           </Grid>
         </Grid>
       </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} sx={{ textTransform: 'none' }}>Cancelar</Button>
-        <Button variant="contained" onClick={guardar} disabled={guardando}
-          sx={{ textTransform: 'none', bgcolor: '#2456d6' }}>
+      <DialogActions>
+        <Button onClick={onClose}>Cancelar</Button>
+        <Button variant="contained" onClick={guardar} disabled={guardando}>
           {guardando ? 'Guardando…' : 'Guardar'}
         </Button>
       </DialogActions>
@@ -364,8 +358,8 @@ function PrecioDialog({ target, lista, onClose, onSaved }) {
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography fontWeight="bold">Precio · {inv.articulo?.Nombre || `Inventario #${idInventario}`}</Typography>
-        <IconButton onClick={onClose} size="small"><CloseIcon /></IconButton>
+        Precio · {inv.articulo?.Nombre || `Inventario #${idInventario}`}
+        <IconButton onClick={onClose} size="small" aria-label="Cerrar"><CloseIcon sx={{ fontSize: 17 }} /></IconButton>
       </DialogTitle>
       <DialogContent sx={{ pt: 3 }}>
         <Alert severity="info" sx={{ mb: 2 }}>
@@ -381,17 +375,16 @@ function PrecioDialog({ target, lista, onClose, onSaved }) {
           <Fila label="Costo real" valor={preview.CostoReal} />
           <Fila label={`Ganancia (${fmt(lista.PorcentajeRentabilidad)}%)`} valor={preview.ValorFinal - preview.CostoReal} />
           <Grid item xs={12}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', bgcolor: '#e9f0fe', p: 1.5, borderRadius: 2, mt: 1 }}>
-              <Typography fontWeight="bold" color="primary">Precio de venta</Typography>
-              <Typography fontWeight="bold" color="primary" fontFamily="monospace">U$S {fmt(preview.ValorFinal)}</Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', bgcolor: 'pc.accentSoft', color: 'primary.main', p: 1.5, borderRadius: '9px', mt: 1 }}>
+              <Typography fontWeight={600}>Precio de venta</Typography>
+              <Typography fontWeight={700} className="num">U$S {fmt(preview.ValorFinal)}</Typography>
             </Box>
           </Grid>
         </Grid>
       </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} sx={{ textTransform: 'none' }}>Cancelar</Button>
-        <Button variant="contained" onClick={guardar} disabled={guardando}
-          sx={{ textTransform: 'none', bgcolor: '#0e7a56' }}>
+      <DialogActions>
+        <Button onClick={onClose}>Cancelar</Button>
+        <Button variant="contained" onClick={guardar} disabled={guardando}>
           {guardando ? 'Guardando…' : 'Guardar precio'}
         </Button>
       </DialogActions>
@@ -404,7 +397,7 @@ function Fila({ label, valor }) {
     <Grid item xs={12}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
         <Typography variant="body2" color="text.secondary">{label}</Typography>
-        <Typography variant="body2" fontFamily="monospace">U$S {fmt(valor)}</Typography>
+        <Typography variant="body2" className="num">U$S {fmt(valor)}</Typography>
       </Box>
     </Grid>
   );

@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
-import { 
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, 
-  Button, Typography, Chip, Box, Tooltip, IconButton, Dialog, DialogTitle, 
-  DialogContent, DialogContentText, TextField, DialogActions, FormControl, InputLabel, Select, MenuItem
+import { useState } from 'react';
+import {
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
+  Button, Box, Tooltip, IconButton, Dialog, DialogTitle,
+  DialogContent, DialogContentText, TextField, DialogActions, FormControl, InputLabel, Select, MenuItem, Alert,
 } from '@mui/material';
-import { VerifiedUser, InfoOutlined, Add, LockOpen, Edit, Delete, WarningAmber } from '@mui/icons-material';
-import { usePaginacion } from '../../../../hooks/usePaginacion';
-import PaginadorTabla from '../../../../components/PaginadorTabla';
+import { Add, Edit, Delete, WarningAmber } from '@mui/icons-material';
+
+import PageHeader from '../../../../components/ui/PageHeader';
+import StatusPill from '../../../../components/ui/StatusPill';
 
 const PermissionsScreen = () => {
   // Mock local, no conectado al backend (existe /usuarios/permisos con CRUD real)
@@ -45,10 +46,10 @@ const PermissionsScreen = () => {
       setPermissions(permissions.map(p => p.id === editingId ? { ...p, ...formData } : p));
     } else {
       const newNumber = permissions.length > 0
-        ? Math.max(...permissions.map(p => parseInt(p.id.split('-')[1]))) + 1 
+        ? Math.max(...permissions.map(p => parseInt(p.id.split('-')[1]))) + 1
         : 1;
       const newId = `PERM-${newNumber.toString().padStart(3, '0')}`;
-      
+
       setPermissions([...permissions, { id: newId, ...formData }]);
     }
     handleClose();
@@ -65,129 +66,88 @@ const PermissionsScreen = () => {
     setPermToDelete(null);
   };
 
-  const { pagina, setPagina, totalPaginas, itemsPagina, hayPaginacion } = usePaginacion(permissions);
-
   return (
-    <Box className="animate-fade-in">
-      {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <Typography variant="h4" className="font-extrabold text-slate-800 flex items-center gap-3">
-            <LockOpen sx={{ color: '#2563eb', fontSize: 36 }} /> Diccionario de Permisos
-          </Typography>
-          <Typography variant="body1" className="text-slate-500 mt-1">
-            Catálogo de acciones y restricciones del sistema Punto Cell.
-          </Typography>
-        </div>
-        
-        <Button 
-          variant="contained" 
-          startIcon={<Add />}
-          onClick={() => handleOpen()} // Crear
-          sx={{
-            bgcolor: '#2563eb', '&:hover': { bgcolor: '#1d4ed8' },
-            py: 1.25, px: 3, borderRadius: '12px', boxShadow: 3, textTransform: 'none', fontWeight: 600
-          }}
-        >
-          Registrar Permiso
-        </Button>
-      </div>
+    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
 
-      {/* CARTEL INFORMATIVO */}
-      <Box sx={{ bgcolor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', p: 2, mb: 4, display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-        <InfoOutlined sx={{ color: '#3b82f6', mt: 0.2 }} fontSize="small" />
-        <Typography variant="body2" sx={{ color: '#1e40af' }}>
-          <strong>Nota de Arquitectura:</strong> Los permisos son constantes que el código fuente verifica. Modificarlos o eliminarlos puede afectar los roles que ya los tienen asignados.
-        </Typography>
-      </Box>
+      <PageHeader
+        eyebrow="Administración"
+        title="Diccionario de permisos"
+        meta="Catálogo de acciones y restricciones del sistema Punto Cell."
+        action={
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+            <StatusPill tone="due" label="Datos de ejemplo" />
+            <Button variant="contained" startIcon={<Add />} onClick={() => handleOpen()}>
+              Registrar permiso
+            </Button>
+          </Box>
+        }
+      />
 
-      {/* TABLA DE PERMISOS */}
-      <TableContainer component={Paper} sx={{ boxShadow: 1, borderRadius: '16px', border: '1px solid #f1f5f9' }}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Código</TableCell>
-              <TableCell>Nombre del Permiso</TableCell>
-              <TableCell>Módulo</TableCell>
-              <TableCell>Descripción</TableCell>
-              <TableCell align="right" sx={{ px: 3 }}>Acciones</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {itemsPagina.map((perm) => (
-              <TableRow key={perm.id} hover>
-                <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#94a3b8' }}>
-                  {perm.id}
-                </TableCell>
-                <TableCell>
-                  <Chip 
-                    label={perm.name} 
-                    size="small" 
-                    icon={<VerifiedUser style={{ fontSize: '14px' }} />}
-                    sx={{ fontFamily: 'monospace', fontWeight: 600, bgcolor: '#eff6ff', color: '#1d4ed8', border: '1px solid #dbeafe' }}
-                  />
-                </TableCell>
-                <TableCell sx={{ fontWeight: 500, color: '#475569' }}>
-                  {perm.module}
-                </TableCell>
-                <TableCell sx={{ color: '#64748b', fontStyle: 'italic', fontSize: '0.875rem' }}>
-                  {perm.description}
-                </TableCell>
-                <TableCell align="right" sx={{ px: 3 }}>
-                  
-                  {/* BOTÓN EDITAR */}
-                  <Tooltip title="Editar Permiso">
-                    <IconButton 
-                      onClick={() => handleOpen(perm)} 
-                      sx={{ color: '#2563eb', '&:hover': { color: '#1d4ed8', bgcolor: '#eff6ff' }, mr: 1 }}
-                    >
-                      <Edit fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+      <Alert severity="info">
+        <strong>Nota de arquitectura:</strong> los permisos son constantes que el código fuente verifica.
+        Modificarlos o eliminarlos puede afectar los roles que ya los tienen asignados.
+      </Alert>
 
-                  {/* BOTÓN ELIMINAR */}
-                  <Tooltip title="Eliminar Permiso">
-                    <IconButton 
-                      onClick={() => handleDeleteClick(perm)} 
-                      sx={{ color: '#e11d48', '&:hover': { color: '#be123c', bgcolor: '#fff1f2' } }}
-                    >
-                      <Delete fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-
-                </TableCell>
+      <Paper sx={{ overflow: 'hidden' }}>
+        <TableContainer sx={{ overflowX: 'auto' }}>
+          <Table sx={{ minWidth: 700 }}>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ width: 100 }}>Código</TableCell>
+                <TableCell>Nombre del permiso</TableCell>
+                <TableCell sx={{ width: 130 }}>Módulo</TableCell>
+                <TableCell>Descripción</TableCell>
+                <TableCell align="right" sx={{ width: 96 }}>Acciones</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        <PaginadorTabla pagina={pagina} totalPaginas={totalPaginas} onChange={setPagina} mostrar={hayPaginacion} />
-      </TableContainer>
+            </TableHead>
+            <TableBody>
+              {permissions.map((perm) => (
+                <TableRow key={perm.id} hover>
+                  <TableCell className="mono" sx={{ color: 'text.disabled' }}>{perm.id}</TableCell>
+                  <TableCell>
+                    <StatusPill tone="flat" label={perm.name} />
+                  </TableCell>
+                  <TableCell sx={{ color: 'text.secondary' }}>{perm.module}</TableCell>
+                  <TableCell sx={{ color: 'text.secondary', fontStyle: 'italic' }}>{perm.description}</TableCell>
+                  <TableCell align="right">
+                    <Tooltip title="Editar permiso">
+                      <IconButton size="small" onClick={() => handleOpen(perm)}>
+                        <Edit sx={{ fontSize: 17 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Eliminar permiso">
+                      <IconButton size="small" onClick={() => handleDeleteClick(perm)} sx={{ color: 'error.main' }}>
+                        <Delete sx={{ fontSize: 17 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
 
       {/* Modal crear/editar */}
-      <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth slotProps={{ paper: { sx: { borderRadius: '16px', p: 1 } } }}>
-        <DialogTitle component="div" sx={{ pb: 0 }}>
-          <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#1e293b' }}>
-            {editMode ? 'Actualizar Permiso' : 'Registrar Permiso Técnico'}
-          </Typography>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3, display: 'flex', flexDirection: 'column', gap: 2.5, mt: 1 }}>
-          
+      <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
+        <DialogTitle>{editMode ? 'Actualizar permiso' : 'Registrar permiso técnico'}</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 0.5 }}>
+
           <TextField
-            label="Clave del Permiso (ej: modulo.accion)"
-            fullWidth variant="outlined"
+            label="Clave del permiso (ej: modulo.accion)"
+            fullWidth
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value.toLowerCase().replace(/\s+/g, '.') })}
-            slotProps={{ input: { sx: { borderRadius: '12px', fontFamily: 'monospace' } } }}
-            helperText="Se formatea automáticamente a minusculas y puntos."
+            slotProps={{ htmlInput: { className: 'mono' } }}
+            helperText="Se formatea automáticamente a minúsculas y puntos."
           />
 
-          <FormControl fullWidth variant="outlined">
-            <InputLabel>Módulo del Sistema</InputLabel>
+          <FormControl fullWidth>
+            <InputLabel>Módulo del sistema</InputLabel>
             <Select
               value={formData.module}
               onChange={(e) => setFormData({ ...formData, module: e.target.value })}
-              label="Módulo del Sistema"
-              sx={{ borderRadius: '12px' }}
+              label="Módulo del sistema"
             >
               <MenuItem value="Ventas">Ventas</MenuItem>
               <MenuItem value="Inventario">Inventario</MenuItem>
@@ -199,54 +159,39 @@ const PermissionsScreen = () => {
 
           <TextField
             label="Descripción corta"
-            fullWidth variant="outlined"
+            fullWidth
             multiline rows={2}
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            slotProps={{ input: { sx: { borderRadius: '12px' } } }}
           />
 
         </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 1 }}>
-          <Button onClick={handleClose} sx={{ color: '#64748b', fontWeight: 'bold', textTransform: 'none' }}>Cancelar</Button>
-          <Button 
-            variant="contained" 
+        <DialogActions>
+          <Button onClick={handleClose}>Cancelar</Button>
+          <Button
+            variant="contained"
             onClick={handleSave}
-            disabled={!formData.name || !formData.module} 
-            sx={{ bgcolor: '#2563eb', '&:hover': { bgcolor: '#1d4ed8' }, px: 3, borderRadius: '8px', fontWeight: 'bold', textTransform: 'none' }}
+            disabled={!formData.name || !formData.module}
           >
-            {editMode ? 'Guardar Cambios' : 'Crear Permiso'}
+            {editMode ? 'Guardar cambios' : 'Crear permiso'}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Confirmación de eliminar */}
-      <Dialog 
-        open={openDeleteAlert} 
-        onClose={() => setOpenDeleteAlert(false)}
-        slotProps={{ paper: { sx: { borderRadius: '16px', p: 1, maxWidth: '400px' } } }}
-      >
-        <DialogTitle component="div" sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#e11d48', pb: 1 }}>
-          <WarningAmber fontSize="large" /> 
-          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Eliminar Permiso</Typography>
+      <Dialog open={openDeleteAlert} onClose={() => setOpenDeleteAlert(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'error.main' }}>
+          <WarningAmber fontSize="small" /> Eliminar permiso
         </DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ color: '#475569' }}>
-            ¿Estás seguro que deseas eliminar el permiso <strong>{permToDelete?.name}</strong>? 
-            Si algún Rol tiene asignado este permiso, podría perder acceso a esa función.
+          <DialogContentText>
+            ¿Estás seguro que deseas eliminar el permiso <strong>{permToDelete?.name}</strong>?
+            Si algún rol tiene asignado este permiso, podría perder acceso a esa función.
           </DialogContentText>
         </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 0 }}>
-          <Button onClick={() => setOpenDeleteAlert(false)} sx={{ color: '#64748b', fontWeight: 'bold' }}>
-            Cancelar
-          </Button>
-          <Button 
-            onClick={confirmDelete} 
-            variant="contained"
-            sx={{ bgcolor: '#e11d48', '&:hover': { bgcolor: '#be123c' }, fontWeight: 'bold', borderRadius: '8px' }}
-          >
-            Sí, Eliminar
-          </Button>
+        <DialogActions>
+          <Button onClick={() => setOpenDeleteAlert(false)}>Cancelar</Button>
+          <Button onClick={confirmDelete} variant="contained" color="error">Sí, eliminar</Button>
         </DialogActions>
       </Dialog>
 

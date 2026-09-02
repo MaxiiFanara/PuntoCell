@@ -1,127 +1,84 @@
-import { Box, Card, CardMedia, CardContent, Typography, Button, Chip } from '@mui/material';
-import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+import { Box, Button, Paper, Typography } from '@mui/material';
+import SmartphoneIcon from '@mui/icons-material/Smartphone';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+
+import StatusPill from '../../../components/ui/StatusPill';
+
+// Vidriera de ejemplo hasta que se enganche al catálogo real (/api/catalogo).
+const DESTACADOS = [
+  { name: 'iPhone 15 Pro Max', spec: '256 GB', price: 'U$S 1.199', estado: 'Nuevo' },
+  { name: 'iPhone 14 Pro',     spec: '128 GB', price: 'U$S 899',   estado: 'Seminuevo' },
+  { name: 'AirPods Pro',       spec: '2da gen', price: 'U$S 249',  estado: 'Nuevo' },
+  { name: 'Apple Watch S9',    spec: '45 mm',  price: 'U$S 399',   estado: 'Nuevo' },
+];
 
 export default function CatalogHighlight() {
-  const products = [
-    {
-      name: 'iPhone 15 Pro Max',
-      capacity: '256GB',
-      price: 'U$S 1.199',
-      status: 'Nuevo',
-      imagePlaceholder: 'https://placehold.co/400x500/f3f4f6/a1a1aa?text=Foto+iPhone+15' 
-    },
-    {
-      name: 'iPhone 14 Pro',
-      capacity: '128GB',
-      price: 'U$S 899',
-      status: 'Seminuevo',
-      imagePlaceholder: 'https://placehold.co/400x500/f3f4f6/a1a1aa?text=Foto+iPhone+14'
-    },
-    {
-      name: 'AirPods Pro',
-      capacity: '2da Gen',
-      price: 'U$S 249',
-      status: 'Nuevo',
-      imagePlaceholder: 'https://placehold.co/400x500/f3f4f6/a1a1aa?text=Foto+AirPods'
-    },
-    {
-      name: 'Apple Watch Series 9',
-      capacity: '45mm',
-      price: 'U$S 399',
-      status: 'Nuevo',
-      imagePlaceholder: 'https://placehold.co/400x500/f3f4f6/a1a1aa?text=Foto+Watch'
-    }
-  ];
-
   return (
-    <Box component="section" sx={{ py: 12, bgcolor: '#f9fafb' }}>
-      <Box sx={{ px: 2, mx: 'auto', maxWidth: '1280px' }}>
-        
-        {/* Encabezado */}
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: 'center', justifyContent: 'space-between', mb: 6 }}>
+    <Box component="section" sx={{ px: 2.5, py: { xs: 8, md: 12 }, bgcolor: 'background.default', borderTop: 1, borderColor: 'divider' }}>
+      <Box sx={{ maxWidth: 1120, mx: 'auto' }}>
+
+        <Box sx={{
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
+          gap: 2, mb: { xs: 3.5, md: 5 }, flexWrap: 'wrap',
+        }}>
           <Box>
-            <Typography variant="h2" sx={{ fontSize: { xs: '1.875rem', md: '2.25rem' }, fontWeight: 700, color: 'text.primary' }}>
-              Equipos Destacados
+            <Box sx={{ typography: 'eyebrow', color: 'text.disabled', mb: 1 }}>Vidriera</Box>
+            <Typography component="h2" sx={{ fontSize: { xs: '1.75rem', md: '2.25rem' }, fontWeight: 600, letterSpacing: '-.03em' }}>
+              Equipos destacados
             </Typography>
-            <Typography sx={{ mt: 1, fontSize: '1.125rem', color: 'text.secondary' }}>
+            <Typography sx={{ mt: 1, fontSize: '1rem', color: 'text.secondary' }}>
               Los modelos más buscados, con entrega inmediata.
             </Typography>
           </Box>
-          <Button 
-            variant="text" 
-            href="/catalogo"
-            sx={{ mt: { xs: 2, md: 0 }, color: 'primary.dark', fontWeight: 'bold', textTransform: 'none' }}
-          >
-            Ver todo el catálogo →
+          <Button href="/catalogo" endIcon={<ArrowForwardIcon sx={{ fontSize: '16px !important' }} />}>
+            Ver todo el catálogo
           </Button>
         </Box>
 
-        {/* Grilla de Productos */}
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 3 }}>
-          {products.map((product, index) => (
-            <Card 
-              key={index} 
-              sx={{ 
-                borderRadius: '16px', 
-                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                display: 'flex',
-                flexDirection: 'column',
-                transition: 'transform 0.2s',
-                '&:hover': { transform: 'translateY(-4px)' }
+        <Box sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' },
+          gap: 2,
+        }}>
+          {DESTACADOS.map((p) => (
+            <Paper
+              key={p.name}
+              sx={{
+                display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                transition: 'border-color .2s',
+                '&:hover': { borderColor: 'primary.main' },
               }}
             >
-              <Box sx={{ position: 'relative' }}>
-                <CardMedia
-                  component="img"
-                  image={product.imagePlaceholder}
-                  alt={product.name}
-                  sx={{ height: 250, objectFit: 'cover' }}
-                />
-                <Chip 
-                  label={product.status} 
-                  size="small"
-                  sx={{ 
-                    position: 'absolute', 
-                    top: 12, 
-                    right: 12, 
-                    bgcolor: product.status === 'Nuevo' ? '#10b981' : '#f59e0b', 
-                    color: 'white',
-                    fontWeight: 'bold'
-                  }} 
-                />
+              {/* Marcador de foto. Antes venía de placehold.co: la vidriera
+                  dependía de un servicio externo para renderizar. */}
+              <Box sx={{
+                position: 'relative', height: 190,
+                bgcolor: 'pc.surfaceMuted',
+                borderBottom: 1, borderColor: 'pc.dividerSoft',
+                display: 'grid', placeItems: 'center',
+                color: 'text.disabled',
+              }}>
+                <SmartphoneIcon sx={{ fontSize: 44, opacity: .45 }} />
+                <Box sx={{ position: 'absolute', top: 10, right: 10 }}>
+                  <StatusPill tone={p.estado === 'Nuevo' ? 'ok' : 'flat'} label={p.estado} />
+                </Box>
               </Box>
 
-              <CardContent sx={{ flexGrow: 1, p: 3 }}>
-                <Typography variant="caption" sx={{ display: 'block', mb: 0.5, fontWeight: 'bold', color: 'text.secondary' }}>
-                  {product.capacity}
+              <Box sx={{ p: 2.25, display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1 }}>
+                <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>{p.spec}</Box>
+                <Typography component="h3" sx={{ fontWeight: 600, fontSize: '.95rem', letterSpacing: '-.015em' }}>
+                  {p.name}
                 </Typography>
-                <Typography variant="h6" component="h3" sx={{ fontWeight: 'bold', lineHeight: 1.2, mb: 2, color: 'text.primary' }}>
-                  {product.name}
+                <Typography className="mono" sx={{ mt: 0.5, fontSize: '1.15rem', fontWeight: 600, letterSpacing: '-.02em', color: 'primary.main' }}>
+                  {p.price}
                 </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 900, color: 'primary.dark', mb: 3 }}>
-                  {product.price}
-                </Typography>
-
-                <Button 
-                  variant="outlined" 
-                  fullWidth 
-                  startIcon={<ShoppingCartIcon />}
-                  sx={{ 
-                    borderRadius: '8px',
-                    textTransform: 'none',
-                    fontWeight: 'bold',
-                    borderColor: '#e5e7eb',
-                    color: '#374151',
-                    '&:hover': { borderColor: 'primary.dark', bgcolor: '#eff6ff', color: 'primary.dark' }
-                  }}
-                >
-                  Añadir al carrito
+                <Button href="/catalogo" variant="outlined" fullWidth sx={{ mt: 1.75 }}>
+                  Ver detalle
                 </Button>
-              </CardContent>
-            </Card>
+              </Box>
+            </Paper>
           ))}
         </Box>
-
       </Box>
     </Box>
   );
