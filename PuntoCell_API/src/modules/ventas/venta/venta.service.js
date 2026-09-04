@@ -1,5 +1,7 @@
 import { Op } from 'sequelize';
-import { registerAudit } from '../../../core/utils/audit.util.js';
+import { registerAudit, auditar } from '../../../core/utils/audit.util.js';
+
+const round2 = (v) => Number(Number(v || 0).toFixed(2));
 
 export default class VentaService {
   constructor(ventaDAO, detalleDAO, bitacoraService = null) {
@@ -83,6 +85,13 @@ export default class VentaService {
       delete ventaData.Pagos; // no son columnas de la tabla Venta
       delete ventaData.Cuotas;
 
+      // USD (TotalVenta) es la fuente de verdad; TotalVentaARS es solo su representación
+      // visual, así que no confiamos en lo que calculó el frontend: la recalculamos acá con
+      // la MISMA cotización ya congelada en IdCotizacionDolar.
+      const cotizacion = await sequelize.models.Cotizacion.findByPk(ventaData.IdCotizacionDolar, { transaction: t });
+      if (!cotizacion) throw new Error(`Cotización no encontrada (Id=${ventaData.IdCotizacionDolar})`);
+      ventaData.TotalVentaARS = round2(ventaData.TotalVenta * cotizacion.Valor);
+
       const venta = await this.ventaDAO.create(ventaData, { transaction: t });
       const pk = this.ventaDAO.model.primaryKeyAttribute || 'Id';
       const ventaId = venta[pk] || (venta.get && venta.get(pk));
@@ -113,7 +122,6 @@ export default class VentaService {
             IdVenta: ventaId,
             IdMetodoPago: p.IdMetodoPago,
             Monto: p.Monto,
-            Cotizacion: p.Cotizacion || 1,
             Observacion: p.Observacion || '',
             FechaPago: p.FechaPago ? new Date(p.FechaPago) : new Date(),
             IdTurnoCaja: p.IdTurnoCaja || ventaData.IdTurnoCaja
@@ -165,12 +173,30 @@ export default class VentaService {
     }
   }
 
-  async update(id, data) {
-    return await this.ventaDAO.update(id, data);
+  async update(id, data, ctx = null) {
+    const updateData = { ...data };
+    // Mismo criterio que en create(): si cambia el total en USD, el equivalente ARS se
+    // recalcula acá, nunca se toma del body.
+    if (updateData.TotalVenta !== undefined) {
+      const sequelize = this.ventaDAO.model.sequelize;
+      let idCotizacion = updateData.IdCotizacionDolar;
+      if (!idCotizacion) {
+        const existente = await this.ventaDAO.getById(id);
+        idCotizacion = existente?.IdCotizacionDolar;
+      }
+      const cotizacion = await sequelize.models.Cotizacion.findByPk(idCotizacion);
+      if (!cotizacion) throw new Error(`Cotización no encontrada (Id=${idCotizacion})`);
+      updateData.TotalVentaARS = round2(updateData.TotalVenta * cotizacion.Valor);
+    }
+    const actualizado = await this.ventaDAO.update(id, updateData);
+    await auditar(this.bitacoraService, ctx, `Modificó la venta #${id}`, `Campos: ${Object.keys(updateData).join(', ')}`);
+    return actualizado;
   }
 
-  async remove(id) {
-    return await this.ventaDAO.remove(id);
+  async remove(id, ctx = null) {
+    const eliminado = await this.ventaDAO.remove(id);
+    await auditar(this.bitacoraService, ctx, `Eliminó la venta #${id}`, `Baja de venta`);
+    return eliminado;
   }
 
   async historico(filters = {}) {
@@ -183,7 +209,7 @@ export default class VentaService {
     if (hasta) where.Fecha = { ...(where.Fecha || {}), [Op.lte]: new Date(hasta) };
     if (montoMin) where.TotalVentaARS = { [Op.gte]: Number(montoMin) };
 
-    const clienteInclude = { model: Usuario, as: 'cliente' };
+    const clienteInclude = { model: Usuario, as: 'cliente', attributes: ['Id', 'Nombre', 'Apellido', 'DNI'] };
     if (cliente) {
       clienteInclude.required = true;
       clienteInclude.where = {
@@ -195,7 +221,7 @@ export default class VentaService {
       };
     }
 
-    const empleadoInclude = { model: Usuario, as: 'empleado' };
+    const empleadoInclude = { model: Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido'] };
     if (idEmpleado) {
       // Selección exacta desde un combo (ver HistorialVentas.jsx) — no ambigüedad de LIKE.
       empleadoInclude.required = true;

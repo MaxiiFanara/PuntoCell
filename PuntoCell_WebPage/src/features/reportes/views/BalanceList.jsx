@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, TextField, Dialog, DialogTitle, DialogContent, DialogActions, IconButton, Chip } from '@mui/material';
+import {
+  Box, Button, TextField, Dialog, DialogTitle, DialogContent, DialogActions,
+  IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography,
+} from '@mui/material';
 
-// Importaciones DIRECTAS Y SEGURAS de iconos (Sin desestructuración masiva para evitar fallos de Vite)
-import AccountBalance from '@mui/icons-material/AccountBalance';
 import FilterAlt from '@mui/icons-material/FilterAlt';
 import Wallet from '@mui/icons-material/Wallet';
 import Payments from '@mui/icons-material/Payments';
@@ -11,49 +12,51 @@ import AccountBalanceWallet from '@mui/icons-material/AccountBalanceWallet';
 import CreditCard from '@mui/icons-material/CreditCard';
 import Receipt from '@mui/icons-material/Receipt';
 import Visibility from '@mui/icons-material/Visibility';
-import Event from '@mui/icons-material/Event';
+
+import { useVenta } from '../../punto-venta/context/VentaContext';
+
+import PageHeader from '../../../components/ui/PageHeader';
+import KpiCard from '../../../components/ui/KpiCard';
+import StatusPill from '../../../components/ui/StatusPill';
+import Money from '../../../components/ui/Money';
+import FilterBar, { FilterField } from '../../../components/ui/FilterBar';
+
+// --- MOCK DATA (en el futuro esto vendrá de la API) ---
+const KPIS = {
+  gananciaNeta: 4250.50,
+  facturacionTotal: 12500.00,
+  ticketPromedio: 125.00,
+  margenGlobal: 34,
+};
+
+const METODOS_PAGO = [
+  { key: 'efectivo', label: 'Efectivo', monto: 4500.00, icon: Payments },
+  { key: 'transferencia', label: 'Transferencia', monto: 6000.00, icon: AccountBalanceWallet },
+  { key: 'tarjeta', label: 'Tarjeta (créd./déb.)', monto: 2000.00, icon: CreditCard },
+];
+
+const BALANCE_DIARIO = [
+  { id: 1, fecha: '15/05/2026', cantVentas: 12, totalIngreso: 1500, totalCosto: 950, gananciaNeta: 550, margen: 36, ticketPromedio: 125 },
+  { id: 2, fecha: '14/05/2026', cantVentas: 8, totalIngreso: 900, totalCosto: 600, gananciaNeta: 300, margen: 33, ticketPromedio: 112 },
+  { id: 3, fecha: '13/05/2026', cantVentas: 15, totalIngreso: 2100, totalCosto: 1400, gananciaNeta: 700, margen: 33, ticketPromedio: 140 },
+  { id: 4, fecha: '12/05/2026', cantVentas: 4, totalIngreso: 400, totalCosto: 350, gananciaNeta: 50, margen: 12, ticketPromedio: 100 }, // margen bajo, a propósito
+];
 
 const BalanceList = () => {
   const navigate = useNavigate();
+  const { dolarGlobal } = useVenta();
+  const ars = (usd) => (dolarGlobal > 0 ? usd * dolarGlobal : 0);
 
-  // --- ESTADOS: FECHAS ---
-  const [fechas, setFechas] = useState({
-    desde: '2026-05-01',
-    hasta: '2026-05-15'
-  });
+  const [fechas, setFechas] = useState({ desde: '2026-05-01', hasta: '2026-05-15' });
 
-  // --- MOCK DATA: KPIs Principales (En el futuro esto vendrá de tu API) ---
-  const kpis = {
-    gananciaNeta: 4250.50,
-    facturacionTotal: 12500.00,
-    ticketPromedio: 125.00,
-    margenGlobal: 34
-  };
-
-  const metodosPago = {
-    efectivo: 4500.00,
-    transferencia: 6000.00,
-    tarjeta: 2000.00
-  };
-
-  // --- MOCK DATA: Tabla Principal de Balance Diario ---
-  const [balanceDiario] = useState([
-    { id: 1, fecha: '15/05/2026', cantVentas: 12, totalIngreso: 1500, totalCosto: 950, gananciaNeta: 550, margen: 36, ticketPromedio: 125 },
-    { id: 2, fecha: '14/05/2026', cantVentas: 8, totalIngreso: 900, totalCosto: 600, gananciaNeta: 300, margen: 33, ticketPromedio: 112 },
-    { id: 3, fecha: '13/05/2026', cantVentas: 15, totalIngreso: 2100, totalCosto: 1400, gananciaNeta: 700, margen: 33, ticketPromedio: 140 },
-    { id: 4, fecha: '12/05/2026', cantVentas: 4, totalIngreso: 400, totalCosto: 350, gananciaNeta: 50, margen: 12, ticketPromedio: 100 } // Ejemplo de margen bajo
-  ]);
-
-  // --- MOCK DATA & ESTADOS DEL MODAL DE DETALLE DE VENTAS ---
   const [modalOpen, setModalOpen] = useState(false);
   const [fechaSeleccionada, setFechaSeleccionada] = useState('');
   const [cargandoModal, setCargandoModal] = useState(false);
   const [ventasDia, setVentasDia] = useState([]);
 
-  // --- MANEJADORES ---
   const handleFiltro = (e) => {
     e.preventDefault();
-    console.log("Filtrando con fechas:", fechas);
+    console.log('Filtrando con fechas:', fechas);
     // Aquí llamarías a: cargarBalance(fechas.desde, fechas.hasta);
   };
 
@@ -73,202 +76,171 @@ const BalanceList = () => {
   };
 
   return (
-    <div className="p-6 bg-slate-50 min-h-screen font-sans">
-      
-      {/* 1. HEADER Y FILTROS */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-4 max-w-7xl mx-auto">
-        <div>
-          <h2 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
-            <AccountBalance fontSize="large" className="text-blue-600" /> Balance Diario
-          </h2>
-          <p className="text-slate-500 mt-1">Análisis de rentabilidad y flujo de caja.</p>
-        </div>
+    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
 
-        {/* Formulario responsivo: flex-col en móvil, sm:flex-row en pantallas más grandes */}
-        <form onSubmit={handleFiltro} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-4 rounded-xl shadow-sm border border-slate-200 w-full lg:w-auto">
-          <TextField 
-            label="Desde" type="date" size="small" fullWidth
-            value={fechas.desde} onChange={(e) => setFechas({...fechas, desde: e.target.value})}
-            InputLabelProps={{ shrink: true }} className="sm:w-36"
-          />
-          <TextField 
-            label="Hasta" type="date" size="small" fullWidth
-            value={fechas.hasta} onChange={(e) => setFechas({...fechas, hasta: e.target.value})}
-            InputLabelProps={{ shrink: true }} className="sm:w-36"
-          />
-          <Button 
-            type="submit" variant="contained" color="primary" 
-            startIcon={<FilterAlt />} className="bg-blue-600 font-bold px-6 shadow-none py-2"
-          >
-            Buscar
-          </Button>
-        </form>
-      </div>
+      <PageHeader
+        eyebrow="Reportes"
+        title="Balance diario"
+        meta="Análisis de rentabilidad y flujo de caja."
+        action={<StatusPill tone="due" label="Datos de ejemplo" />}
+      />
 
-      <div className="max-w-7xl mx-auto">
-        
-        {/* 2. TARJETAS KPI (4 COLUMNAS) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-emerald-600 text-white rounded-2xl p-5 shadow-sm flex flex-col justify-center items-center">
-            <span className="text-xs uppercase font-bold tracking-wider opacity-80 mb-1">Ganancia Neta (Periodo)</span>
-            <h3 className="text-3xl font-bold">U$S {kpis.gananciaNeta.toLocaleString()}</h3>
-          </div>
-          <div className="bg-blue-600 text-white rounded-2xl p-5 shadow-sm flex flex-col justify-center items-center">
-            <span className="text-xs uppercase font-bold tracking-wider opacity-80 mb-1">Facturación Total</span>
-            <h3 className="text-3xl font-bold">U$S {kpis.facturacionTotal.toLocaleString()}</h3>
-          </div>
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-center items-center">
-            <span className="text-xs uppercase font-bold tracking-wider text-slate-400 mb-1">Ticket Promedio</span>
-            <h3 className="text-3xl font-bold text-slate-700">U$S {kpis.ticketPromedio.toLocaleString()}</h3>
-          </div>
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-center items-center">
-            <span className="text-xs uppercase font-bold tracking-wider text-slate-400 mb-1">Margen Global</span>
-            <h3 className="text-3xl font-bold text-emerald-500">{kpis.margenGlobal}%</h3>
-          </div>
-        </div>
+      <FilterBar
+        columns="minmax(140px,1fr) minmax(140px,1fr)"
+        actions={<Button variant="contained" startIcon={<FilterAlt />} onClick={handleFiltro}>Buscar</Button>}
+      >
+        <FilterField label="Desde">
+          <TextField type="date" fullWidth value={fechas.desde} onChange={(e) => setFechas({ ...fechas, desde: e.target.value })} />
+        </FilterField>
+        <FilterField label="Hasta">
+          <TextField type="date" fullWidth value={fechas.hasta} onChange={(e) => setFechas({ ...fechas, hasta: e.target.value })} />
+        </FilterField>
+      </FilterBar>
 
-        {/* 3. MÉTODOS DE PAGO (3 COLUMNAS) */}
-        <div className="bg-white rounded-2xl shadow-sm border-l-4 border-l-blue-500 border border-slate-200 mb-8 overflow-hidden">
-          <div className="bg-slate-50 px-6 py-3 border-b border-slate-100 flex items-center gap-2">
-            <Wallet className="text-slate-400" fontSize="small" />
-            <h6 className="font-bold text-slate-700 text-sm m-0">Ingresos por Método de Pago (Periodo)</h6>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100 p-4">
-            <div className="text-center py-2">
-              <div className="text-xs font-bold uppercase text-slate-400 flex items-center justify-center gap-1 mb-1">
-                <Payments fontSize="small" className="text-emerald-500" /> Efectivo
-              </div>
-              <h4 className="text-xl font-bold text-emerald-600">U$S {metodosPago.efectivo.toLocaleString()}</h4>
-            </div>
-            <div className="text-center py-2">
-              <div className="text-xs font-bold uppercase text-slate-400 flex items-center justify-center gap-1 mb-1">
-                <AccountBalanceWallet fontSize="small" className="text-blue-500" /> Transferencia
-              </div>
-              <h4 className="text-xl font-bold text-blue-600">U$S {metodosPago.transferencia.toLocaleString()}</h4>
-            </div>
-            <div className="text-center py-2">
-              <div className="text-xs font-bold uppercase text-slate-400 flex items-center justify-center gap-1 mb-1">
-                <CreditCard fontSize="small" className="text-orange-500" /> Tarjeta (Créd./Déb.)
-              </div>
-              <h4 className="text-xl font-bold text-orange-500">U$S {metodosPago.tarjeta.toLocaleString()}</h4>
-            </div>
-          </div>
-        </div>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2,1fr)', lg: 'repeat(4,1fr)' }, gap: 1.5 }}>
+        <KpiCard
+          eyebrow="Ganancia neta (período)" tone="ok"
+          value={`U$S ${KPIS.gananciaNeta.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`}
+          sub={`$ ${Math.round(ars(KPIS.gananciaNeta)).toLocaleString('es-AR')}`}
+        />
+        <KpiCard
+          eyebrow="Facturación total" tone="accent"
+          value={`U$S ${KPIS.facturacionTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`}
+          sub={`$ ${Math.round(ars(KPIS.facturacionTotal)).toLocaleString('es-AR')}`}
+        />
+        <KpiCard
+          eyebrow="Ticket promedio" tone="mute"
+          value={`U$S ${KPIS.ticketPromedio.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`}
+          sub={`$ ${Math.round(ars(KPIS.ticketPromedio)).toLocaleString('es-AR')}`}
+        />
+        <KpiCard eyebrow="Margen global" tone="warn" value={`${KPIS.margenGlobal}%`} sub="sobre facturación" />
+      </Box>
 
-        {/* 4. TABLA DETALLADA POR DÍA */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[800px]">
-              <thead className="bg-slate-900 text-white text-xs uppercase tracking-wider">
-                <tr>
-                  <th className="p-4 font-bold">Fecha</th>
-                  <th className="p-4 font-bold text-center">Ventas</th>
-                  <th className="p-4 font-bold text-right text-blue-300">Ingresos (Venta)</th>
-                  <th className="p-4 font-bold text-right text-red-300">Costos (Mercadería)</th>
-                  <th className="p-4 font-bold text-right text-emerald-300">Ganancia Neta</th>
-                  <th className="p-4 font-bold text-center border-l border-slate-700">Rentabilidad</th>
-                  <th className="p-4 font-bold text-center">Ticket Prom.</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {balanceDiario.length === 0 ? (
-                  <tr><td colSpan="7" className="p-10 text-center text-slate-500">No hay movimientos en estas fechas.</td></tr>
-                ) : (
-                  balanceDiario.map((row) => (
-                    <tr key={row.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-4 font-bold text-slate-600 flex items-center gap-2">
-                        <Event fontSize="small" className="text-slate-400" /> {row.fecha}
-                      </td>
-                      <td className="p-4 text-center">
-                        <Chip 
-                          label={`${row.cantVentas} ops.`} 
-                          onClick={() => abrirDetalleVentas(row.fecha)}
-                          className="bg-blue-50 text-blue-700 font-bold border border-blue-200 hover:bg-blue-100 cursor-pointer"
-                          icon={<Receipt fontSize="small" />}
-                        />
-                      </td>
-                      <td className="p-4 text-right font-bold text-blue-600">U$S {row.totalIngreso.toLocaleString()}</td>
-                      <td className="p-4 text-right text-slate-500">- U$S {row.totalCosto.toLocaleString()}</td>
-                      <td className="p-4 text-right">
-                        <span className="font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">
-                          U$S {row.gananciaNeta.toLocaleString()}
-                        </span>
-                      </td>
-                      <td className="p-4 text-center border-l border-slate-100">
-                        <span className={`font-bold ${row.margen > 20 ? 'text-emerald-500' : 'text-orange-500'}`}>
-                          {row.margen}%
-                        </span>
-                      </td>
-                      <td className="p-4 text-center text-sm text-slate-500">U$S {row.ticketPromedio.toLocaleString()}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {/* Ingresos por método de pago */}
+      <Paper sx={{ overflow: 'hidden' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: '10px 15px', borderBottom: 1, borderColor: 'pc.dividerSoft', bgcolor: 'pc.surfaceMuted' }}>
+          <Wallet sx={{ fontSize: 16, color: 'text.disabled' }} />
+          <Typography sx={{ fontWeight: 600, fontSize: '.8rem' }}>Ingresos por método de pago (período)</Typography>
+        </Box>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3,1fr)' }, gap: 2, p: '16px 15px' }}>
+          {METODOS_PAGO.map((m) => (
+            <Box key={m.key} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.625, typography: 'eyebrow', color: 'text.disabled' }}>
+                <m.icon sx={{ fontSize: 14 }} /> {m.label}
+              </Box>
+              <Money ars={ars(m.monto)} usd={m.monto} size="lg" align="center" />
+            </Box>
+          ))}
+        </Box>
+      </Paper>
 
-      </div>
+      {/* Tabla detallada por día */}
+      <Paper sx={{ overflow: 'hidden' }}>
+        <TableContainer sx={{ overflowX: 'auto' }}>
+          <Table sx={{ minWidth: 820 }}>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ width: 110 }}>Fecha</TableCell>
+                <TableCell align="center" sx={{ width: 90 }}>Ventas</TableCell>
+                <TableCell align="right">Ingresos</TableCell>
+                <TableCell align="right">Costos</TableCell>
+                <TableCell align="right">Ganancia neta</TableCell>
+                <TableCell align="center" sx={{ width: 100 }}>Rentabilidad</TableCell>
+                <TableCell align="right">Ticket prom.</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {BALANCE_DIARIO.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} sx={{ height: 120, textAlign: 'center', color: 'text.disabled' }}>
+                    No hay movimientos en estas fechas.
+                  </TableCell>
+                </TableRow>
+              ) : BALANCE_DIARIO.map((row) => (
+                <TableRow key={row.id} hover>
+                  <TableCell className="mono" sx={{ fontWeight: 600 }}>{row.fecha}</TableCell>
+                  <TableCell align="center">
+                    <Box
+                      component="button"
+                      onClick={() => abrirDetalleVentas(row.fecha)}
+                      sx={{
+                        border: 0, background: 'none', p: 0, cursor: 'pointer',
+                        display: 'inline-flex',
+                      }}
+                    >
+                      <StatusPill tone="flat" label={`${row.cantVentas} ops.`} meta={<Receipt sx={{ fontSize: 12 }} />} />
+                    </Box>
+                  </TableCell>
+                  <TableCell align="right"><Money ars={ars(row.totalIngreso)} usd={row.totalIngreso} /></TableCell>
+                  <TableCell align="right"><Money ars={-ars(row.totalCosto)} usd={-row.totalCosto} /></TableCell>
+                  <TableCell align="right"><Money ars={ars(row.gananciaNeta)} usd={row.gananciaNeta} /></TableCell>
+                  <TableCell align="center">
+                    <StatusPill tone={row.margen > 20 ? 'ok' : 'due'} label={`${row.margen}%`} />
+                  </TableCell>
+                  <TableCell align="right"><Money ars={ars(row.ticketPromedio)} usd={row.ticketPromedio} size="sm" /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
 
-      {/* 5. MODAL: DETALLE DE TICKETS DEL DÍA */}
+      {/* Modal: detalle de tickets del día */}
       <Dialog open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle className="bg-blue-600 text-white font-bold flex items-center gap-2">
-          <Receipt /> Detalle de Operaciones
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Receipt sx={{ fontSize: 18 }} /> Detalle de operaciones
+          <Box sx={{ display: 'block', color: 'text.disabled', fontSize: '.72rem', fontWeight: 400, ml: 'auto' }}>
+            {fechaSeleccionada}
+          </Box>
         </DialogTitle>
-        <DialogContent className="p-0">
-          <div className="bg-slate-100 p-3 text-center border-b border-slate-200">
-            <h6 className="m-0 text-slate-600 font-bold uppercase tracking-widest text-sm">Fecha: {fechaSeleccionada}</h6>
-          </div>
-          
+        <DialogContent sx={{ p: 0 }}>
           {cargandoModal ? (
-            <div className="p-10 text-center text-slate-500">Cargando comprobantes...</div>
+            <Box sx={{ p: 4, textAlign: 'center', color: 'text.disabled' }}>Cargando comprobantes…</Box>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-900 text-white text-xs uppercase tracking-wider">
-                  <tr>
-                    <th className="p-3 pl-6">Hora</th>
-                    <th className="p-3">Ticket</th>
-                    <th className="p-3">Cliente</th>
-                    <th className="p-3">Vendedor</th>
-                    <th className="p-3 text-right">Monto</th>
-                    <th className="p-3 text-right pr-6">Acción</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
+            <TableContainer sx={{ overflowX: 'auto' }}>
+              <Table sx={{ minWidth: 560 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ width: 80 }}>Hora</TableCell>
+                    <TableCell>Ticket</TableCell>
+                    <TableCell>Cliente</TableCell>
+                    <TableCell>Vendedor</TableCell>
+                    <TableCell align="right">Monto</TableCell>
+                    <TableCell align="right" sx={{ width: 64 }} />
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {ventasDia.length === 0 ? (
-                    <tr><td colSpan="6" className="p-6 text-center text-slate-400">Sin ventas.</td></tr>
-                  ) : (
-                    ventasDia.map(venta => (
-                      <tr key={venta.id} className="hover:bg-slate-50">
-                        <td className="p-3 pl-6 font-mono text-slate-500 text-sm">{venta.hora}</td>
-                        <td className="p-3 font-bold text-slate-800">{venta.comprobante}</td>
-                        <td className="p-3 text-slate-700">{venta.cliente}</td>
-                        <td className="p-3 text-sm text-slate-500">{venta.empleado}</td>
-                        <td className="p-3 text-right font-bold text-emerald-600">U$S {venta.total.toLocaleString()}</td>
-                        <td className="p-3 text-right pr-6">
-                          <IconButton 
-                            size="small" color="primary" 
-                            onClick={() => navigate(`/app/ventas/detalle/${venta.id}`)}
-                            className="bg-blue-50 hover:bg-blue-100"
-                          >
-                            <Visibility fontSize="small" />
-                          </IconButton>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>            
+                    <TableRow>
+                      <TableCell colSpan={6} sx={{ height: 100, textAlign: 'center', color: 'text.disabled' }}>
+                        Sin ventas.
+                      </TableCell>
+                    </TableRow>
+                  ) : ventasDia.map((venta) => (
+                    <TableRow key={venta.id} hover>
+                      <TableCell className="mono" sx={{ color: 'text.secondary' }}>{venta.hora}</TableCell>
+                      <TableCell className="mono" sx={{ fontWeight: 600 }}>{venta.comprobante}</TableCell>
+                      <TableCell>{venta.cliente}</TableCell>
+                      <TableCell sx={{ color: 'text.secondary' }}>{venta.empleado}</TableCell>
+                      <TableCell align="right"><Money ars={ars(venta.total)} usd={venta.total} size="sm" /></TableCell>
+                      <TableCell align="right">
+                        <IconButton size="small" onClick={() => navigate(`/app/ventas/detalle/${venta.id}`)}>
+                          <Visibility sx={{ fontSize: 17 }} />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
         </DialogContent>
-        <DialogActions className="bg-slate-50 p-3">
-          <Button onClick={() => setModalOpen(false)} color="inherit" className="font-bold">Cerrar</Button>
+        <DialogActions>
+          <Button onClick={() => setModalOpen(false)}>Cerrar</Button>
         </DialogActions>
       </Dialog>
 
-    </div>
+    </Box>
   );
 };
 

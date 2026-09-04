@@ -5,7 +5,7 @@ export default class InventarioController {
 
   getAll = async (req, res, next) => {
     try {
-      const auditContext = { IdEmpleado: req.user?.Id, IdSucursal: req.user?.IdSucursal, Ip: req.ip };
+      const auditContext = { IdEmpleado: req.user?.id, IdSucursal: req.user?.sucursal, Ip: req.ip };
       const data = await this.service.getAll(req.query, auditContext);
       return res.status(200).json({ status: 'success', data });
     } catch (err) {
@@ -15,7 +15,7 @@ export default class InventarioController {
 
   getById = async (req, res, next) => {
     try {
-      const auditContext = { IdEmpleado: req.user?.Id, IdSucursal: req.user?.IdSucursal, Ip: req.ip };
+      const auditContext = { IdEmpleado: req.user?.id, IdSucursal: req.user?.sucursal, Ip: req.ip };
       const data = await this.service.getById(req.params.id, auditContext);
       return res.status(200).json({ status: 'success', data });
     } catch (err) {
@@ -25,7 +25,7 @@ export default class InventarioController {
 
   create = async (req, res, next) => {
     try {
-      const auditContext = { IdEmpleado: req.user?.Id, IdSucursal: req.user?.IdSucursal, Ip: req.ip };
+      const auditContext = { IdEmpleado: req.user?.id, IdSucursal: req.user?.sucursal, Ip: req.ip };
       // `validateFields` route middleware already normalizes/validates `req.body`.
       const data = await this.service.create(req.body, auditContext);
       return res.status(201).json({ status: 'success', data });
@@ -36,7 +36,7 @@ export default class InventarioController {
 
   update = async (req, res, next) => {
     try {
-      const auditContext = { IdEmpleado: req.user?.Id, IdSucursal: req.user?.IdSucursal, Ip: req.ip };
+      const auditContext = { IdEmpleado: req.user?.id, IdSucursal: req.user?.sucursal, Ip: req.ip };
       // `validateFields` route middleware already normalizes/validates `req.body`.
       const data = await this.service.update(req.params.id, req.body, auditContext);
       return res.status(200).json({ status: 'success', data });
@@ -47,7 +47,7 @@ export default class InventarioController {
 
   remove = async (req, res, next) => {
     try {
-      const auditContext = { IdEmpleado: req.user?.Id, IdSucursal: req.user?.IdSucursal, Ip: req.ip };
+      const auditContext = { IdEmpleado: req.user?.id, IdSucursal: req.user?.sucursal, Ip: req.ip };
       await this.service.remove(req.params.id, auditContext);
       return res.status(200).json({ status: 'success', data: { message: 'Inventario eliminado correctamente' } });
     } catch (err) {

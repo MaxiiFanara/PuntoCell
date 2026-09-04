@@ -1,10 +1,17 @@
-import React, { useState } from 'react';
-import { 
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, 
-  Button, IconButton, Typography, Chip, Dialog, DialogTitle, DialogContent, 
-  DialogContentText, TextField, DialogActions, Box, Checkbox, FormControlLabel, Tooltip
+import { useState, useMemo } from 'react';
+import {
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
+  Button, IconButton, Typography, Chip, Dialog, DialogTitle, DialogContent,
+  DialogContentText, TextField, DialogActions, Box, Checkbox, FormControlLabel, Tooltip,
 } from '@mui/material';
-import { Edit, Delete, Add, Shield, WarningAmber } from '@mui/icons-material';
+import { Edit, Delete, Add, WarningAmber } from '@mui/icons-material';
+
+import PageHeader from '../../../../components/ui/PageHeader';
+import KpiCard from '../../../../components/ui/KpiCard';
+import StatusPill from '../../../../components/ui/StatusPill';
+
+// Lista de permisos disponibles en el sistema
+const PERMISOS_DISPONIBLES = ['Ventas', 'Inventario', 'Usuarios', 'Reparaciones', 'Configuración', 'Ver Stock'];
 
 const RolesScreen = () => {
   // Mock local, no conectado al backend (existe /usuarios/roles con CRUD real)
@@ -22,6 +29,15 @@ const RolesScreen = () => {
 
   const [openDeleteAlert, setOpenDeleteAlert] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState(null);
+
+  const resumen = useMemo(() => {
+    const totalAsignaciones = roles.reduce((acc, r) => acc + r.permissions.length, 0);
+    return {
+      totalRoles: roles.length,
+      totalPermisos: PERMISOS_DISPONIBLES.length,
+      promedio: roles.length ? Math.round((totalAsignaciones / roles.length) * 10) / 10 : 0,
+    };
+  }, [roles]);
 
   const handleOpen = (rolAEditar = null) => {
     if (rolAEditar) {
@@ -42,9 +58,9 @@ const RolesScreen = () => {
 
   const handleSave = () => {
     if (editMode) {
-      const rolesActualizados = roles.map((rol) => 
-        rol.id === editingId 
-          ? { ...rol, name: newRoleName, permissions: selectedPermissions } 
+      const rolesActualizados = roles.map((rol) =>
+        rol.id === editingId
+          ? { ...rol, name: newRoleName, permissions: selectedPermissions }
           : rol
       );
       setRoles(rolesActualizados);
@@ -57,9 +73,9 @@ const RolesScreen = () => {
   };
 
   const togglePermission = (perm) => {
-    setSelectedPermissions((prev) => 
-      prev.includes(perm) 
-        ? prev.filter(p => p !== perm) 
+    setSelectedPermissions((prev) =>
+      prev.includes(perm)
+        ? prev.filter(p => p !== perm)
         : [...prev, perm]
     );
   };
@@ -75,181 +91,138 @@ const RolesScreen = () => {
     setRoleToDelete(null);
   };
 
-  // Lista de permisos disponibles en el sistema
-  const permisosDisponibles = ['Ventas', 'Inventario', 'Usuarios', 'Reparaciones', 'Configuración', 'Ver Stock'];
-
   return (
-    <Box className="animate-fade-in">
-      {/* HEADER */}
-      <div className="flex justify-between items-center mb-8">
-        <Typography variant="h4" className="font-extrabold text-slate-800 flex items-center gap-3">
-          <Shield sx={{ color: '#2563eb', fontSize: 36 }} /> Gestión de Roles
-        </Typography>
-        <Button 
-          variant="contained" 
-          startIcon={<Add />}
-          onClick={() => handleOpen()} 
-          sx={{
-            bgcolor: '#2563eb', 
-            '&:hover': { bgcolor: '#1d4ed8' }, 
-            py: 1.25, 
-            px: 3, 
-            borderRadius: '12px', 
-            boxShadow: '0 4px 14px 0 rgba(37, 99, 235, 0.39)',
-            textTransform: 'none', 
-            fontWeight: 600 
-          }}
-        >
-          Registrar Rol
-        </Button>
-      </div>
+    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
 
-      {/* TABLA MATERIAL UI */}
-      <TableContainer component={Paper} sx={{ boxShadow: 1, borderRadius: '16px', border: '1px solid #f1f5f9' }}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>Nombre del Rol</TableCell>
-              <TableCell>Permisos Activos</TableCell>
-              <TableCell align="right" sx={{ px: 4 }}>Acciones</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {roles.map((row) => (
-              <TableRow key={row.id} hover>
-                <TableCell sx={{ fontFamily: 'monospace', color: '#94a3b8' }}>#{row.id}</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', color: '#334155' }}>{row.name}</TableCell>
-                <TableCell>
-                  <div className="flex gap-2 flex-wrap max-w-md">
-                    {row.permissions.map(p => (
-                      <Chip 
-                        key={p} 
-                        label={p} 
-                        size="small" 
-                        sx={{ fontWeight: 500, bgcolor: '#eff6ff', color: '#1d4ed8', border: '1px solid #dbeafe' }} 
-                      />
-                    ))}
-                  </div>
-                </TableCell>
-                <TableCell align="right" sx={{ px: 3 }}>
-                  
-                  {/* BOTÓN EDITAR */}
-                  <Tooltip title="Editar Rol">
-                    <IconButton 
-                      onClick={() => handleOpen(row)} 
-                      sx={{ color: '#2563eb', '&:hover': { bgcolor: '#eff6ff' }, mr: 1 }}
-                    >
-                      <Edit fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+      <PageHeader
+        eyebrow="Administración"
+        title="Roles"
+        meta={`${resumen.totalRoles} ${resumen.totalRoles === 1 ? 'rol definido' : 'roles definidos'}`}
+        action={
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+            <StatusPill tone="due" label="Datos de ejemplo" />
+            <Button variant="contained" startIcon={<Add />} onClick={() => handleOpen()}>
+              Registrar rol
+            </Button>
+          </Box>
+        }
+      />
 
-                  {/* BOTÓN ELIMINAR */}
-                  <Tooltip title="Eliminar Rol">
-                    <IconButton 
-                      onClick={() => handleDeleteClick(row)}
-                      sx={{ color: '#e11d48', '&:hover': { bgcolor: '#fff1f2' } }}
-                    >
-                      <Delete fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3,1fr)' }, gap: 1.5 }}>
+        <KpiCard eyebrow="Roles" tone="accent" value={resumen.totalRoles} />
+        <KpiCard eyebrow="Permisos catalogados" tone="mute" value={resumen.totalPermisos} />
+        <KpiCard eyebrow="Permisos por rol (prom.)" tone="warn" value={resumen.promedio} />
+      </Box>
 
-                </TableCell>
+      <Paper sx={{ overflow: 'hidden' }}>
+        <TableContainer sx={{ overflowX: 'auto' }}>
+          <Table sx={{ minWidth: 640 }}>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ width: 70 }}>ID</TableCell>
+                <TableCell>Nombre del rol</TableCell>
+                <TableCell>Permisos activos</TableCell>
+                <TableCell align="right" sx={{ width: 96 }}>Acciones</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableHead>
+            <TableBody>
+              {roles.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} sx={{ height: 120, textAlign: 'center', color: 'text.disabled' }}>
+                    No hay roles definidos.
+                  </TableCell>
+                </TableRow>
+              ) : roles.map((row) => (
+                <TableRow key={row.id} hover>
+                  <TableCell className="mono" sx={{ color: 'text.disabled' }}>#{row.id}</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>{row.name}</TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', maxWidth: 460 }}>
+                      {row.permissions.map(p => (
+                        <StatusPill key={p} tone="flat" label={p} />
+                      ))}
+                    </Box>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Tooltip title="Editar rol">
+                      <IconButton size="small" onClick={() => handleOpen(row)}>
+                        <Edit sx={{ fontSize: 17 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Eliminar rol">
+                      <IconButton size="small" onClick={() => handleDeleteClick(row)} sx={{ color: 'error.main' }}>
+                        <Delete sx={{ fontSize: 17 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
 
       {/* Modal crear/editar */}
-      <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth slotProps={{ paper: { sx: { borderRadius: '16px', p: 1 } } }}>
-        <DialogTitle component="div" sx={{ pb: 0 }}>
-          <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1e293b' }}>
-            {editMode ? 'Actualizar Rol' : 'Crear Nuevo Rol'}
-          </Typography>
-          <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
-            Completa la información para asignar privilegios.
+      <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editMode ? 'Actualizar rol' : 'Crear nuevo rol'}
+          <Typography sx={{ color: 'text.disabled', fontSize: '.75rem', fontWeight: 400, mt: '2px' }}>
+            Completá la información para asignar privilegios.
           </Typography>
         </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 0.5 }}>
           <TextField
             autoFocus
-            label="Nombre del Rol (ej. Supervisor)"
+            label="Nombre del rol (ej. Supervisor)"
             fullWidth
-            variant="outlined"
-            sx={{ my: 2 }}
             value={newRoleName}
             onChange={(e) => setNewRoleName(e.target.value)}
-            slotProps={{ input: { sx: { borderRadius: '12px' } } }}
           />
-          <Typography variant="subtitle2" sx={{ mb: 1.5, mt: 1, fontWeight: 'bold', color: '#334155', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em' }}>
-            Permisos del Sistema
-          </Typography>
-          <div className="grid grid-cols-2 gap-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
-            {permisosDisponibles.map((perm) => (
-              <FormControlLabel 
-                key={perm} 
+          <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>Permisos del sistema</Box>
+          <Box sx={{
+            display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 0.5,
+            bgcolor: 'pc.surfaceMuted', p: 1.5, borderRadius: '10px', border: 1, borderColor: 'pc.dividerSoft',
+          }}>
+            {PERMISOS_DISPONIBLES.map((perm) => (
+              <FormControlLabel
+                key={perm}
                 control={
-                  <Checkbox 
-                    checked={selectedPermissions.includes(perm)} 
+                  <Checkbox
+                    checked={selectedPermissions.includes(perm)}
                     onChange={() => togglePermission(perm)}
-                    sx={{ color: '#cbd5e1', '&.Mui-checked': { color: '#2563eb' } }}
                   />
-                } 
-                label={<span className="text-sm text-slate-700">{perm}</span>} 
+                }
+                label={<Box sx={{ fontSize: '.8125rem' }}>{perm}</Box>}
               />
             ))}
-          </div>
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 1 }}>
-          <Button onClick={handleClose} sx={{ color: '#64748b', fontWeight: 'bold', textTransform: 'none' }}>
-            Cancelar
-          </Button>
-          <Button 
-            variant="contained" 
-            sx={{
-              bgcolor: '#2563eb',
-              '&:hover': { bgcolor: '#1d4ed8' },
-              px: 3,
-              borderRadius: '8px',
-              fontWeight: 'bold',
-              textTransform: 'none'
-            }}
+        <DialogActions>
+          <Button onClick={handleClose}>Cancelar</Button>
+          <Button
+            variant="contained"
             onClick={handleSave}
-            disabled={!newRoleName.trim() || selectedPermissions.length === 0} 
+            disabled={!newRoleName.trim() || selectedPermissions.length === 0}
           >
-            {editMode ? 'Guardar Cambios' : 'Crear Rol'}
+            {editMode ? 'Guardar cambios' : 'Crear rol'}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Confirmación de eliminar */}
-      <Dialog
-        open={openDeleteAlert}
-        onClose={() => setOpenDeleteAlert(false)}
-        slotProps={{ paper: { sx: { borderRadius: '16px', p: 1, maxWidth: '400px' } } }}
-      >
-        <DialogTitle component="div" sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#e11d48', pb: 1 }}>
-          <WarningAmber fontSize="large" /> 
-          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Eliminar Rol</Typography>
+      <Dialog open={openDeleteAlert} onClose={() => setOpenDeleteAlert(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'error.main' }}>
+          <WarningAmber fontSize="small" /> Eliminar rol
         </DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ color: '#475569' }}>
-            ¿Estás seguro que deseas eliminar el rol <strong>{roleToDelete?.name}</strong>? 
+          <DialogContentText>
+            ¿Estás seguro que deseas eliminar el rol <strong>{roleToDelete?.name}</strong>?
             Los usuarios que tengan este rol asignado perderán sus permisos en el sistema.
           </DialogContentText>
         </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 0 }}>
-          <Button onClick={() => setOpenDeleteAlert(false)} sx={{ color: '#64748b', fontWeight: 'bold', textTransform: 'none' }}>
-            Cancelar
-          </Button>
-          <Button 
-            onClick={confirmDelete} 
-            variant="contained"
-            sx={{ bgcolor: '#e11d48', '&:hover': { bgcolor: '#be123c' }, fontWeight: 'bold', borderRadius: '8px', textTransform: 'none' }}
-          >
-            Sí, Eliminar
-          </Button>
+        <DialogActions>
+          <Button onClick={() => setOpenDeleteAlert(false)}>Cancelar</Button>
+          <Button onClick={confirmDelete} variant="contained" color="error">Sí, eliminar</Button>
         </DialogActions>
       </Dialog>
 

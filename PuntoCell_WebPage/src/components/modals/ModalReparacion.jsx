@@ -2,28 +2,22 @@ import { useState, useEffect, useRef } from 'react'
 import { jsPDF } from 'jspdf'
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, TextField, Grid, Alert, Snackbar, CircularProgress,
+  Button, TextField, Alert, Snackbar, CircularProgress,
   Typography, Checkbox, FormControlLabel,
-  Chip, Box, IconButton, Paper, MenuItem, Autocomplete,
+  Chip, Box, IconButton, MenuItem, Autocomplete,
   InputAdornment, Table, TableBody, TableCell, TableHead, TableRow,
 } from '@mui/material'
 import BuildIcon from '@mui/icons-material/Build'
 import EditIcon from '@mui/icons-material/Edit'
-import VisibilityIcon from '@mui/icons-material/Visibility'
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'
 import CloseIcon from '@mui/icons-material/Close'
 import SearchIcon from '@mui/icons-material/Search'
-import PersonIcon from '@mui/icons-material/Person'
-import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid'
-import ReportProblemIcon from '@mui/icons-material/ReportProblem'
-import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import LockIcon from '@mui/icons-material/Lock'
 import HandymanIcon from '@mui/icons-material/Handyman'
 import AddIcon from '@mui/icons-material/Add'
 import RemoveIcon from '@mui/icons-material/Remove'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import InventoryIcon from '@mui/icons-material/Inventory'
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import LocalAtmIcon from '@mui/icons-material/LocalAtm'
 import DownloadIcon from '@mui/icons-material/Download'
 import {
@@ -32,6 +26,11 @@ import {
   getPagosOrden, enviarComprobanteEmail, getMetodosPagoReparacion,
 } from '../../services/api'
 import ModalRegistroFalla from './ModalRegistroFalla'
+import StatusPill from '../ui/StatusPill'
+import Money from '../ui/Money'
+import NumberField from '../ui/NumberField'
+import { soloImei, esImeiValido } from '../../utils/validators'
+import { useVenta } from '../../features/punto-venta/context/VentaContext'
 
 // Transiciones válidas por estado actual
 const TRANS = { 1: [1, 2, 5], 2: [2, 3, 5], 3: [3, 4], 4: [4], 5: [5] }
@@ -58,32 +57,34 @@ const EMPTY = {
 
 // Sub-componentes
 
-const SeccionHeader = ({ icon: Icon, title, subtitle, color = '#2563eb' }) => (
-  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 2.5 }}>
-    <Box sx={{
-      width: 36, height: 36, borderRadius: 2,
-      background: `linear-gradient(135deg, ${color}22, ${color}11)`,
-      border: `1.5px solid ${color}33`,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      flexShrink: 0, mt: 0.25,
-    }}>
-      <Icon sx={{ fontSize: 17, color }} />
+const Seccion = ({ title, subtitle, children }) => (
+  <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '10px', overflow: 'hidden' }}>
+    <Box sx={{ p: '12px 15px', borderBottom: 1, borderColor: 'pc.dividerSoft' }}>
+      <Typography sx={{ fontWeight: 600, fontSize: '.84rem', letterSpacing: '-.01em' }}>{title}</Typography>
+      {subtitle && <Typography sx={{ fontSize: '.72rem', color: 'text.disabled', mt: '2px' }}>{subtitle}</Typography>}
     </Box>
-    <Box>
-      <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f172a', lineHeight: 1.2 }}>{title}</Typography>
-      {subtitle && <Typography sx={{ fontSize: '0.75rem', color: '#94a3b8', mt: 0.25 }}>{subtitle}</Typography>}
-    </Box>
+    <Box sx={{ p: '15px' }}>{children}</Box>
+  </Box>
+)
+
+const Campo = ({ label, hint, children, sx }) => (
+  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0, ...sx }}>
+    {label && <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>{label}</Box>}
+    {children}
+    {hint && <Typography sx={{ fontSize: '.69rem', color: 'text.disabled' }}>{hint}</Typography>}
   </Box>
 )
 
 const CampoReadonly = ({ label, value }) => (
-  <Box>
-    <Typography sx={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.5 }}>
-      {label}
-    </Typography>
-    <Box sx={{ px: 1.5, py: 1, borderRadius: 1.5, backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', minHeight: 36 }}>
-      <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>
-        {value || <span style={{ color: '#cbd5e1' }}>–</span>}
+  <Box sx={{ minWidth: 0 }}>
+    <Box sx={{ typography: 'eyebrow', color: 'text.disabled', mb: 0.5 }}>{label}</Box>
+    <Box sx={{
+      px: '11px', minHeight: 32, borderRadius: '7px',
+      bgcolor: 'pc.surfaceMuted', border: 1, borderColor: 'divider',
+      display: 'flex', alignItems: 'center',
+    }}>
+      <Typography sx={{ fontSize: '.8125rem', fontWeight: 600, color: value ? 'text.primary' : 'text.disabled' }}>
+        {value || '—'}
       </Typography>
     </Box>
   </Box>
@@ -97,6 +98,9 @@ const ModalReparacion = ({
   estados, usuario, onGuardado, onAbrirRegistroCliente,
   onAbrirRegistroDispositivo,
 }) => {
+  // CostoRepuestos/PrecioManoObra/Senia se cargan y almacenan en USD (moneda central del
+  // sistema); dolarGlobal es solo para mostrar su equivalente en pesos.
+  const { dolarGlobal } = useVenta()
   const clienteIdRef = useRef(null)
   const [form, setForm]                           = useState(EMPTY)
   const [clienteEncontrado, setClienteEncontrado] = useState(false)
@@ -380,7 +384,7 @@ const ModalReparacion = ({
       if (!form.idTipo)        return 'Seleccioná el tipo de dispositivo.'
       if (!form.idMarca)       return 'Seleccioná la marca.'
       if (!form.idModelo)      return 'Seleccioná el modelo.'
-      if (!form.imei)          return 'El IMEI del dispositivo es obligatorio.'
+      if (!esImeiValido(form.imei)) return 'El IMEI del dispositivo es obligatorio y debe tener exactamente 15 dígitos.'
     }
     if (form.fallasAgregadas.length === 0) return 'Agregá al menos una falla.'
     if (form.tienePassword && !form.passwordDispositivo) return 'Ingresá la contraseña del dispositivo.'
@@ -468,7 +472,13 @@ const ModalReparacion = ({
     const azul  = [37, 99, 235]
     const gris  = [100, 116, 139]
     const negro = [15, 23, 42]
-    const fmt   = (n) => `$${Number(n).toLocaleString('es-AR')}`
+    // Los montos son USD (fuente de verdad); el comprobante muestra el equivalente ARS
+    // calculado con la cotización vigente al momento de imprimir, nunca un valor guardado.
+    const fmt = (n) => {
+      const usd = Number(n)
+      const ars = Math.round(usd * dolarGlobal)
+      return `U$S ${usd.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ($${ars.toLocaleString('es-AR')})`
+    }
     const linea = (y) => { doc.setDrawColor(226, 232, 240); doc.line(14, y, 196, y) }
 
     doc.setFillColor(...azul)
@@ -492,7 +502,10 @@ const ModalReparacion = ({
     doc.text('CLIENTE', 14, y); y += 5; linea(y); y += 6
     doc.setTextColor(...negro).setFontSize(10)
     ;[['DNI', ordenEditar?.DNICliente || '—'],
-      ['Nombre', `${ordenEditar?.ApellidoCliente}, ${ordenEditar?.NombreCliente}` || '—'],
+      // El template literal de antes siempre devolvía un string con contenido (la
+      // coma), así que el `|| '—'` nunca se activaba y el PDF podía imprimir
+      // "undefined, undefined".
+      ['Nombre', [ordenEditar?.ApellidoCliente, ordenEditar?.NombreCliente].filter(Boolean).join(', ') || '—'],
       ['Teléfono', ordenEditar?.CelularCliente || '—'], ['Email', ordenEditar?.EmailCliente || '—']
     ].forEach(([lbl, val]) => { doc.setFont('helvetica', 'bold').text(lbl + ':', 14, y); doc.setFont('helvetica', 'normal').text(val, 55, y); y += 7 })
 
@@ -509,13 +522,13 @@ const ModalReparacion = ({
     doc.setTextColor(...negro).setFontSize(10)
     const costoRows = [['Repuestos', fmt(datosFinancieros.costoRepuestos)], ['Mano de obra', fmt(datosFinancieros.precioManoObra)]]
     if (señaPagada > 0) costoRows.push(['Seña pagada', `− ${fmt(señaPagada)}`])
-    costoRows.forEach(([lbl, val]) => { doc.setFont('helvetica', 'bold').text(lbl + ':', 14, y); doc.setFont('helvetica', 'normal').text(val, 90, y, { align: 'right' }); y += 7 })
+    costoRows.forEach(([lbl, val]) => { doc.setFont('helvetica', 'bold').text(lbl + ':', 14, y); doc.setFont('helvetica', 'normal').text(val, 124, y, { align: 'right' }); y += 7 })
     y += 2; linea(y); y += 6
     doc.setFillColor(...azul)
-    doc.roundedRect(14, y - 3, 76, 10, 2, 2, 'F')
+    doc.roundedRect(14, y - 3, 110, 10, 2, 2, 'F')
     doc.setTextColor(255, 255, 255).setFont('helvetica', 'bold')
     doc.text('Total cobrado:', 17, y + 4)
-    doc.text(fmt(saldoEntrega), 88, y + 4, { align: 'right' })
+    doc.text(fmt(saldoEntrega), 121, y + 4, { align: 'right' })
 
     doc.setTextColor(...gris).setFontSize(8).setFont('helvetica', 'normal')
     doc.text('Documento generado por PuntoCell', 105, 287, { align: 'center' })
@@ -536,729 +549,647 @@ const ModalReparacion = ({
     : modoEdicion ? `Modificar Orden #${ordenEditar?.NumOrden}` : 'Registrar reparación'
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth scroll="paper"
-      PaperProps={{ sx: { borderRadius: 3, maxHeight: '94vh' } }}>
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth scroll="paper">
 
-      {/* Header */}
-      <DialogTitle sx={{
-        background: modoSoloLectura
-          ? 'linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%)'
-          : modoEdicion
-            ? 'linear-gradient(135deg, #065f46 0%, #059669 100%)'
-            : 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
-        color: '#fff', py: 2.5, px: 3,
-        display: 'flex', alignItems: 'center', gap: 2,
-      }}>
-        <Box sx={{ width: 40, height: 40, borderRadius: 2.5, backgroundColor: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          {modoSoloLectura ? <VisibilityIcon sx={{ fontSize: 20 }} /> : modoEdicion ? <EditIcon sx={{ fontSize: 20 }} /> : <BuildIcon sx={{ fontSize: 20 }} />}
-        </Box>
-        <Box sx={{ flex: 1 }}>
-          <Typography sx={{ fontWeight: 800, fontSize: '1rem', lineHeight: 1.2 }}>{titulo}</Typography>
-          {modoEdicion && ordenEditar && (
-            <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.65)', mt: 0.25 }}>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5 }}>
+        <Box sx={{ minWidth: 0 }}>
+          {titulo}
+          {(modoEdicion || modoSoloLectura) && ordenEditar && (
+            <Box sx={{ display: 'block', color: 'text.disabled', fontSize: '.72rem', fontWeight: 400, mt: '-1px' }}>
               {ordenEditar.NombreCliente} {ordenEditar.ApellidoCliente} · {ordenEditar.MarcaDispositivo} {ordenEditar.ModeloDispositivo}
-            </Typography>
+            </Box>
           )}
         </Box>
-        <IconButton onClick={onClose}
-          sx={{ color: 'rgba(255,255,255,0.6)', '&:hover': { color: '#fff', backgroundColor: 'rgba(255,255,255,0.12)' } }}>
-          <CloseIcon />
+        <IconButton size="small" onClick={onClose} aria-label="Cerrar">
+          <CloseIcon sx={{ fontSize: 17 }} />
         </IconButton>
       </DialogTitle>
 
-      {/* Body */}
-      <DialogContent dividers sx={{ p: 0, backgroundColor: '#eef2f7' }}>
-        {error && (
-          <Box sx={{ px: 3, pt: 2.5 }}>
-            <Alert severity="error" onClose={() => setError('')} sx={{ borderRadius: 2 }}>{error}</Alert>
-          </Box>
-        )}
+      <DialogContent>
+        {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 1.75 }}>{error}</Alert>}
 
-        <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.75 }}>
 
           {/* Cliente */}
-          <Paper elevation={0} sx={{ border: '1.5px solid #e2e8f0', borderRadius: 2.5, overflow: 'hidden' }}>
-            <Box sx={{ px: 3, pt: 3, pb: 2.5 }}>
-              <SeccionHeader icon={PersonIcon} title="Datos del Cliente" subtitle="Buscá por DNI para autocompletar" color="#2563eb" />
-
-              {modoSoloLectura ? (
-                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
-                  <CampoReadonly label="DNI"      value={ordenEditar?.DNICliente} />
-                  <CampoReadonly label="Nombre"   value={ordenEditar?.NombreCliente} />
-                  <CampoReadonly label="Apellido" value={ordenEditar?.ApellidoCliente} />
-                  <CampoReadonly label="Email"    value={ordenEditar?.EmailCliente} />
-                  <CampoReadonly label="Celular"  value={ordenEditar?.CelularCliente} />
-                </Box>
-              ) : !modoEdicion ? (
-                <>
-                  <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-end', mb: clienteEncontrado ? 3 : 0 }}>
+          <Seccion title="Datos del cliente" subtitle={!modoEdicion && !modoSoloLectura ? 'Buscá por DNI para autocompletar' : null}>
+            {modoSoloLectura ? (
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0,1fr))' }, gap: 1.5 }}>
+                <CampoReadonly label="DNI"      value={ordenEditar?.DNICliente} />
+                <CampoReadonly label="Nombre"   value={ordenEditar?.NombreCliente} />
+                <CampoReadonly label="Apellido" value={ordenEditar?.ApellidoCliente} />
+                <CampoReadonly label="Email"    value={ordenEditar?.EmailCliente} />
+                <CampoReadonly label="Celular"  value={ordenEditar?.CelularCliente} />
+              </Box>
+            ) : !modoEdicion ? (
+              <>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end', mb: clienteEncontrado ? 1.75 : 0 }}>
+                  <Campo label="DNI del cliente" sx={{ width: 200 }}>
                     <TextField
-                      label="DNI del Cliente *" value={form.dni}
+                      fullWidth value={form.dni}
                       onChange={setSoloDigitos('dni', 8)} onKeyDown={(e) => e.key === 'Enter' && buscarCliente()}
-                      placeholder="Ej: 30123456" inputProps={{ maxLength: 8, inputMode: 'numeric' }} sx={{ width: 200 }}
+                      placeholder="Ej: 30123456" slotProps={{ htmlInput: { maxLength: 8, inputMode: 'numeric' } }}
                     />
-                    <Button variant="contained" onClick={buscarCliente}
-                      disabled={buscandoCliente || !form.dni.trim()}
-                      startIcon={buscandoCliente ? <CircularProgress size={14} color="inherit" /> : <SearchIcon />}
-                      sx={{ height: 40 }}>
-                      {buscandoCliente ? 'Buscando…' : 'Buscar'}
-                    </Button>
-                    {clienteEncontrado && !clienteNuevo && (
-                      <Box sx={{ px: 1.75, py: 0.75, borderRadius: 2, background: 'linear-gradient(135deg, #d1fae5, #ecfdf5)', border: '1.5px solid #6ee7b7' }}>
-                        <Typography sx={{ fontSize: '0.78rem', color: '#065f46', fontWeight: 700 }}>✓ Cliente encontrado</Typography>
-                      </Box>
-                    )}
-                  </Box>
-
-                  {clienteNuevo && (
-                    <Alert severity="warning" sx={{ mb: 2.5, borderRadius: 2 }}
-                      action={<Button size="small" color="inherit" sx={{ fontWeight: 700 }} onClick={() => onAbrirRegistroCliente?.(form.dni)}>Registrar ahora</Button>}>
-                      No se encontró un cliente con DNI {form.dni}.
-                    </Alert>
-                  )}
-
+                  </Campo>
+                  <Button variant="contained" onClick={buscarCliente}
+                    disabled={buscandoCliente || !form.dni.trim()}
+                    startIcon={buscandoCliente ? <CircularProgress size={14} color="inherit" /> : <SearchIcon sx={{ fontSize: 16 }} />}
+                    sx={{ height: 32 }}>
+                    {buscandoCliente ? 'Buscando…' : 'Buscar'}
+                  </Button>
                   {clienteEncontrado && !clienteNuevo && (
-                    <>
-                      <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-                        Cliente existente — estos datos no se pueden modificar desde acá.
-                      </Alert>
-                      <Grid container spacing={2}>
-                        <Grid size={{ xs: 12, sm: 6 }}>
-                          <CampoReadonly label="Nombre" value={form.nombreCliente} />
-                        </Grid>
-                        <Grid size={{ xs: 12, sm: 6 }}>
-                          <CampoReadonly label="Apellido" value={form.apellidoCliente} />
-                        </Grid>
-                        <Grid size={{ xs: 12, sm: 6 }}>
-                          <CampoReadonly label="Email" value={form.emailCliente} />
-                        </Grid>
-                        <Grid size={{ xs: 12, sm: 6 }}>
-                          <CampoReadonly label="Celular" value={form.celularCliente} />
-                        </Grid>
-                        <Grid size={{ xs: 12, sm: 5 }}>
-                          <CampoReadonly label="Calle" value={form.calleCliente} />
-                        </Grid>
-                        <Grid size={{ xs: 6, sm: 2 }}>
-                          <CampoReadonly label="Número" value={form.numeroCliente} />
-                        </Grid>
-                        <Grid size={{ xs: 6, sm: 2 }}>
-                          <CampoReadonly label="Piso" value={form.pisoCliente} />
-                        </Grid>
-                        <Grid size={{ xs: 12, sm: 3 }}>
-                          <CampoReadonly label="Localidad" value={localidades.find(l => l.id === form.localidadCliente)?.nombre} />
-                        </Grid>
-                      </Grid>
-                    </>
+                    <StatusPill tone="ok" label="Cliente encontrado" sx={{ height: 32 }} />
                   )}
-                </>
-              ) : (
-                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2 }}>
-                  <CampoReadonly label="DNI"      value={ordenEditar?.DNICliente} />
-                  <CampoReadonly label="Nombre"   value={ordenEditar?.NombreCliente} />
-                  <CampoReadonly label="Apellido" value={ordenEditar?.ApellidoCliente} />
-                  <CampoReadonly label="Celular"  value={ordenEditar?.CelularCliente} />
                 </Box>
-              )}
 
-            </Box>
-          </Paper>
+                {clienteNuevo && (
+                  <Alert severity="warning" sx={{ mb: 1.75 }}
+                    action={<Button size="small" color="inherit" onClick={() => onAbrirRegistroCliente?.(form.dni)}>Registrar ahora</Button>}>
+                    No se encontró un cliente con DNI {form.dni}.
+                  </Alert>
+                )}
+
+                {clienteEncontrado && !clienteNuevo && (
+                  <>
+                    <Alert severity="info" sx={{ mb: 1.5 }}>
+                      Cliente existente — estos datos no se pueden modificar desde acá.
+                    </Alert>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0,1fr))' }, gap: 1.5 }}>
+                      <CampoReadonly label="Nombre" value={form.nombreCliente} />
+                      <CampoReadonly label="Apellido" value={form.apellidoCliente} />
+                      <CampoReadonly label="Email" value={form.emailCliente} />
+                      <CampoReadonly label="Celular" value={form.celularCliente} />
+                    </Box>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr 1fr 1.5fr' }, gap: 1.5, mt: 1.5 }}>
+                      <CampoReadonly label="Calle" value={form.calleCliente} />
+                      <CampoReadonly label="Número" value={form.numeroCliente} />
+                      <CampoReadonly label="Piso" value={form.pisoCliente} />
+                      <CampoReadonly label="Localidad" value={localidades.find(l => l.id === form.localidadCliente)?.nombre} />
+                    </Box>
+                  </>
+                )}
+              </>
+            ) : (
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, minmax(0,1fr))' }, gap: 1.5 }}>
+                <CampoReadonly label="DNI"      value={ordenEditar?.DNICliente} />
+                <CampoReadonly label="Nombre"   value={ordenEditar?.NombreCliente} />
+                <CampoReadonly label="Apellido" value={ordenEditar?.ApellidoCliente} />
+                <CampoReadonly label="Celular"  value={ordenEditar?.CelularCliente} />
+              </Box>
+            )}
+          </Seccion>
 
           {/* Dispositivo */}
-          <Paper elevation={0} sx={{ border: '1.5px solid #e2e8f0', borderRadius: 2.5 }}>
-            <Box sx={{ px: 3, pt: 3, pb: 2.5 }}>
-              <SeccionHeader icon={PhoneAndroidIcon} title="Dispositivo"
-                subtitle={(modoEdicion || modoSoloLectura) ? 'El dispositivo no puede modificarse' : 'Seleccioná tipo, marca y modelo'}
-                color="#0284c7" />
-
-              {(modoEdicion || modoSoloLectura) ? (
-                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
-                  <CampoReadonly label="Tipo"   value={ordenEditar?.TipoDispositivo} />
-                  <CampoReadonly label="Marca"  value={ordenEditar?.MarcaDispositivo} />
-                  <CampoReadonly label="Modelo" value={ordenEditar?.ModeloDispositivo} />
-                </Box>
-              ) : (
-                <>
-                  <Grid container spacing={2} alignItems="flex-end">
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <TextField fullWidth select label="Tipo *" value={form.idTipo} onChange={set('idTipo')}>
-                        <MenuItem value="">Seleccione…</MenuItem>
-                        {tipos.map(t => <MenuItem key={t.id} value={String(t.id)}>{t.nombre}</MenuItem>)}
-                      </TextField>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <TextField fullWidth select label="Marca *" value={form.idMarca} onChange={set('idMarca')} disabled={!form.idTipo}>
-                        <MenuItem value="">Seleccione…</MenuItem>
-                        {marcas.map(m => <MenuItem key={m.id} value={String(m.id)}>{m.nombre}</MenuItem>)}
-                      </TextField>
-                      {form.idTipo && marcas.length === 0 && (
-                        <Typography sx={{ fontSize: '0.72rem', color: '#d97706', mt: 0.5 }}>
-                          Sin modelos registrados para este tipo. Usá el botón + para agregar uno.
-                        </Typography>
-                      )}
-                    </Grid>
-                    <Grid size={{ xs: 10, sm: 3 }}>
-                      <TextField fullWidth select label="Modelo *" value={form.idModelo} onChange={set('idModelo')} disabled={!form.idMarca}>
-                        <MenuItem value="">Seleccione…</MenuItem>
-                        {modelos.map(d => <MenuItem key={d.id} value={String(d.id)}>{d.nombre}</MenuItem>)}
-                      </TextField>
-                    </Grid>
-                    <Grid size={{ xs: 2, sm: 1 }} sx={{ display: 'flex', alignItems: 'flex-end' }}>
-                      <IconButton onClick={onAbrirRegistroDispositivo} title="Agregar nuevo modelo"
-                        sx={{ border: '1.5px solid #e2e8f0', borderRadius: 2, color: '#0284c7', '&:hover': { backgroundColor: '#e0f2fe', borderColor: '#7dd3fc' } }}>
-                        <AddCircleOutlineIcon fontSize="small" />
-                      </IconButton>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField fullWidth label="IMEI *" value={form.imei} onChange={setSoloDigitos('imei', 15)}
-                        placeholder="Ej: 356938035643809" inputProps={{ maxLength: 15, inputMode: 'numeric' }} />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField fullWidth label="Observaciones del dispositivo" value={form.observacionesDispositivo}
-                        onChange={set('observacionesDispositivo')} placeholder="Ej: pantalla rota, sin tapa trasera…" />
-                    </Grid>
-                  </Grid>
-
-                  <Box sx={{ mt: 2.5, p: 2, borderRadius: 2, backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                    <FormControlLabel
-                      control={<Checkbox checked={form.tienePassword} onChange={set('tienePassword')} size="small" />}
-                      label={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                          <LockIcon sx={{ fontSize: 15, color: '#64748b' }} />
-                          <Typography sx={{ fontSize: '0.875rem', color: '#475569', fontWeight: 500 }}>
-                            El dispositivo tiene contraseña de desbloqueo
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                    {form.tienePassword && (
-                      <TextField label="Contraseña de desbloqueo *" value={form.passwordDispositivo}
-                        onChange={set('passwordDispositivo')}
-                        sx={{ mt: 1.5, width: { xs: '100%', sm: '50%' } }} />
+          <Seccion title="Dispositivo" subtitle={(modoEdicion || modoSoloLectura) ? 'El dispositivo no puede modificarse' : 'Seleccioná tipo, marca y modelo'}>
+            {(modoEdicion || modoSoloLectura) ? (
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0,1fr))' }, gap: 1.5 }}>
+                <CampoReadonly label="Tipo"   value={ordenEditar?.TipoDispositivo} />
+                <CampoReadonly label="Marca"  value={ordenEditar?.MarcaDispositivo} />
+                <CampoReadonly label="Modelo" value={ordenEditar?.ModeloDispositivo} />
+              </Box>
+            ) : (
+              <>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr auto', sm: 'repeat(4, minmax(0,1fr)) auto' }, gap: 1.5, alignItems: 'end' }}>
+                  <Campo label="Tipo">
+                    <TextField fullWidth select value={form.idTipo} onChange={set('idTipo')}>
+                      <MenuItem value="">Seleccione…</MenuItem>
+                      {tipos.map(t => <MenuItem key={t.id} value={String(t.id)}>{t.nombre}</MenuItem>)}
+                    </TextField>
+                  </Campo>
+                  <Campo label="Marca">
+                    <TextField fullWidth select value={form.idMarca} onChange={set('idMarca')} disabled={!form.idTipo}>
+                      <MenuItem value="">Seleccione…</MenuItem>
+                      {marcas.map(m => <MenuItem key={m.id} value={String(m.id)}>{m.nombre}</MenuItem>)}
+                    </TextField>
+                    {form.idTipo && marcas.length === 0 && (
+                      <Typography sx={{ fontSize: '.69rem', color: 'warning.main', mt: 0.5 }}>
+                        Sin modelos registrados. Usá el botón + para agregar uno.
+                      </Typography>
                     )}
+                  </Campo>
+                  <Campo label="Modelo">
+                    <TextField fullWidth select value={form.idModelo} onChange={set('idModelo')} disabled={!form.idMarca}>
+                      <MenuItem value="">Seleccione…</MenuItem>
+                      {modelos.map(d => <MenuItem key={d.id} value={String(d.id)}>{d.nombre}</MenuItem>)}
+                    </TextField>
+                  </Campo>
+                  <IconButton onClick={onAbrirRegistroDispositivo} title="Agregar nuevo modelo"
+                    sx={{ border: 1, borderColor: 'divider', borderRadius: '7px', height: 32, width: 32 }}>
+                    <AddCircleOutlineIcon fontSize="small" />
+                  </IconButton>
+                  <Campo label="IMEI">
+                    <TextField fullWidth value={form.imei}
+                      onChange={(e) => setForm((f) => ({ ...f, imei: soloImei(e.target.value) }))}
+                      placeholder="Ej: 356938035643809" slotProps={{ htmlInput: { maxLength: 15, inputMode: 'numeric' } }}
+                      error={form.imei.length > 0 && !esImeiValido(form.imei)}
+                      helperText={`${form.imei.length}/15 dígitos`} />
+                  </Campo>
+                  <Box sx={{ gridColumn: { xs: 'span 3', sm: 'span 2' } }}>
+                    <Campo label="Observaciones del dispositivo">
+                      <TextField fullWidth value={form.observacionesDispositivo}
+                        onChange={set('observacionesDispositivo')} placeholder="Ej: pantalla rota, sin tapa trasera…" />
+                    </Campo>
                   </Box>
-                </>
-              )}
-            </Box>
-          </Paper>
+                </Box>
+
+                <Box sx={{ mt: 1.75, p: '12px 13px', borderRadius: '9px', bgcolor: 'pc.surfaceMuted', border: 1, borderColor: 'divider' }}>
+                  <FormControlLabel
+                    control={<Checkbox checked={form.tienePassword} onChange={set('tienePassword')} size="small" />}
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                        <LockIcon sx={{ fontSize: 15, color: 'text.disabled' }} />
+                        <Typography sx={{ fontSize: '.8125rem', color: 'text.secondary', fontWeight: 500 }}>
+                          El dispositivo tiene contraseña de desbloqueo
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                  {form.tienePassword && (
+                    <Box sx={{ mt: 1.25, width: { xs: '100%', sm: '50%' } }}>
+                      <Campo label="Contraseña de desbloqueo">
+                        <TextField fullWidth value={form.passwordDispositivo} onChange={set('passwordDispositivo')} />
+                      </Campo>
+                    </Box>
+                  )}
+                </Box>
+              </>
+            )}
+          </Seccion>
 
           {/* Fallas */}
-          <Paper elevation={0} sx={{ border: '1.5px solid #e2e8f0', borderRadius: 2.5 }}>
-            <Box sx={{ px: 3, pt: 3, pb: 2.5 }}>
-              <SeccionHeader icon={ReportProblemIcon} title="Fallas del Dispositivo"
-                subtitle={(modoEdicion || modoSoloLectura) ? 'Las fallas no pueden modificarse' : 'Podés agregar múltiples fallas'}
-                color="#d97706" />
-
-              {!modoEdicion && !modoSoloLectura && (
-                <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap', mb: 2 }}>
-                  <TextField select label="Seleccionar falla" value={form.fallaSeleccionada}
-                    onChange={set('fallaSeleccionada')} disabled={!form.idTipo} sx={{ minWidth: 220 }}>
+          <Seccion title="Fallas del dispositivo" subtitle={(modoEdicion || modoSoloLectura) ? 'Las fallas no pueden modificarse' : 'Podés agregar múltiples fallas'}>
+            {!modoEdicion && !modoSoloLectura && (
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end', flexWrap: 'wrap', mb: 1.5 }}>
+                <Campo label="Seleccionar falla" sx={{ minWidth: 220 }}>
+                  <TextField select fullWidth value={form.fallaSeleccionada}
+                    onChange={set('fallaSeleccionada')} disabled={!form.idTipo}>
                     <MenuItem value="">Seleccione…</MenuItem>
                     {fallasPorTipo.map(f => <MenuItem key={f.id} value={f}>{f.nombre}</MenuItem>)}
                   </TextField>
-                  <Button variant="outlined" startIcon={<AddCircleOutlineIcon />} onClick={agregarFalla}
-                    disabled={!form.fallaSeleccionada}
-                    sx={{ height: 40, borderColor: '#fde68a', color: '#92400e', fontWeight: 700, '&:hover': { borderColor: '#f59e0b', backgroundColor: '#fffbeb' } }}>
-                    Agregar
-                  </Button>
-                  {!form.idTipo && (
-                    <Typography sx={{ fontSize: '0.78rem', color: '#94a3b8', fontStyle: 'italic' }}>
-                      Seleccioná un tipo de dispositivo primero
-                    </Typography>
-                  )}
-                  {form.idTipo && fallasPorTipo.length === 0 && puedeGestionarFallas && (
-                    <Button variant="outlined" startIcon={<AddCircleOutlineIcon />} onClick={() => setModalFallaOpen(true)}
-                      sx={{ height: 40, borderColor: '#fde68a', color: '#92400e', fontWeight: 700, '&:hover': { borderColor: '#f59e0b', backgroundColor: '#fffbeb' } }}>
-                      Agregar falla al catálogo
-                    </Button>
-                  )}
-                  {form.idTipo && fallasPorTipo.length === 0 && !puedeGestionarFallas && (
-                    <Typography sx={{ fontSize: '0.78rem', color: '#94a3b8', fontStyle: 'italic' }}>
-                      No hay fallas cargadas para este tipo — pedile a un administrador o encargado que agregue una.
-                    </Typography>
-                  )}
-                </Box>
-              )}
-
-              <Box sx={{
-                border: form.fallasAgregadas.length ? '1.5px solid #fde68a' : '1.5px dashed #e2e8f0',
-                borderRadius: 2, p: 2, minHeight: 60,
-                backgroundColor: form.fallasAgregadas.length ? '#fffbeb' : '#fafbfc',
-                display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', transition: 'all 0.2s',
-              }}>
-                {form.fallasAgregadas.length === 0 ? (
-                  <Typography sx={{ fontSize: '0.82rem', color: '#cbd5e1', fontStyle: 'italic' }}>
-                    No hay fallas agregadas todavía
+                </Campo>
+                <Button variant="outlined" startIcon={<AddCircleOutlineIcon sx={{ fontSize: 16 }} />} onClick={agregarFalla}
+                  disabled={!form.fallaSeleccionada} sx={{ height: 32 }}>
+                  Agregar
+                </Button>
+                {!form.idTipo && (
+                  <Typography sx={{ fontSize: '.72rem', color: 'text.disabled', fontStyle: 'italic' }}>
+                    Seleccioná un tipo de dispositivo primero
                   </Typography>
-                ) : (
-                  form.fallasAgregadas.map(falla => (
-                    <Chip key={falla.id} label={falla.nombre} size="small"
-                      onDelete={!modoEdicion ? () => quitarFalla(falla) : undefined}
-                      deleteIcon={<CloseIcon sx={{ fontSize: '14px !important' }} />}
-                      sx={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1.5px solid #fde68a', fontWeight: 700,
-                        '& .MuiChip-deleteIcon': { color: '#d97706', '&:hover': { color: '#b45309' } } }} />
-                  ))
+                )}
+                {form.idTipo && fallasPorTipo.length === 0 && puedeGestionarFallas && (
+                  <Button variant="outlined" startIcon={<AddCircleOutlineIcon sx={{ fontSize: 16 }} />} onClick={() => setModalFallaOpen(true)}
+                    sx={{ height: 32 }}>
+                    Agregar falla al catálogo
+                  </Button>
+                )}
+                {form.idTipo && fallasPorTipo.length === 0 && !puedeGestionarFallas && (
+                  <Typography sx={{ fontSize: '.72rem', color: 'text.disabled', fontStyle: 'italic' }}>
+                    No hay fallas cargadas para este tipo — pedile a un administrador o encargado que agregue una.
+                  </Typography>
                 )}
               </Box>
+            )}
+
+            <Box sx={{
+              border: 1, borderStyle: form.fallasAgregadas.length ? 'solid' : 'dashed',
+              borderColor: 'divider', borderRadius: '9px', p: 1.5, minHeight: 52,
+              bgcolor: 'pc.surfaceMuted',
+              display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center',
+            }}>
+              {form.fallasAgregadas.length === 0 ? (
+                <Typography sx={{ fontSize: '.8125rem', color: 'text.disabled', fontStyle: 'italic' }}>
+                  No hay fallas agregadas todavía
+                </Typography>
+              ) : (
+                form.fallasAgregadas.map(falla => (
+                  <Chip key={falla.id} label={falla.nombre} size="small"
+                    onDelete={!modoEdicion ? () => quitarFalla(falla) : undefined}
+                    deleteIcon={<CloseIcon sx={{ fontSize: '14px !important' }} />}
+                    sx={{ bgcolor: 'warning.light', color: 'warning.main' }} />
+                ))
+              )}
             </Box>
-          </Paper>
+          </Seccion>
 
           {/* Repuestos */}
           {(modoEdicion || modoSoloLectura) && (
-            <Paper elevation={0} sx={{ border: '1.5px solid #ccfbf1', borderRadius: 2.5 }}>
-              <Box sx={{ px: 3, pt: 3, pb: 2.5 }}>
-                <SeccionHeader icon={HandymanIcon} title="Repuestos Utilizados"
-                  subtitle={modoSoloLectura ? 'Repuestos registrados en esta orden' : puedeGestionarRepuestos ? 'Podés agregar o quitar repuestos' : 'Gestión disponible en estado "En Reparación"'}
-                  color="#0f766e" />
+            <Seccion title="Repuestos utilizados"
+              subtitle={modoSoloLectura ? 'Repuestos registrados en esta orden' : puedeGestionarRepuestos ? 'Podés agregar o quitar repuestos' : 'Gestión disponible en estado "En reparación"'}>
 
-                {loadingEditData ? (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-                    <CircularProgress size={28} sx={{ color: '#0f766e' }} />
-                  </Box>
-                ) : (
-                  <>
-                    {puedeGestionarRepuestos && !modoSoloLectura && (
-                      <Autocomplete
-                        options={inventarioParaAutocompletar}
-                        getOptionLabel={(o) => o.nombre}
-                        inputValue={repuestoInput}
-                        onInputChange={(_, v) => setRepuestoInput(v)}
-                        onChange={(_, v) => agregarRepuesto(v)}
-                        openOnFocus
-                        filterOptions={(opts, { inputValue }) => {
-                          const q = inputValue.toLowerCase().trim()
-                          if (q.length >= 2) {
-                            return opts.filter(o =>
-                              o.nombre.toLowerCase().includes(q) ||
-                              o.marca.toLowerCase().includes(q) ||
-                              o.modelo.toLowerCase().includes(q)
-                            )
-                          }
-                          const marcaDisp  = (ordenEditar?.MarcaDispositivo  ?? '').toLowerCase()
-                          const modeloDisp = (ordenEditar?.ModeloDispositivo ?? '').toLowerCase()
-                          if (!marcaDisp && !modeloDisp) return []
+              {loadingEditData ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+                  <CircularProgress size={26} />
+                </Box>
+              ) : (
+                <>
+                  {puedeGestionarRepuestos && !modoSoloLectura && (
+                    <Autocomplete
+                      options={inventarioParaAutocompletar}
+                      getOptionLabel={(o) => o.nombre}
+                      getOptionDisabled={(o) => o.sinPrecio}
+                      inputValue={repuestoInput}
+                      onInputChange={(_, v) => setRepuestoInput(v)}
+                      onChange={(_, v) => agregarRepuesto(v)}
+                      openOnFocus
+                      filterOptions={(opts, { inputValue }) => {
+                        const q = inputValue.toLowerCase().trim()
+                        if (q.length >= 2) {
                           return opts.filter(o =>
-                            (marcaDisp  && o.marca.toLowerCase().includes(marcaDisp))  ||
-                            (modeloDisp && o.modelo.toLowerCase().includes(modeloDisp))
+                            o.nombre.toLowerCase().includes(q) ||
+                            o.marca.toLowerCase().includes(q) ||
+                            o.modelo.toLowerCase().includes(q)
                           )
-                        }}
-                        noOptionsText={
-                          repuestoInput.trim().length < 2
+                        }
+                        const marcaDisp  = (ordenEditar?.MarcaDispositivo  ?? '').toLowerCase()
+                        const modeloDisp = (ordenEditar?.ModeloDispositivo ?? '').toLowerCase()
+                        if (!marcaDisp && !modeloDisp) return []
+                        return opts.filter(o =>
+                          (marcaDisp  && o.marca.toLowerCase().includes(marcaDisp))  ||
+                          (modeloDisp && o.modelo.toLowerCase().includes(modeloDisp))
+                        )
+                      }}
+                      noOptionsText={
+                        inventarioDisponible.length === 0
+                          ? 'No hay repuestos con stock. Cargá repuestos desde Compras (clasificación "Repuesto").'
+                          : repuestoInput.trim().length < 2
                             ? `Sin sugerencias para ${ordenEditar?.MarcaDispositivo ?? 'este dispositivo'} — escribí para buscar`
                             : 'Sin resultados'
-                        }
-                        renderOption={(props, option) => (
-                          <Box component="li" {...props} key={option.id}
-                            sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, py: '10px !important' }}>
-                            <Box>
-                              <Typography sx={{ fontWeight: 600, fontSize: '0.875rem', color: '#0f172a' }}>{option.nombre}</Typography>
-                              <Typography sx={{ fontSize: '0.75rem', color: '#64748b' }}>{option.marca} · {option.modelo}</Typography>
-                            </Box>
-                            <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                              <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', color: '#0f766e' }}>
-                                ${option.precio.toLocaleString('es-AR')}
+                      }
+                      renderOption={(props, option) => (
+                        <Box component="li" {...props} key={option.id}
+                          sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, py: '10px !important' }}>
+                          <Box>
+                            <Typography sx={{ fontWeight: 600, fontSize: '.8125rem', color: 'text.primary' }}>{option.nombre}</Typography>
+                            <Typography sx={{ fontSize: '.72rem', color: 'text.secondary' }}>{option.marca} · {option.modelo}</Typography>
+                          </Box>
+                          <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                            {option.sinPrecio ? (
+                              <Typography className="num" sx={{ fontWeight: 700, fontSize: '.8125rem', color: 'error.main' }}>
+                                sin precio
                               </Typography>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
-                                <InventoryIcon sx={{ fontSize: 11, color: option.stock <= 3 ? '#dc2626' : '#64748b' }} />
-                                <Typography sx={{ fontSize: '0.7rem', color: option.stock <= 3 ? '#dc2626' : '#64748b', fontWeight: 600 }}>
-                                  {option.stock} en stock
-                                </Typography>
-                              </Box>
+                            ) : (
+                              <Money ars={option.precio * dolarGlobal} usd={option.precio} size="sm" />
+                            )}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
+                              <InventoryIcon sx={{ fontSize: 11, color: option.stock <= 3 ? 'error.main' : 'text.disabled' }} />
+                              <Typography sx={{ fontSize: '.68rem', color: option.stock <= 3 ? 'error.main' : 'text.disabled', fontWeight: 600 }}>
+                                {option.stock} en stock
+                              </Typography>
                             </Box>
                           </Box>
-                        )}
-                        renderInput={(params) => (
-                          <TextField {...params} label="Buscar repuesto"
-                            placeholder={`Sugerencias para ${ordenEditar?.MarcaDispositivo ?? 'este dispositivo'} · escribí para buscar más`}
-                            slotProps={{
-                              input: {
-                                ...params.InputProps,
-                                startAdornment: (
-                                  <InputAdornment position="start">
-                                    <SearchIcon sx={{ color: '#0f766e', fontSize: 20 }} />
-                                  </InputAdornment>
-                                ),
-                              },
-                            }}
-                          />
-                        )}
-                        sx={{ mb: 2.5 }}
-                      />
-                    )}
+                        </Box>
+                      )}
+                      renderInput={(params) => (
+                        <TextField {...params}
+                          placeholder={`Sugerencias para ${ordenEditar?.MarcaDispositivo ?? 'este dispositivo'} · escribí para buscar más`}
+                          slotProps={{
+                            input: {
+                              ...params.InputProps,
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <SearchIcon sx={{ color: 'text.disabled', fontSize: 18 }} />
+                                </InputAdornment>
+                              ),
+                            },
+                          }}
+                        />
+                      )}
+                      sx={{ mb: 1.75 }}
+                    />
+                  )}
 
-                    {(repuestosOrden.length + repuestosNuevos.length) === 0 ? (
-                      <Box sx={{ border: '1.5px dashed #99f6e4', borderRadius: 2, p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, backgroundColor: '#f0fdf9' }}>
-                        <HandymanIcon sx={{ fontSize: 28, color: '#5eead4' }} />
-                        <Typography sx={{ fontSize: '0.82rem', color: '#94a3b8', fontStyle: 'italic' }}>
-                          No hay repuestos en esta orden
-                        </Typography>
-                      </Box>
-                    ) : (
-                      <Box sx={{ border: '1.5px solid #99f6e4', borderRadius: 2, overflow: 'hidden' }}>
-                        <Table size="small">
-                          <TableHead>
-                            <TableRow>
-                              <TableCell>Repuesto</TableCell>
-                              <TableCell align="center" sx={{ width: 120 }}>Cantidad</TableCell>
-                              <TableCell align="right" sx={{ width: 130 }}>Precio unit.</TableCell>
-                              <TableCell align="right" sx={{ width: 110 }}>Subtotal</TableCell>
-                              {esEstadoReparacion && !modoSoloLectura && <TableCell sx={{ width: 40 }} />}
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {repuestosOrden.map(r => (
-                              <TableRow key={`ex-${r.repuestoOrdenId}`}
-                                sx={{ '&:last-child td': { borderBottom: 0 }, '&:hover': { backgroundColor: '#f0fdf9' } }}>
+                  {(repuestosOrden.length + repuestosNuevos.length) === 0 ? (
+                    <Box sx={{
+                      border: 1, borderStyle: 'dashed', borderColor: 'divider', borderRadius: '9px', p: 2.5,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, bgcolor: 'pc.surfaceMuted',
+                    }}>
+                      <HandymanIcon sx={{ fontSize: 26, color: 'text.disabled' }} />
+                      <Typography sx={{ fontSize: '.8125rem', color: 'text.disabled', fontStyle: 'italic' }}>
+                        No hay repuestos en esta orden
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '9px', overflow: 'hidden' }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Repuesto</TableCell>
+                            <TableCell align="center" sx={{ width: 120 }}>Cantidad</TableCell>
+                            <TableCell align="right" sx={{ width: 130 }}>Precio unit.</TableCell>
+                            <TableCell align="right" sx={{ width: 110 }}>Subtotal</TableCell>
+                            {esEstadoReparacion && !modoSoloLectura && <TableCell sx={{ width: 40 }} />}
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {repuestosOrden.map(r => (
+                            <TableRow key={`ex-${r.repuestoOrdenId}`} hover>
+                              <TableCell>
+                                <Typography sx={{ fontWeight: 600, fontSize: '.8125rem', color: 'text.primary' }}>{r.nombre}</Typography>
+                                <Typography sx={{ fontSize: '.69rem', color: 'text.secondary' }}>{r.marca} · {r.modelo}</Typography>
+                              </TableCell>
+                              <TableCell align="center">
+                                <Typography className="num" sx={{ fontWeight: 700, fontSize: '.875rem' }}>{r.cantidad}</Typography>
+                              </TableCell>
+                              <TableCell align="right">
+                                <Money ars={r.precioCobrado * dolarGlobal} usd={r.precioCobrado} size="sm" />
+                              </TableCell>
+                              <TableCell align="right">
+                                <Money ars={r.precioCobrado * r.cantidad * dolarGlobal} usd={r.precioCobrado * r.cantidad} size="sm" />
+                              </TableCell>
+                              {esEstadoReparacion && (
                                 <TableCell>
-                                  <Typography sx={{ fontWeight: 600, fontSize: '0.875rem', color: '#0f172a' }}>{r.nombre}</Typography>
-                                  <Typography sx={{ fontSize: '0.72rem', color: '#64748b' }}>{r.marca} · {r.modelo}</Typography>
-                                </TableCell>
-                                <TableCell align="center">
-                                  <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{r.cantidad}</Typography>
-                                </TableCell>
-                                <TableCell align="right">
-                                  <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
-                                    ${r.precioCobrado.toLocaleString('es-AR')}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell align="right">
-                                  <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f766e' }}>
-                                    ${(r.precioCobrado * r.cantidad).toLocaleString('es-AR')}
-                                  </Typography>
-                                </TableCell>
-                                {esEstadoReparacion && (
-                                  <TableCell>
-                                    <IconButton size="small" onClick={() => quitarRepuestoExistente(r.repuestoOrdenId)}
-                                      sx={{ color: '#94a3b8', '&:hover': { color: '#dc2626', backgroundColor: '#fef2f2' } }}>
-                                      <DeleteOutlineIcon fontSize="small" />
-                                    </IconButton>
-                                  </TableCell>
-                                )}
-                              </TableRow>
-                            ))}
-                            {repuestosNuevos.map(r => (
-                              <TableRow key={`new-${r.idInventario}`}
-                                sx={{ '&:last-child td': { borderBottom: 0 }, '&:hover': { backgroundColor: '#f0fdf9' }, backgroundColor: '#f0fdf4' }}>
-                                <TableCell>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#22c55e', flexShrink: 0 }} />
-                                    <Box>
-                                      <Typography sx={{ fontWeight: 600, fontSize: '0.875rem', color: '#0f172a' }}>{r.nombre}</Typography>
-                                      <Typography sx={{ fontSize: '0.72rem', color: '#64748b' }}>{r.marca} · {r.modelo}</Typography>
-                                    </Box>
-                                  </Box>
-                                </TableCell>
-                                <TableCell align="center">
-                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                                    <IconButton size="small" onClick={() => cambiarCantidadNuevo(r.idInventario, -1)}
-                                      sx={{ width: 26, height: 26, border: '1px solid #e2e8f0', borderRadius: 1, color: '#475569', '&:hover': { borderColor: '#0f766e', color: '#0f766e' } }}>
-                                      <RemoveIcon sx={{ fontSize: 14 }} />
-                                    </IconButton>
-                                    <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', minWidth: 24, textAlign: 'center' }}>{r.cantidad}</Typography>
-                                    <IconButton size="small" onClick={() => cambiarCantidadNuevo(r.idInventario, 1)}
-                                      sx={{ width: 26, height: 26, border: '1px solid #e2e8f0', borderRadius: 1, color: '#475569', '&:hover': { borderColor: '#0f766e', color: '#0f766e' } }}>
-                                      <AddIcon sx={{ fontSize: 14 }} />
-                                    </IconButton>
-                                  </Box>
-                                </TableCell>
-                                <TableCell align="right">
-                                  <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
-                                    ${r.precioCobrado.toLocaleString('es-AR')}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell align="right">
-                                  <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f766e' }}>
-                                    ${(r.precioCobrado * r.cantidad).toLocaleString('es-AR')}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell>
-                                  <IconButton size="small" onClick={() => quitarRepuestoNuevo(r.idInventario)}
-                                    sx={{ color: '#94a3b8', '&:hover': { color: '#dc2626', backgroundColor: '#fef2f2' } }}>
+                                  <IconButton size="small" onClick={() => quitarRepuestoExistente(r.repuestoOrdenId)}
+                                    sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}>
                                     <DeleteOutlineIcon fontSize="small" />
                                   </IconButton>
                                 </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                        <Box sx={{ px: 2.5, py: 1.5, backgroundColor: '#f0fdf9', borderTop: '1.5px solid #99f6e4', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2 }}>
-                          <Typography sx={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 600 }}>Total repuestos:</Typography>
-                          <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: '#0f766e' }}>
-                            ${totalRepuestos.toLocaleString('es-AR')}
-                          </Typography>
-                        </Box>
+                              )}
+                            </TableRow>
+                          ))}
+                          {repuestosNuevos.map(r => (
+                            <TableRow key={`new-${r.idInventario}`} hover sx={{ bgcolor: 'pc.accentSoft' }}>
+                              <TableCell>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0 }} />
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 600, fontSize: '.8125rem', color: 'text.primary' }}>{r.nombre}</Typography>
+                                    <Typography sx={{ fontSize: '.69rem', color: 'text.secondary' }}>{r.marca} · {r.modelo}</Typography>
+                                  </Box>
+                                </Box>
+                              </TableCell>
+                              <TableCell align="center">
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                                  <IconButton size="small" onClick={() => cambiarCantidadNuevo(r.idInventario, -1)}
+                                    sx={{ width: 24, height: 24, border: 1, borderColor: 'divider', borderRadius: '5px', color: 'text.secondary', '&:hover': { borderColor: 'primary.main', color: 'primary.main' } }}>
+                                    <RemoveIcon sx={{ fontSize: 13 }} />
+                                  </IconButton>
+                                  <Typography className="num" sx={{ fontWeight: 700, fontSize: '.875rem', minWidth: 22, textAlign: 'center' }}>{r.cantidad}</Typography>
+                                  <IconButton size="small" onClick={() => cambiarCantidadNuevo(r.idInventario, 1)}
+                                    sx={{ width: 24, height: 24, border: 1, borderColor: 'divider', borderRadius: '5px', color: 'text.secondary', '&:hover': { borderColor: 'primary.main', color: 'primary.main' } }}>
+                                    <AddIcon sx={{ fontSize: 13 }} />
+                                  </IconButton>
+                                </Box>
+                              </TableCell>
+                              <TableCell align="right">
+                                <Money ars={r.precioCobrado * dolarGlobal} usd={r.precioCobrado} size="sm" />
+                              </TableCell>
+                              <TableCell align="right">
+                                <Money ars={r.precioCobrado * r.cantidad * dolarGlobal} usd={r.precioCobrado * r.cantidad} size="sm" />
+                              </TableCell>
+                              <TableCell>
+                                <IconButton size="small" onClick={() => quitarRepuestoNuevo(r.idInventario)}
+                                  sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}>
+                                  <DeleteOutlineIcon fontSize="small" />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                      <Box sx={{ px: '15px', py: '10px', bgcolor: 'pc.surfaceMuted', borderTop: 1, borderColor: 'divider', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1.5 }}>
+                        <Typography sx={{ fontSize: '.78rem', color: 'text.secondary', fontWeight: 600 }}>Total repuestos:</Typography>
+                        <Money ars={totalRepuestos * dolarGlobal} usd={totalRepuestos} />
                       </Box>
-                    )}
-                  </>
-                )}
-              </Box>
-            </Paper>
+                    </Box>
+                  )}
+                </>
+              )}
+            </Seccion>
           )}
 
           {/* Seña */}
           {!modoEdicion && !modoSoloLectura && (
-            <Paper elevation={0} sx={{ border: '1.5px solid #fef3c7', borderRadius: 2.5 }}>
-              <Box sx={{ px: 3, pt: 3, pb: 2.5 }}>
-                <SeccionHeader icon={LocalAtmIcon} title="Seña" subtitle="Monto entregado por el cliente al dejar el equipo (opcional)" color="#d97706" />
-                <Grid container spacing={2} alignItems="flex-end">
-                  <Grid size={{ xs: 12, sm: 5 }}>
-                    <TextField
-                      fullWidth
-                      type="number"
-                      label="Monto de seña"
-                      value={form.montoSena}
-                      onKeyDown={(e) => {
-                        if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
-                          e.preventDefault()
-                          if (e.key === '-') setSenaNegativaToast(true)
-                        }
-                      }}
-                      onChange={(e) => {
-                        if (Number(e.target.value) < 0) { setSenaNegativaToast(true); return }
-                        set('montoSena')(e)
-                      }}
-                      placeholder="0"
-                      slotProps={{
-                        input: { startAdornment: <InputAdornment position="start">$</InputAdornment> },
-                        htmlInput: { min: 0 },
-                      }}
-                    />
-                  </Grid>
-                  {Number(form.montoSena) > 0 && (
-                    <Grid size={{ xs: 12, sm: 5 }}>
-                      <TextField fullWidth select label="Método de pago *" value={form.idMetodoPagoSena} onChange={set('idMetodoPagoSena')}>
-                        {metodosPago.map(m => <MenuItem key={m.id} value={String(m.id)}>{m.nombre}</MenuItem>)}
-                      </TextField>
-                    </Grid>
-                  )}
-                  {Number(form.montoSena) > 0 && (
-                    <Grid size={{ xs: 12 }}>
-                      <Box sx={{ p: 1.5, borderRadius: 1.5, background: 'linear-gradient(135deg, #fef9c3, #fef3c7)', border: '1.5px solid #fde68a', display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <LocalAtmIcon sx={{ fontSize: 16, color: '#d97706' }} />
-                        <Typography sx={{ fontSize: '0.8rem', color: '#92400e', fontWeight: 600 }}>
-                          Seña registrada: ${Number(form.montoSena).toLocaleString('es-AR')} — El resto se cobrará al entregar.
-                        </Typography>
-                      </Box>
-                    </Grid>
-                  )}
-                </Grid>
+            <Seccion title="Seña" subtitle="Monto entregado por el cliente al dejar el equipo (opcional)">
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0,1fr))' }, gap: 1.5, alignItems: 'end' }}>
+                <Campo label="Monto de seña (U$S)">
+                  <NumberField
+                    fullWidth value={form.montoSena}
+                    onKeyDown={(e) => {
+                      if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                        e.preventDefault()
+                        if (e.key === '-') setSenaNegativaToast(true)
+                      }
+                    }}
+                    onChange={(e) => {
+                      if (Number(e.target.value) < 0) { setSenaNegativaToast(true); return }
+                      set('montoSena')(e)
+                    }}
+                    placeholder="0"
+                    slotProps={{
+                      input: { startAdornment: <InputAdornment position="start">U$S</InputAdornment> },
+                    }}
+                    helperText={Number(form.montoSena) > 0
+                      ? `≈ $ ${Math.round(Number(form.montoSena) * dolarGlobal).toLocaleString('es-AR')}`
+                      : ''}
+                  />
+                </Campo>
+                {Number(form.montoSena) > 0 && (
+                  <Campo label="Método de pago">
+                    <TextField select fullWidth value={form.idMetodoPagoSena} onChange={set('idMetodoPagoSena')}>
+                      {metodosPago.map(m => <MenuItem key={m.id} value={String(m.id)}>{m.nombre}</MenuItem>)}
+                    </TextField>
+                  </Campo>
+                )}
               </Box>
-            </Paper>
+              {Number(form.montoSena) > 0 && (
+                <Box sx={{ mt: 1.5, p: '10px 12px', borderRadius: '9px', bgcolor: 'warning.light', display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <LocalAtmIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+                  <Typography className="num" sx={{ fontSize: '.8rem', color: 'warning.main', fontWeight: 600 }}>
+                    Seña registrada: U$S {Number(form.montoSena).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {' '}(≈ $ {Math.round(Number(form.montoSena) * dolarGlobal).toLocaleString('es-AR')}) — El resto se cobrará al entregar.
+                  </Typography>
+                </Box>
+              )}
+            </Seccion>
           )}
 
           {/* Resumen financiero */}
           {showResumen && (
-            <Paper elevation={0} sx={{ border: '1.5px solid #ddd6fe', borderRadius: 2.5 }}>
-              <Box sx={{ px: 3, pt: 3, pb: 2.5 }}>
-                <SeccionHeader icon={ReceiptLongIcon} title="Resumen de Costos" color="#7c3aed" />
+            <Seccion title="Resumen de costos">
+              <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '9px', overflow: 'hidden' }}>
 
-                <Box sx={{ border: '1.5px solid #ddd6fe', borderRadius: 2, overflow: 'hidden' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: '15px', py: '11px', borderBottom: 1, borderColor: 'pc.dividerSoft' }}>
+                  <Typography sx={{ fontSize: '.8125rem', color: 'text.secondary', fontWeight: 600 }}>Repuestos</Typography>
+                  <Money ars={costoRepuestosDisplay * dolarGlobal} usd={costoRepuestosDisplay} />
+                </Box>
 
-                  {/* Repuestos */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2.5, py: 1.5, borderBottom: '1px solid #ede9fe' }}>
-                    <Typography sx={{ fontSize: '0.875rem', color: '#475569', fontWeight: 600 }}>Repuestos</Typography>
-                    <Typography sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a' }}>
-                      ${costoRepuestosDisplay.toLocaleString('es-AR')}
-                    </Typography>
+                {puedeEditarManoObra ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, px: '15px', py: '10px', borderBottom: 1, borderColor: 'pc.dividerSoft', bgcolor: 'pc.accentSoft' }}>
+                    <Typography sx={{ fontSize: '.8125rem', color: 'primary.main', fontWeight: 700 }}>Mano de obra (U$S)</Typography>
+                    <NumberField
+                      size="small"
+                      value={form.precioManoObra} onChange={set('precioManoObra')}
+                      slotProps={{ input: { startAdornment: <InputAdornment position="start">U$S</InputAdornment> } }}
+                      placeholder="0"
+                      error={Number(form.precioManoObra) < 0}
+                      helperText={Number(form.precioManoObra) < 0
+                        ? 'No puede ser negativo'
+                        : `≈ $ ${Math.round(manoObraActual * dolarGlobal).toLocaleString('es-AR')}`}
+                      sx={{ width: 190 }}
+                    />
                   </Box>
-
-                  {/* Mano de obra */}
-                  {puedeEditarManoObra ? (
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, px: 2.5, py: 1.25, borderBottom: '1px solid #ede9fe', backgroundColor: '#faf5ff' }}>
-                      <Typography sx={{ fontSize: '0.875rem', color: '#7c3aed', fontWeight: 700 }}>Mano de obra *</Typography>
-                      <TextField
-                        type="number" size="small"
-                        value={form.precioManoObra} onChange={set('precioManoObra')}
-                        slotProps={{ input: { startAdornment: <InputAdornment position="start">$</InputAdornment>, inputProps: { min: 0 } } }}
-                        placeholder="0"
-                        error={Number(form.precioManoObra) < 0}
-                        helperText={Number(form.precioManoObra) < 0 ? 'No puede ser negativo' : ''}
-                        sx={{ width: 180 }}
-                      />
-                    </Box>
-                  ) : datosFinancieros.precioManoObra > 0 && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2.5, py: 1.5, borderBottom: '1px solid #ede9fe' }}>
-                      <Typography sx={{ fontSize: '0.875rem', color: '#475569', fontWeight: 600 }}>Mano de obra</Typography>
-                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a' }}>
-                        ${datosFinancieros.precioManoObra.toLocaleString('es-AR')}
-                      </Typography>
-                    </Box>
-                  )}
-
-                  {/* Seña pagada (se muestra siempre que exista) */}
-                  {señaPagada > 0 && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2.5, py: 1.5, borderBottom: '1px solid #ede9fe', backgroundColor: '#f0fdf4' }}>
-                      <Typography sx={{ fontSize: '0.875rem', color: '#16a34a', fontWeight: 600 }}>Seña pagada</Typography>
-                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#16a34a' }}>
-                        − ${señaPagada.toLocaleString('es-AR')}
-                      </Typography>
-                    </Box>
-                  )}
-
-                  {/* Total: "Pendiente" en estado 3, el backend calcula recién al entregar */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2.5, py: 2, background: 'linear-gradient(135deg, #6d28d9, #7c3aed)' }}>
-                    <Typography sx={{ fontSize: '0.95rem', fontWeight: 800, color: '#fff' }}>
-                      {showDelivery ? 'A cobrar ahora' : señaPagada > 0 ? 'A cobrar' : 'Total'}
-                    </Typography>
-                    <Typography sx={{ fontSize: '1.15rem', fontWeight: 900, color: '#fff', fontStyle: currentEstadoId === 3 && targetEstadoId !== 4 ? 'italic' : 'normal', opacity: currentEstadoId === 3 && targetEstadoId !== 4 ? 0.75 : 1 }}>
-                      {currentEstadoId === 3 && targetEstadoId !== 4
-                        ? 'Pendiente...'
-                        : `$${Math.max(0,
-                            showDelivery
-                              ? saldoEntrega
-                              : targetEstadoId === 3
-                                ? costoRepuestosDisplay + manoObraActual - señaPagada
-                                : datosFinancieros.totalReparacion - señaPagada
-                          ).toLocaleString('es-AR')}`
-                      }
-                    </Typography>
+                ) : datosFinancieros.precioManoObra > 0 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: '15px', py: '11px', borderBottom: 1, borderColor: 'pc.dividerSoft' }}>
+                    <Typography sx={{ fontSize: '.8125rem', color: 'text.secondary', fontWeight: 600 }}>Mano de obra</Typography>
+                    <Money ars={datosFinancieros.precioManoObra * dolarGlobal} usd={datosFinancieros.precioManoObra} />
                   </Box>
+                )}
 
-                  {/* Método de pago: selector al pasar a estado 4 */}
-                  {modoEdicion && targetEstadoId === 4 && (
-                    <Box sx={{ px: 2.5, py: 2, borderTop: '1px solid #ddd6fe' }}>
-                      <TextField fullWidth select label="Método de pago *" value={form.idMetodoPago} onChange={set('idMetodoPago')}>
+                {señaPagada > 0 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: '15px', py: '11px', borderBottom: 1, borderColor: 'pc.dividerSoft' }}>
+                    <Typography sx={{ fontSize: '.8125rem', color: 'text.secondary', fontWeight: 600 }}>Seña pagada</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Typography sx={{ fontSize: '.8125rem', fontWeight: 700, color: 'error.main' }}>−</Typography>
+                      <Money ars={señaPagada * dolarGlobal} usd={señaPagada} />
+                    </Box>
+                  </Box>
+                )}
+
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: '15px', py: '13px', bgcolor: 'pc.accentSoft' }}>
+                  <Typography sx={{ fontSize: '.84rem', fontWeight: 700, color: 'primary.main' }}>
+                    {showDelivery ? 'A cobrar ahora' : señaPagada > 0 ? 'A cobrar' : 'Total'}
+                  </Typography>
+                  {(() => {
+                    const pendiente = currentEstadoId === 3 && targetEstadoId !== 4
+                    const totalUsd = Math.max(0,
+                      showDelivery
+                        ? saldoEntrega
+                        : targetEstadoId === 3
+                          ? costoRepuestosDisplay + manoObraActual - señaPagada
+                          : datosFinancieros.totalReparacion - señaPagada
+                    )
+                    return (
+                      <Box sx={{ textAlign: 'right' }}>
+                        <Typography className="num" sx={{
+                          fontSize: '1.1rem', fontWeight: 700, color: 'primary.main', lineHeight: 1.15,
+                          fontStyle: pendiente ? 'italic' : 'normal',
+                          opacity: pendiente ? .75 : 1,
+                        }}>
+                          {pendiente ? 'Pendiente...' : `U$S ${totalUsd.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                        </Typography>
+                        {!pendiente && (
+                          <Typography className="num" sx={{ fontSize: '.72rem', color: 'primary.main', opacity: .75 }}>
+                            $ {Math.round(totalUsd * dolarGlobal).toLocaleString('es-AR')}
+                          </Typography>
+                        )}
+                      </Box>
+                    )
+                  })()}
+                </Box>
+
+                {modoEdicion && targetEstadoId === 4 && (
+                  <Box sx={{ px: '15px', py: '13px', borderTop: 1, borderColor: 'divider' }}>
+                    <Campo label="Método de pago">
+                      <TextField fullWidth select value={form.idMetodoPago} onChange={set('idMetodoPago')}>
                         {metodosPago.map(m => <MenuItem key={m.id} value={String(m.id)}>{m.nombre}</MenuItem>)}
                       </TextField>
-                    </Box>
-                  )}
+                    </Campo>
+                  </Box>
+                )}
 
-                  {/* Método de pago: solo lectura en orden entregada */}
-                  {modoSoloLectura && currentEstadoId === 4 && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2.5, py: 1.5, borderTop: '1px solid #ddd6fe', backgroundColor: '#faf5ff' }}>
-                      <Typography sx={{ fontSize: '0.875rem', color: '#7c3aed', fontWeight: 600 }}>Método de pago (entrega)</Typography>
-                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#7c3aed' }}>
-                        {metodoPagoEntregaNombre ?? (señaPagada >= datosFinancieros.totalReparacion ? 'Cubierto por seña' : '—')}
-                      </Typography>
-                    </Box>
-                  )}
-                </Box>
+                {modoSoloLectura && currentEstadoId === 4 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: '15px', py: '11px', borderTop: 1, borderColor: 'divider' }}>
+                    <Typography sx={{ fontSize: '.8125rem', color: 'text.secondary', fontWeight: 600 }}>Método de pago (entrega)</Typography>
+                    <Typography sx={{ fontSize: '.8125rem', fontWeight: 700, color: 'text.primary' }}>
+                      {metodoPagoEntregaNombre ?? (señaPagada >= datosFinancieros.totalReparacion ? 'Cubierto por seña' : '—')}
+                    </Typography>
+                  </Box>
+                )}
               </Box>
-            </Paper>
+            </Seccion>
           )}
 
           {/* Detalles */}
-          <Paper elevation={0} sx={{ border: '1.5px solid #e2e8f0', borderRadius: 2.5 }}>
-            <Box sx={{ px: 3, pt: 3, pb: 2.5 }}>
-              <SeccionHeader icon={CalendarMonthIcon} title="Detalles de la Orden" color="#7c3aed" />
-
-              {modoSoloLectura ? (
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <CampoReadonly label="Fecha de Ingreso" value={ordenEditar?.FechaEmision?.split('T')[0] ?? ordenEditar?.FechaEmision ?? '–'} />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <CampoReadonly label="Estado" value={ordenEditar?.Estado} />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <CampoReadonly label="Empleado emisor" value={ordenEditar?.NombreEmpleado ? `${ordenEditar.NombreEmpleado} ${ordenEditar.ApellidoEmpleado}`.trim() : '–'} />
-                  </Grid>
-                  {observacionIngresoOriginal && (
-                    <Grid size={{ xs: 12 }}>
-                      <CampoReadonly label="Observación de ingreso" value={observacionIngresoOriginal} />
-                    </Grid>
-                  )}
-                  {form.observacionTecnico && (
-                    <Grid size={{ xs: 12 }}>
-                      <CampoReadonly label="Última observación técnica" value={form.observacionTecnico} />
-                    </Grid>
-                  )}
-                </Grid>
-              ) : (
-                <Grid container spacing={2} alignItems="flex-start">
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <TextField fullWidth type="date" label="Fecha de Ingreso"
-                      value={form.fechaIngreso} onChange={set('fechaIngreso')}
-                      InputLabelProps={{ shrink: true }} inputProps={{ readOnly: true }}
-                      sx={{ '& input': { color: '#94a3b8' } }} />
-                  </Grid>
+          <Seccion title="Detalles de la orden">
+            {modoSoloLectura ? (
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0,1fr))' }, gap: 1.5 }}>
+                <CampoReadonly label="Fecha de ingreso" value={ordenEditar?.FechaEmision?.split('T')[0] ?? ordenEditar?.FechaEmision ?? '–'} />
+                <CampoReadonly label="Estado" value={ordenEditar?.Estado} />
+                <CampoReadonly label="Empleado emisor" value={ordenEditar?.NombreEmpleado ? `${ordenEditar.NombreEmpleado} ${ordenEditar.ApellidoEmpleado}`.trim() : '–'} />
+                {observacionIngresoOriginal && (
+                  <Box sx={{ gridColumn: '1 / -1' }}>
+                    <CampoReadonly label="Observación de ingreso" value={observacionIngresoOriginal} />
+                  </Box>
+                )}
+                {form.observacionTecnico && (
+                  <Box sx={{ gridColumn: '1 / -1' }}>
+                    <CampoReadonly label="Última observación técnica" value={form.observacionTecnico} />
+                  </Box>
+                )}
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0,1fr))' }, gap: 1.5 }}>
+                  <Campo label="Fecha de ingreso">
+                    <TextField fullWidth type="date" value={form.fechaIngreso} onChange={set('fechaIngreso')}
+                      slotProps={{ htmlInput: { readOnly: true } }} sx={{ '& input': { color: 'text.disabled' } }} />
+                  </Campo>
 
                   {!modoEdicion && (
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <TextField fullWidth type="date" label="Fecha de Entrega estimada"
-                        value={form.fechaEntrega} onChange={set('fechaEntrega')}
-                        InputLabelProps={{ shrink: true }}
+                    <Campo label="Fecha de entrega estimada">
+                      <TextField fullWidth type="date" value={form.fechaEntrega} onChange={set('fechaEntrega')}
                         slotProps={{ htmlInput: { min: hoy() } }} />
-                    </Grid>
+                    </Campo>
                   )}
 
                   {modoEdicion && (
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <TextField fullWidth select label="Estado de la Orden *" value={form.estado} onChange={set('estado')}>
+                    <Campo label="Estado de la orden">
+                      <TextField fullWidth select value={form.estado} onChange={set('estado')}>
                         <MenuItem value="">Seleccione…</MenuItem>
                         {estadosPermitidos.map(e => <MenuItem key={e.id} value={e.nombre}>{e.nombre}</MenuItem>)}
                       </TextField>
-                    </Grid>
+                    </Campo>
                   )}
 
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <Box sx={{ p: 1.75, borderRadius: 2, background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)', border: '1.5px solid #c4b5fd' }}>
-                      <Typography sx={{ fontSize: '0.65rem', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.5 }}>
-                        Empleado emisor
-                      </Typography>
-                      <Typography sx={{ fontWeight: 700, color: '#4c1d95', fontSize: '0.9rem' }}>
-                        {usuario?.user || '–'}
-                      </Typography>
-                    </Box>
-                  </Grid>
+                  <CampoReadonly label="Empleado emisor" value={usuario?.user} />
+                </Box>
 
-                  {!modoEdicion && (
-                    <Grid size={{ xs: 12 }}>
-                      <TextField fullWidth multiline rows={2} label="Observación de ingreso"
-                        placeholder="Ej: cliente trae cable de carga, sin tapa trasera…"
-                        value={form.observacionIngreso} onChange={set('observacionIngreso')} />
-                    </Grid>
-                  )}
+                {!modoEdicion && (
+                  <Campo label="Observación de ingreso">
+                    <TextField fullWidth multiline rows={2}
+                      placeholder="Ej: cliente trae cable de carga, sin tapa trasera…"
+                      value={form.observacionIngreso} onChange={set('observacionIngreso')} />
+                  </Campo>
+                )}
 
-                  {modoEdicion && observacionIngresoOriginal && (
-                    <Grid size={{ xs: 12 }}>
-                      <CampoReadonly label="Observación de ingreso" value={observacionIngresoOriginal} />
-                    </Grid>
-                  )}
+                {modoEdicion && observacionIngresoOriginal && (
+                  <CampoReadonly label="Observación de ingreso" value={observacionIngresoOriginal} />
+                )}
 
-                  {modoEdicion && usuario?.rol !== 3 && (
-                    <Grid size={{ xs: 12 }}>
-                      <TextField fullWidth multiline rows={2} label="Observación técnica"
-                        placeholder="Ej: requiere reemplazo de placa, diagnóstico completado…"
-                        value={form.observacionTecnico} onChange={set('observacionTecnico')} />
-                    </Grid>
-                  )}
-
-                </Grid>
-              )}
-            </Box>
-          </Paper>
+                {modoEdicion && usuario?.rol !== 3 && (
+                  <Campo label="Observación técnica">
+                    <TextField fullWidth multiline rows={2}
+                      placeholder="Ej: requiere reemplazo de placa, diagnóstico completado…"
+                      value={form.observacionTecnico} onChange={set('observacionTecnico')} />
+                  </Campo>
+                )}
+              </Box>
+            )}
+          </Seccion>
 
         </Box>
       </DialogContent>
 
-      {/* Footer */}
-      <DialogActions sx={{ px: 3, py: 2.5, gap: 1.5, borderTop: '1.5px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+      <DialogActions>
         {modoSoloLectura ? (
           <>
             {currentEstadoId === 4 && (
-              <Button variant="outlined" startIcon={<DownloadIcon />} onClick={generarPDF}
-                sx={{ borderColor: '#6d28d9', color: '#6d28d9', '&:hover': { borderColor: '#5b21b6', backgroundColor: '#f5f3ff' } }}>
+              <Button variant="outlined" startIcon={<DownloadIcon sx={{ fontSize: 16 }} />} onClick={generarPDF}>
                 Descargar PDF
               </Button>
             )}
-            <Button variant="contained" onClick={onClose}
-              sx={{ minWidth: 140, backgroundColor: '#4338ca', '&:hover': { backgroundColor: '#3730a3' } }}>
+            <Button variant="contained" onClick={onClose} sx={{ ml: 'auto' }}>
               Cerrar
             </Button>
           </>
         ) : (
-          <>
-            <Button variant="outlined" onClick={onClose} disabled={loading}
-              sx={{ borderColor: '#e2e8f0', color: '#475569', '&:hover': { borderColor: '#94a3b8' } }}>
-              Cancelar
-            </Button>
+          <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
+            <Button onClick={onClose} disabled={loading}>Cancelar</Button>
             <Button variant="contained" color={modoEdicion ? 'success' : 'primary'}
               onClick={handleGuardar} disabled={loading}
-              startIcon={loading ? <CircularProgress size={15} color="inherit" /> : modoEdicion ? <EditIcon /> : <BuildIcon />}
-              sx={{ minWidth: 180 }}>
-              {loading ? 'Guardando…' : modoEdicion ? 'Guardar cambios' : 'Registrar Reparación'}
+              startIcon={loading ? <CircularProgress size={14} color="inherit" /> : modoEdicion ? <EditIcon sx={{ fontSize: 16 }} /> : <BuildIcon sx={{ fontSize: 16 }} />}>
+              {loading ? 'Guardando…' : modoEdicion ? 'Guardar cambios' : 'Registrar reparación'}
             </Button>
-          </>
+          </Box>
         )}
       </DialogActions>
 
@@ -1269,12 +1200,7 @@ const ModalReparacion = ({
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
         sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}
       >
-        <Alert
-          severity="warning"
-          variant="filled"
-          onClose={() => setSenaNegativaToast(false)}
-          sx={{ borderRadius: 2 }}
-        >
+        <Alert severity="warning" variant="filled" onClose={() => setSenaNegativaToast(false)}>
           La seña no puede ser un valor negativo.
         </Alert>
       </Snackbar>

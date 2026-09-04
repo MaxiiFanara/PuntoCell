@@ -1,4 +1,4 @@
-import { registerAudit } from '../../../core/utils/audit.util.js';
+import { registerAudit, auditar } from '../../../core/utils/audit.util.js';
 
 export default class EstadoReclamoService {
   constructor(dao, bitacoraService = null) {
@@ -53,15 +53,19 @@ export default class EstadoReclamoService {
     }
   }
 
-  async update(id, data) {
+  async update(id, data, ctx = null) {
     const item = await this.dao.getById(id);
-    if (!item) throw new Error('EstadoReclamo no encontrado');
-    return await this.dao.update(id, data);
+    if (!item) { const e = new Error('EstadoReclamo no encontrado'); e.statusCode = 404; throw e; }
+    const actualizado = await this.dao.update(id, data);
+    await auditar(this.bitacoraService, ctx, `Modificó el estado de reclamo #${id}`, `Campos: ${Object.keys(data).join(', ')}`);
+    return actualizado;
   }
 
-  async remove(id) {
+  async remove(id, ctx = null) {
     const item = await this.dao.getById(id);
-    if (!item) throw new Error('EstadoReclamo no encontrado');
-    return await this.dao.remove(id);
+    if (!item) { const e = new Error('EstadoReclamo no encontrado'); e.statusCode = 404; throw e; }
+    const eliminado = await this.dao.remove(id);
+    await auditar(this.bitacoraService, ctx, `Eliminó el estado de reclamo #${id}`, `Baja de estado de reclamo`);
+    return eliminado;
   }
 }

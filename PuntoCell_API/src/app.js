@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { errorMiddleware } from './core/middlewares/error.middleware.js';
+import { createErrorMiddleware } from './core/middlewares/error.middleware.js';
 import { env } from './core/config/env.js';
 import globalRouter from './routes/index.js';
 
@@ -20,9 +20,8 @@ const createApp = (container) => {
 
   app.use(cookieParser(env.JWT.SECRET));
   app.use('/api', globalRouter(container));
-  
-  
-  app.use(errorMiddleware);
+
+  app.use(createErrorMiddleware(container?.auditoria?.bitacoraService));
   return app;
 };
 

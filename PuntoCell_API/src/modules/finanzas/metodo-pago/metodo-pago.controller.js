@@ -1,3 +1,5 @@
+const ctxDe = (req) => ({ IdEmpleado: req.user?.id, IdSucursal: req.user?.sucursal, Ip: req.ip });
+
 export default class MetodoPagoController {
   constructor(service) {
     this.service = service;
@@ -19,21 +21,21 @@ export default class MetodoPagoController {
 
   create = async (req, res, next) => {
     try {
-      const data = await this.service.create(req.body);
+      const data = await this.service.create(req.body, ctxDe(req));
       return res.status(201).json({ status: 'success', data });
     } catch (err) { next(err); }
   };
 
   update = async (req, res, next) => {
     try {
-      const data = await this.service.update(req.params.id, req.body);
+      const data = await this.service.update(req.params.id, req.body, ctxDe(req));
       return res.status(200).json({ status: 'success', data });
     } catch (err) { next(err); }
   };
 
   remove = async (req, res, next) => {
     try {
-      await this.service.remove(req.params.id);
+      await this.service.remove(req.params.id, ctxDe(req));
       return res.status(200).json({ status: 'success', data: { message: 'MetodoPago eliminado' } });
     } catch (err) { next(err); }
   };

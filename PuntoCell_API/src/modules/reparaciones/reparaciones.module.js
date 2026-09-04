@@ -33,36 +33,36 @@ import RepuestoOrdenDAO from './repuesto-orden/repuesto-orden.dao.js';
 import RepuestoOrdenService from './repuesto-orden/repuesto-orden.service.js';
 import RepuestoOrdenController from './repuesto-orden/repuesto-orden.controller.js';
 
-export function createReparacionesModule(usuarioDAO) {
+export function createReparacionesModule(usuarioDAO, bitacoraService = null) {
 
   const estadoOrdenDAO = new EstadoOrdenDAO(models.EstadoOrden);
-  const estadoOrdenService = new EstadoOrdenService(estadoOrdenDAO);
+  const estadoOrdenService = new EstadoOrdenService(estadoOrdenDAO, bitacoraService);
   const estadoOrdenController = new EstadoOrdenController(estadoOrdenService);
 
   const fallaDAO = new FallaDAO(models.Falla);
-  const fallaService = new FallaService(fallaDAO);
+  const fallaService = new FallaService(fallaDAO, bitacoraService);
   const fallaController = new FallaController(fallaService);
 
   const dispositivoClienteDAO = new DispositivoClienteDAO(models.DispositivoCliente);
-  const dispositivoClienteService = new DispositivoClienteService(dispositivoClienteDAO);
+  const dispositivoClienteService = new DispositivoClienteService(dispositivoClienteDAO, bitacoraService);
   const dispositivoClienteController = new DispositivoClienteController(dispositivoClienteService);
 
   const ordenFallaDAO = new OrdenFallaDAO(models.OrdenFalla);
-  const ordenFallaService = new OrdenFallaService(ordenFallaDAO);
+  const ordenFallaService = new OrdenFallaService(ordenFallaDAO, bitacoraService);
   const ordenFallaController = new OrdenFallaController(ordenFallaService);
 
   const seguimientoOrdenDAO = new SeguimientoOrdenDAO(models.SeguimientoOrden);
-  const seguimientoOrdenService = new SeguimientoOrdenService(seguimientoOrdenDAO);
+  const seguimientoOrdenService = new SeguimientoOrdenService(seguimientoOrdenDAO, bitacoraService);
   const seguimientoOrdenController = new SeguimientoOrdenController(seguimientoOrdenService);
 
   const pagoReparacionDAO = new PagoReparacionDAO(models.PagoReparacion);
-  const pagoReparacionService = new PagoReparacionService(pagoReparacionDAO);
+  const pagoReparacionService = new PagoReparacionService(pagoReparacionDAO, bitacoraService);
   const pagoReparacionController = new PagoReparacionController(pagoReparacionService);
 
   const ordenReparacionDAO = new OrdenReparacionDAO(models.OrdenReparacion);
 
   const repuestoOrdenDAO = new RepuestoOrdenDAO(models.RepuestoOrden);
-  const repuestoOrdenService = new RepuestoOrdenService(repuestoOrdenDAO, ordenReparacionDAO);
+  const repuestoOrdenService = new RepuestoOrdenService(repuestoOrdenDAO, ordenReparacionDAO, bitacoraService);
   const repuestoOrdenController = new RepuestoOrdenController(repuestoOrdenService);
 
   const notificacionService = new NotificacionService();
@@ -73,7 +73,8 @@ export function createReparacionesModule(usuarioDAO) {
     ordenReparacionDAO,
     ordenFallaDAO,
     seguimientoOrdenDAO,
-    notificacionService
+    notificacionService,
+    bitacoraService
   );
   const ordenReparacionController = new OrdenReparacionController(ordenReparacionService);
 

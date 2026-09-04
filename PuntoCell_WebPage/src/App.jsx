@@ -25,11 +25,12 @@ import BitacoraList from './features/admin/views/bitacora/BitacoraList';
 import HistorialVentas from './features/venta/views/HistorialVentas';
 import TicketVenta from './features/venta/views/TicketVenta';
 import InventarioList from './features/inventario/views/InventarioList';
-import InventarioCreate from './features/inventario/views/InventarioCreate';
-import InventarioEdit from './features/inventario/views/InventarioEdit';
 import InventarioDetails from './features/inventario/views/InventarioDetails';
 import BalanceList from './features/reportes/views/BalanceList';
+import ComprasList from './features/compras/views/ComprasList';
+import PreciosScreen from './features/precios/precios';
 import { VentaProvider } from './features/punto-venta/context/VentaContext';
+import ThemeToggle from './components/ui/ThemeToggle';
 
 
 
@@ -52,6 +53,9 @@ const AdminRoute = ({ children }) => {
 
 const App = () => (
   <AuthProvider>
+    {/* Único switch de tema del sistema: fuera de <Routes> para que aparezca en
+        todas las pantallas, públicas e internas. */}
+    <ThemeToggle />
     <Routes>
       {/* ---------------- PUBLICAS ---------------- */}
       <Route path="/" element={<LandingPage />} />
@@ -95,11 +99,15 @@ const App = () => (
         <Route path="punto-venta" element={<PuntoVentaScreen />} />
         <Route path="ventas/detalle/:id" element={<TicketVenta />} />
 
-        {/* -------- INVENTARIO -------- */}
+        {/* -------- INVENTARIO (solo listado + traspaso; el alta entra por Compras) -------- */}
         <Route path="inventario" element={<InventarioList />} />
-        <Route path="inventario/nuevo" element={<InventarioCreate />} />
-        <Route path="inventario/editar/:id" element={<InventarioEdit />} />
         <Route path="inventario/detalle/:id" element={<InventarioDetails />} />
+
+        {/* -------- COMPRAS / ABASTECIMIENTO -------- */}
+        <Route path="compras" element={<AdminRoute><ComprasList /></AdminRoute>} />
+
+        {/* -------- PRECIOS -------- */}
+        <Route path="precios" element={<AdminRoute><PreciosScreen /></AdminRoute>} />
 
         {/* -------- REPORTES -------- */}
         <Route path="reportes" element={<BalanceList />} />

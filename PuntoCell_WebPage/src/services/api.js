@@ -1,3 +1,5 @@
+import { mapVigentePorInventario, precioVigenteEntreListas, idsListasMayoristas, preciosService } from './preciosServices'
+
 export const API_URL = 'http://localhost:3000/api'
 
 // Fetch para rutas protegidas
@@ -51,6 +53,28 @@ export const loginUsuario = async (identificador, pwd) => {
 
 export const logoutUsuario = () =>
   fetchApi('/auth/logout', { method: 'POST' })
+
+// Perfil plano que consume el front (AuthContext / LoginPage). El backend devuelve
+// la fila cruda en PascalCase; acá la normalizamos a un único shape.
+export const mapUsuario = (u) => ({
+  userID:   u.Id,
+  user:     `${u.Nombre ?? ''} ${u.Apellido ?? ''}`.trim() || u.UsuarioEmpleado,
+  nombre:   `${u.Nombre ?? ''} ${u.Apellido ?? ''}`.trim() || u.UsuarioEmpleado,
+  rol:      u.IdRol,
+  sucursal: u.IdSucursal,
+})
+
+// GET /auth/me — devuelve el usuario si la cookie de sesión sigue viva, o null.
+export const getSesionActual = async () => {
+  try {
+    const res = await fetch(`${API_URL}/auth/me`, { credentials: 'include' })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data?.data?.user ?? null
+  } catch {
+    return null
+  }
+}
 
 export const olvideMiContrasena = async (email) => {
   const res = await fetch(`${API_URL}/auth/forgot-password`, {
@@ -254,16 +278,35 @@ export const getOrdenById = async (id) => {
 }
 
 // Repuestos de orden
+// El precio ya no vive en Inventario: se resuelve del PrecioArticulo vigente
+// (cualquier lista) mergeando client-side. El backend exige que el repuesto tenga
+// un precio vigente para agregarlo a la orden, así que descartamos los que no lo tienen
+// (marcándolos con sinPrecio para poder avisar en la UI).
 export const getRepuestosDisponibles = async () => {
-  const res = await fetchApi('/reparaciones/inventario/repuestos-disponibles')
-  return (res?.data ?? []).map(item => ({
-    id:     item.id ?? item.Id,
-    nombre: item.articulo?.Nombre ?? '',
-    stock:  item.Stock ?? 0,
-    precio: Number(item.PrecioMenor) || 0,
-    marca:  item.articulo?.modelo?.marca?.Nombre ?? '',
-    modelo: item.articulo?.modelo?.Nombre ?? '',
-  }))
+  const [res, preciosRes, listas] = await Promise.all([
+    fetchApi('/reparaciones/inventario/repuestos-disponibles'),
+    fetchApi('/precios/precios-articulos').catch(() => ({ data: [] })),
+    preciosService.getListas().catch(() => []),
+  ])
+  const precios = Array.isArray(preciosRes?.data) ? preciosRes.data : (preciosRes ?? [])
+  const mapa = mapVigentePorInventario(precios)
+  // El repuesto se carga siempre al precio minorista (regla de negocio: mayorista solo
+  // aplica con un selector explícito, que este flujo todavía no tiene).
+  const listasMayoristas = idsListasMayoristas(listas)
+  return (res?.data ?? []).map(item => {
+    const idInv = item.id ?? item.Id
+    const p = precioVigenteEntreListas(mapa, idInv, { excluir: listasMayoristas })
+      || precioVigenteEntreListas(mapa, idInv) // fallback si solo hay precio en lista mayorista
+    return {
+      id:       idInv,
+      nombre:   item.articulo?.Nombre ?? '',
+      stock:    item.Stock ?? 0,
+      precio:   p ? Number(p.ValorFinal) || 0 : 0,
+      sinPrecio: !p,
+      marca:    item.articulo?.modelo?.marca?.Nombre ?? '',
+      modelo:   item.articulo?.modelo?.Nombre ?? '',
+    }
+  })
 }
 
 export const agregarRepuestoOrden = (datos) =>

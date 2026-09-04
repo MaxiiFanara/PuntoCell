@@ -6,6 +6,7 @@ export default (sequelize) => {
     Nombre: { type: DataTypes.STRING(100), allowNull: false },
     PorcentajeRentabilidad: { type: DataTypes.DECIMAL(5,2), allowNull: false },
     Activo: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
-    IdCategoriaProducto: { type: DataTypes.INTEGER, allowNull: false }
+    // NULL = lista genérica sin categoría (ej. la lista Id=1 default). La DB permite NULL.
+    IdCategoriaProducto: { type: DataTypes.INTEGER, allowNull: true }
   }, { tableName: 'ListaPrecio', schema: 'dbo', timestamps: false });
 };

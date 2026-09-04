@@ -1,6 +1,10 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { ventasService } from "../../../services/ventasServices";
 import { inventarioService } from "../../../services/inventarioServices";
+import { fetchApi } from "../../../services/api";
+import {
+    preciosService, mapVigentePorInventario, idsListasMayoristas, resolverPrecioInventario
+} from "../../../services/preciosServices";
 import { useAuth } from '../../../context/AuthContext';
 
 const VentaContext = createContext();
@@ -26,6 +30,32 @@ export const VentaProvider = ({ children }) => {
     const [cliente, setCliente] = useState(null);
     const [esMayorista, setEsMayorista] = useState(false);
     const [bonificacion, setBonificacion] = useState(0);
+
+    // Precios del modelo nuevo (ListaPrecio + PrecioArticulo). Se cargan y se resuelven
+    // client-side por renglón de Inventario, contra cualquier lista vigente.
+    const [preciosMap, setPreciosMap] = useState({});
+    const [listasMayoristas, setListasMayoristas] = useState([]);
+
+    const recargarPrecios = useCallback(async () => {
+        try {
+            const [precios, listas] = await Promise.all([
+                preciosService.getPreciosArticulos(),
+                preciosService.getListas(),
+            ]);
+            setPreciosMap(mapVigentePorInventario(precios));
+            setListasMayoristas(idsListasMayoristas(listas || []));
+        } catch (e) {
+            console.error('No se pudieron cargar los precios:', e);
+        }
+    }, []);
+
+    useEffect(() => { recargarPrecios(); }, [recargarPrecios]);
+
+    // Precio de venta vigente (minorista/mayorista) + costo real de un renglón de Inventario.
+    const resolverPrecios = useCallback(
+        (idInventario) => resolverPrecioInventario(preciosMap, idInventario, listasMayoristas),
+        [preciosMap, listasMayoristas]
+    );
 
     const [datosConfig, setDatosConfig] = useState({
         idTurnoCaja: null,
@@ -103,19 +133,47 @@ export const VentaProvider = ({ children }) => {
         return valor;
     };
 
-    // Recuperar estado previo (Persistencia local)
+    // Recuperar estado previo (Persistencia local). El cliente y el carrito se validan
+    // contra el backend: un `pdv_estado` viejo puede referenciar un cliente o un renglón
+    // de inventario que ya no existen (ej. tras reinicializar la base) y eso reventaba
+    // la venta con un error de FK.
     useEffect(() => {
         const guardado = localStorage.getItem('pdv_estado');
-        if (guardado) {
-            try {
-                const estado = JSON.parse(guardado);
-                if (estado.carrito) setCarrito(estado.carrito);
-                if (estado.cliente) setCliente(estado.cliente);
-                if (estado.esMayorista) setEsMayorista(estado.esMayorista);
-            } catch (e) {
-                console.error('Error cargando estado:', e);
-            }
+        if (!guardado) return;
+        let estado;
+        try {
+            estado = JSON.parse(guardado);
+        } catch (e) {
+            console.error('Error cargando estado:', e);
+            localStorage.removeItem('pdv_estado');
+            return;
         }
+        if (estado.esMayorista) setEsMayorista(estado.esMayorista);
+
+        // Cliente: solo se restaura si sigue existiendo.
+        if (estado.cliente?.id) {
+            fetchApi(`/usuarios/${estado.cliente.id}`)
+                .then((res) => {
+                    const u = res?.data ?? res;
+                    if (u && (u.Id ?? u.id)) setCliente(estado.cliente);
+                    else setCliente(null);
+                })
+                .catch(() => setCliente(null));
+        }
+
+        // Carrito: solo se restauran los renglones cuyo Inventario sigue con stock.
+        if (Array.isArray(estado.carrito) && estado.carrito.length) {
+            inventarioService.getAll({ IdSucursal: usuario?.sucursal })
+                .then((items) => {
+                    const lista = Array.isArray(items) ? items : (items?.data || []);
+                    const stockPorId = {};
+                    lista.forEach((it) => { stockPorId[it.Id ?? it.id] = Number(it.Stock) || 0; });
+                    const validos = estado.carrito.filter((c) => (stockPorId[c.IdInventario] ?? 0) >= c.Cantidad);
+                    if (validos.length) setCarrito(validos);
+                })
+                .catch(() => {});
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Guardar estado (Persistencia local)
@@ -130,15 +188,22 @@ export const VentaProvider = ({ children }) => {
     // Totales
     const totalVenta = carrito.reduce((sum, item) => sum + item.Subtotal, 0);
     const totalAjustado = totalVenta - bonificacion;
+    // Costo real total (para Venta.TotalCosto) — del PrecioArticulo vigente
+    const totalCosto = carrito.reduce((sum, item) => sum + (item.CostoReal || 0) * item.Cantidad, 0);
 
     const agregarAlCarrito = (producto) => {
         const idInventario = producto.Id; // Id de la fila de stock
         const idArticulo = producto.IdArticulo;
         const stockDisponible = producto.Stock || 0;
 
-        const nombreStr = producto.articulo?.Nombre || 'Producto';
-        const precioBase = producto.PrecioMenor || 0;
-        const precioMayor = producto.PrecioMayor || precioBase;
+        const nombreStr = producto.articulo?.Nombre || producto.NombreProducto || 'Producto';
+        // Precio del modelo nuevo: PrecioArticulo vigente por lista (minorista/mayorista)
+        const { minorista: precioBase, mayorista: precioMayor, costoReal } = resolverPrecios(idInventario);
+
+        if (precioBase <= 0 && precioMayor <= 0) {
+            alert('⚠️ Este producto no tiene un precio de venta vigente cargado. Definilo en la pantalla de Precios.');
+            return;
+        }
 
         const existente = carrito.find(x => x.IdInventario === idInventario);
         const cantActual = existente ? existente.Cantidad : 0;
@@ -170,19 +235,29 @@ export const VentaProvider = ({ children }) => {
                 Subtotal: precioAUsar,
                 PrecioMenor: precioBase,
                 PrecioMayor: precioMayor,
+                CostoReal: costoReal,
                 StockMax: stockDisponible
             }]);
         }
     };
 
-    // Al cambiar mayorista/minorista, recalcula precio y subtotal de lo que ya está en el carrito
+    // Al cambiar mayorista/minorista (o al llegar/actualizarse los precios), re-resuelve
+    // el precio de cada renglón del carrito desde la lista de precios real, en vivo.
     useEffect(() => {
         setCarrito(prev => prev.map(item => {
-            const precio = esMayorista ? (item.PrecioMayor ?? item.PrecioUnitario) : (item.PrecioMenor ?? item.PrecioUnitario);
-            return { ...item, PrecioUnitario: precio, Subtotal: precio * item.Cantidad };
+            const { minorista, mayorista, costoReal } = resolverPrecios(item.IdInventario);
+            const precio = (esMayorista ? mayorista : minorista) || item.PrecioUnitario || 0;
+            return {
+                ...item,
+                PrecioUnitario: precio,
+                Subtotal: precio * item.Cantidad,
+                PrecioMenor: minorista || item.PrecioMenor,
+                PrecioMayor: mayorista || item.PrecioMayor,
+                CostoReal: costoReal || item.CostoReal,
+            };
         }));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [esMayorista]);
+    }, [esMayorista, resolverPrecios]);
 
     const eliminarDelCarrito = (index) => {
         setCarrito(carrito.filter((_, i) => i !== index));
@@ -209,7 +284,8 @@ export const VentaProvider = ({ children }) => {
             datosConfig,
             dolarGlobal: datosConfig.valorDolar || 1000,
             actualizarCotizacion,
-            totalVenta, totalAjustado,
+            totalVenta, totalAjustado, totalCosto,
+            preciosMap, listasMayoristas, resolverPrecios, recargarPrecios,
             agregarAlCarrito, eliminarDelCarrito, vaciarTodo,
             toggleMayorista: setEsMayorista
         }}>

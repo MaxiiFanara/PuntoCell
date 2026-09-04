@@ -1,21 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Button, TextField, Dialog, DialogTitle, DialogContent,
-  DialogActions, IconButton, Switch, FormControlLabel, Select, MenuItem,
-  CircularProgress, Tooltip, Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Pagination,
-  ToggleButtonGroup, ToggleButton
+  Box, Button, Dialog, DialogActions, DialogContent, DialogTitle,
+  IconButton, MenuItem, Paper, Select, Switch, Table, TableBody, TableCell,
+  TableContainer, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup,
+  Tooltip, Typography,
 } from '@mui/material';
 import {
-  Search, Add, Edit, Visibility, LocalShipping,
-  Store, Lock, PointOfSale, Sell, Build, SwapHoriz
+  Search, Visibility, LocalShipping, Lock, Store, Close, PointOfSale,
 } from '@mui/icons-material';
 import { inventarioService } from '../../../services/inventarioServices';
 import { useVenta } from '../../punto-venta/context/VentaContext';
 import { useAuth } from '../../../context/AuthContext';
 import { capitalizar } from '../../../utils/format';
 
+import PageHeader from '../../../components/ui/PageHeader';
+import KpiCard from '../../../components/ui/KpiCard';
+import StatusPill from '../../../components/ui/StatusPill';
+import Money from '../../../components/ui/Money';
+import FilterBar, { FilterField } from '../../../components/ui/FilterBar';
+import TablePager from '../../../components/ui/TablePager';
+
 const FILAS_POR_PAGINA = 10;
+
+const tonoStock = (stock) => (stock === 0 ? 'late' : stock <= 2 ? 'due' : 'ok');
 
 const InventarioList = () => {
   const navigate = useNavigate();
@@ -29,6 +37,9 @@ const InventarioList = () => {
   const [sucursalActual, setSucursalActual] = useState(miSucursalReal);
   const esMiStock = sucursalActual === miSucursalReal;
   const [mostrarAgotados, setMostrarAgotados] = useState(false);
+  // Mismo criterio que Punto de Venta (VentaContext): minorista por defecto, mayorista
+  // solo con este switch explícito — no cambia nada en la base, solo qué precio se lee.
+  const [esMayorista, setEsMayorista] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   // Filtro de tipo de producto: 'todos' | 'vendibles' | 'repuestos' | 'canje'
   const [filtroTipo, setFiltroTipo] = useState('todos');
@@ -50,44 +61,47 @@ const InventarioList = () => {
     return s ? capitalizar(s.Nombre ?? s.nombre) : '—';
   };
 
-  useEffect(() => {
-    const cargarInventario = async () => {
-      try {
-        setCargando(true);
-        const paramsFiltro = {
-          vendibles: { soloVendibles: true },
-          repuestos: { soloRepuestos: true },
-          canje: { soloCanje: true },
-          todos: {},
-        }[filtroTipo];
-        const res = await inventarioService.getAll({ IdSucursal: sucursalActual, ...paramsFiltro });
-        const datosBackend = res.data || res || [];
+  const cargarInventario = useCallback(async () => {
+    try {
+      setCargando(true);
+      const paramsFiltro = {
+        vendibles: { soloVendibles: true },
+        repuestos: { soloRepuestos: true },
+        canje: { soloCanje: true },
+        todos: {},
+      }[filtroTipo];
+      // getConPrecios mergea el PrecioArticulo vigente (el modelo nuevo no lo trae en /inventarios)
+      const datosBackend = await inventarioService.getConPrecios({ IdSucursal: sucursalActual, ...paramsFiltro });
 
-        const inventarioAdaptado = datosBackend.map(row => {
-          const art = row.articulo || row.Articulo || {};
-          return {
-            id: row.Id || row.id,
-            idArticulo: art.Id || art.id,
-            producto: art.Nombre || 'Equipo sin nombre',
-            // modelo/color/memoria solo vienen en el detalle (getById), no en este listado
-            modelo: art.modelo?.Nombre || '',
-            imei: row.IMEI || null,
-            color: null,
-            memoria: null,
-            stock: row.Stock || 0,
-            precioMenor: row.PrecioMenor || row.PrecioCosto || 0,
-            esSerializado: art.EsSerializado || false
-          };
-        });
-        setInventario(inventarioAdaptado);
-      } catch (error) {
-        console.error("Error al cargar el inventario real:", error);
-      } finally {
-        setCargando(false);
-      }
-    };
-    cargarInventario();
+      const inventarioAdaptado = datosBackend.map(row => {
+        const art = row.articulo || row.Articulo || {};
+        const bat = row.bateria || row.Bateria;
+        const batPct = bat && bat.Porcentaje != null ? Number(bat.Porcentaje) : null;
+        return {
+          id: row.Id || row.id,
+          idArticulo: art.Id || art.id,
+          producto: art.Nombre || 'Equipo sin nombre',
+          modelo: art.modelo?.Nombre || row.modelo?.Nombre || '',
+          imei: row.IMEI || null,
+          // Características: solo vienen si el renglón las tiene (accesorios/repuestos → null)
+          color: row.color?.Nombre || row.Color?.Nombre || null,
+          memoria: row.memoria?.Capacidad || row.Memoria?.Capacidad || null,
+          bateria: Number.isFinite(batPct) ? `${batPct}%` : null,
+          stock: row.Stock || 0,
+          precioMenor: row.PrecioVenta || 0,
+          precioMayor: row.PrecioMayorista || 0,
+          esSerializado: art.EsSerializado || false,
+        };
+      });
+      setInventario(inventarioAdaptado);
+    } catch (error) {
+      console.error("Error al cargar el inventario real:", error);
+    } finally {
+      setCargando(false);
+    }
   }, [sucursalActual, filtroTipo]);
+
+  useEffect(() => { cargarInventario(); }, [cargarInventario]);
 
   const inventarioFiltrado = inventario.filter(item => {
     const coincideBusqueda = item.producto.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -100,8 +114,20 @@ const InventarioList = () => {
   // quedar mostrando una página vacía.
   useEffect(() => { setPagina(1); }, [busqueda, mostrarAgotados, sucursalActual, filtroTipo]);
 
+  // Los KPIs salen del inventario completo de la sucursal, no del filtro visible:
+  // son el estado del depósito, no del recorte que estás mirando.
+  const resumen = useMemo(() => ({
+    articulos: inventario.length,
+    unidades: inventario.reduce((a, i) => a + i.stock, 0),
+    agotados: inventario.filter((i) => i.stock === 0).length,
+    criticos: inventario.filter((i) => i.stock > 0 && i.stock <= 2).length,
+    serializados: inventario.filter((i) => i.esSerializado).length,
+  }), [inventario]);
+
   const totalPaginas = Math.max(1, Math.ceil(inventarioFiltrado.length / FILAS_POR_PAGINA));
   const paginaSegura = Math.min(pagina, totalPaginas);
+  const desdeFila = inventarioFiltrado.length ? (paginaSegura - 1) * FILAS_POR_PAGINA + 1 : 0;
+  const hastaFila = Math.min(paginaSegura * FILAS_POR_PAGINA, inventarioFiltrado.length);
   const inventarioPaginado = inventarioFiltrado.slice((paginaSegura - 1) * FILAS_POR_PAGINA, paginaSegura * FILAS_POR_PAGINA);
 
   const abrirTransferencia = (item) => {
@@ -112,247 +138,296 @@ const InventarioList = () => {
   const confirmarTraspaso = async () => {
     try {
       // Destino = mi propia sucursal (adonde quiero traer el stock), no una asumida a mano.
+      // IdInventario = la fila puntual (ese IMEI). Es clave para serializados: puede haber
+      // varias unidades del mismo modelo en la misma sucursal.
       const payload = {
+        IdInventario: productoTransferir.id,
         IdArticulo: productoTransferir.idArticulo,
         IdSucursalOrigen: sucursalActual,
         IdSucursalDestino: miSucursalReal,
-        Cantidad: productoTransferir.cantidadPedir,
-        IdEmpleado: 1
+        Cantidad: productoTransferir.esSerializado ? 1 : productoTransferir.cantidadPedir,
+        IdEmpleado: usuario?.userID,
       };
       await inventarioService.ejecutarTraspaso(payload);
       alert(`✅ ¡Traspaso completado! Se enviaron ${payload.Cantidad} unidades.`);
       setOpenModal(false);
-      // Acá deberías trigger un refetch
+      setProductoTransferir(null);
+      await cargarInventario();
     } catch (error) {
       console.error("Error en traspaso:", error);
-      alert("❌ Hubo un error al procesar la transferencia.");
+      // fetchApi arma error.message con el mensaje real del backend
+      alert(`❌ No se pudo hacer el traspaso: ${error.message || 'Error desconocido'}`);
     }
   };
 
-  if (cargando) {
-    return <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f8fafc' }}><CircularProgress /></Box>;
-  }
+  const chips = [];
+  if (busqueda) chips.push({ campo: 'busqueda', texto: busqueda });
+  if (filtroTipo !== 'todos') chips.push({ campo: 'filtroTipo', texto: capitalizar(filtroTipo) });
+  if (mostrarAgotados) chips.push({ campo: 'mostrarAgotados', texto: 'Solo agotados' });
+  if (esMayorista) chips.push({ campo: 'esMayorista', texto: 'Precio mayorista' });
+
+  const quitarChip = (campo) => {
+    if (campo === 'busqueda') setBusqueda('');
+    if (campo === 'filtroTipo') setFiltroTipo('todos');
+    if (campo === 'mostrarAgotados') setMostrarAgotados(false);
+    if (campo === 'esMayorista') setEsMayorista(false);
+  };
+
+  const mensajeTabla = cargando
+    ? 'Cargando inventario…'
+    : inventarioFiltrado.length === 0
+      ? (mostrarAgotados ? 'No hay productos agotados.' : 'No se encontraron productos.')
+      : null;
 
   return (
-    <Box sx={{ p: 3, bgcolor: '#f8fafc', minHeight: '100vh' }}>
-      
-      {/* Header y selector de sucursal */}
-      <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, mb: 3, border: '1px solid #e2e8f0', borderTop: '4px solid', borderTopColor: esMiStock ? 'primary.main' : 'warning.main', display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 2 }}>
-        <Box>
-          <Typography sx={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', mb: 0.5, color: esMiStock ? 'primary.main' : 'warning.main', display: 'flex', alignItems: 'center' }}>
-            {esMiStock ? <><Store fontSize="small" sx={{ mr: 0.5 }}/> Estás en tu sucursal</> : <><Lock fontSize="small" sx={{ mr: 0.5 }}/> Modo Lectura: Sucursal Ajena</>}
-          </Typography>
-          <Typography variant="h5" sx={{ fontWeight: 'bold', color: esMiStock ? 'text.primary' : '#ea580c' }}>
-            {nombreSucursal(sucursalActual)}
-          </Typography>
-        </Box>
+    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: '#f8fafc', p: 1, borderRadius: 2, border: '1px solid #e2e8f0', width: { xs: '100%', sm: 'auto' } }}>
-          <Typography sx={{ fontSize: '0.875rem', fontWeight: 'bold', color: 'text.secondary', whiteSpace: 'nowrap' }}>Ver Stock de:</Typography>
-          <Select
-            size="small"
-            value={sucursalActual}
-            onChange={(e) => setSucursalActual(e.target.value)}
-            sx={{ bgcolor: 'white', fontWeight: 'bold', flex: 1 }}
-          >
+      <PageHeader
+        eyebrow="Stock"
+        title="Inventario"
+        meta={`Sucursal ${nombreSucursal(sucursalActual)} · ${resumen.articulos} ${resumen.articulos === 1 ? 'artículo' : 'artículos'}`}
+        action={
+          <Button variant="outlined" startIcon={<PointOfSale sx={{ fontSize: '16px !important' }} />} onClick={() => navigate('/app/punto-venta')}>
+            Ir a caja
+          </Button>
+        }
+      />
+
+      {/* El alta de stock entra por Compras — la sección Inventario solo lista y traspasa. */}
+
+      {/* Estar mirando el stock de otra sucursal cambia lo que podés hacer, así que
+          se avisa de forma persistente y no con un color de borde. */}
+      {!esMiStock && (
+        <Paper sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: '10px 15px' }}>
+          <Lock sx={{ fontSize: 16, color: 'warning.main' }} />
+          <Typography sx={{ fontSize: '.78rem', color: 'text.secondary' }}>
+            Estás viendo el stock de <b>{nombreSucursal(sucursalActual)}</b> en modo lectura. Solo podés solicitar traspasos.
+          </Typography>
+        </Paper>
+      )}
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2,1fr)', lg: 'repeat(4,1fr)' }, gap: 1.5 }}>
+        <KpiCard eyebrow="Artículos"    tone="accent" loading={cargando} value={resumen.articulos}
+          sub={`${resumen.serializados} serializados`} />
+        <KpiCard eyebrow="Unidades"     tone="ok"     loading={cargando} value={resumen.unidades}
+          sub="Suma de stock" />
+        <KpiCard eyebrow="Stock crítico" tone="warn"  loading={cargando} value={resumen.criticos}
+          sub="2 unidades o menos"
+          badge={resumen.criticos > 0 ? <StatusPill tone="due" label="Reponer" /> : null} />
+        <KpiCard eyebrow="Agotados"     tone="mute"   loading={cargando} value={resumen.agotados}
+          sub="Sin unidades disponibles" />
+      </Box>
+
+      <FilterBar
+        columns="minmax(180px,1.6fr) minmax(140px,1fr) auto auto"
+        chips={chips.map((c) => (
+          <StatusPill
+            key={c.campo}
+            tone="flat"
+            label={c.texto}
+            sx={{ pr: '5px' }}
+            meta={
+              <IconButton size="small" aria-label={`Quitar filtro ${c.campo}`} onClick={() => quitarChip(c.campo)}
+                sx={{ width: 15, height: 15, p: 0, color: 'inherit', opacity: .7, '&:hover': { opacity: 1 } }}>
+                <Close sx={{ fontSize: 11 }} />
+              </IconButton>
+            }
+          />
+        ))}
+      >
+        <FilterField label="Buscar">
+          <TextField
+            fullWidth placeholder="Equipo, modelo o IMEI"
+            value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+            slotProps={{ input: { startAdornment: <Search sx={{ fontSize: 15, color: 'text.disabled', mr: .75 }} /> } }}
+          />
+        </FilterField>
+
+        <FilterField label="Sucursal">
+          <Select size="small" fullWidth value={sucursalActual} onChange={(e) => setSucursalActual(e.target.value)}
+            startAdornment={<Store sx={{ fontSize: 15, color: 'text.disabled', mr: .75 }} />}>
             {sucursales.map((s) => (
               <MenuItem key={s.Id ?? s.id} value={s.Id ?? s.id}>{capitalizar(s.Nombre ?? s.nombre)}</MenuItem>
             ))}
           </Select>
-        </Box>
+        </FilterField>
+
+        <FilterField label="Tipo">
+          <ToggleButtonGroup size="small" exclusive value={filtroTipo}
+            onChange={(e, valor) => setFiltroTipo(valor || 'todos')}>
+            <ToggleButton value="todos">Todos</ToggleButton>
+            <ToggleButton value="vendibles">Vendibles</ToggleButton>
+            <ToggleButton value="repuestos">Repuestos</ToggleButton>
+            <ToggleButton value="canje">Canje</ToggleButton>
+          </ToggleButtonGroup>
+        </FilterField>
+
+        <FilterField label="Agotados">
+          <Box component="label" sx={{
+            display: 'flex', alignItems: 'center', gap: .75, height: 32, px: 1.25, cursor: 'pointer',
+            border: 1, borderColor: 'divider', borderRadius: '7px', bgcolor: 'pc.surfaceMuted', whiteSpace: 'nowrap',
+          }}>
+            <Switch size="small" checked={mostrarAgotados} onChange={(e) => setMostrarAgotados(e.target.checked)} />
+            <Typography sx={{ fontSize: '.75rem', color: 'text.secondary' }}>Ver solo agotados</Typography>
+          </Box>
+        </FilterField>
+
+        <FilterField label="Precio">
+          <Box component="label" sx={{
+            display: 'flex', alignItems: 'center', gap: .75, height: 32, px: 1.25, cursor: 'pointer',
+            border: 1, borderColor: 'divider', borderRadius: '7px',
+            bgcolor: esMayorista ? 'pc.accentSoft' : 'pc.surfaceMuted', whiteSpace: 'nowrap',
+          }}>
+            <Switch size="small" checked={esMayorista} onChange={(e) => setEsMayorista(e.target.checked)} />
+            <Typography sx={{ fontSize: '.75rem', color: esMayorista ? 'primary.main' : 'text.secondary', fontWeight: esMayorista ? 600 : 400 }}>
+              Precio mayorista
+            </Typography>
+          </Box>
+        </FilterField>
+      </FilterBar>
+
+      <Paper sx={{ overflow: 'hidden' }}>
+        <TableContainer sx={{ overflowX: 'auto' }}>
+          <Table sx={{ minWidth: 820 }}>
+            <TableHead>
+              <TableRow>
+                <TableCell>Dispositivo</TableCell>
+                <TableCell sx={{ width: 150 }}>IMEI</TableCell>
+                <TableCell>Características</TableCell>
+                <TableCell sx={{ width: 110 }}>Stock</TableCell>
+                <TableCell align="right" sx={{ width: 150 }}>{esMayorista ? 'Precio mayorista' : 'Precio venta'}</TableCell>
+                <TableCell align="right" sx={{ width: 90 }} />
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {mensajeTabla ? (
+                <TableRow>
+                  <TableCell colSpan={6} sx={{ height: 140, textAlign: 'center', color: 'text.disabled' }}>
+                    {mensajeTabla}
+                  </TableCell>
+                </TableRow>
+              ) : inventarioPaginado.map((item) => (
+                <TableRow key={item.id} hover sx={{ opacity: item.stock === 0 ? 0.55 : 1 }}>
+                  <TableCell>
+                    <Typography sx={{ fontWeight: 600, fontSize: '.84rem', letterSpacing: '-.01em' }}>
+                      {item.producto}
+                    </Typography>
+                    {item.modelo && (
+                      <Typography sx={{ color: 'text.disabled', fontSize: '.69rem' }}>{item.modelo}</Typography>
+                    )}
+                  </TableCell>
+                  <TableCell className="mono" sx={{ color: 'text.secondary', fontSize: '.72rem' }}>
+                    {item.imei || '—'}
+                  </TableCell>
+                  <TableCell>
+                    {(item.color || item.memoria || item.bateria) ? (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+                        {item.color && <StatusPill tone="neutral" label={`🎨 ${capitalizar(item.color)}`} />}
+                        {item.memoria && <StatusPill tone="neutral" label={`💾 ${item.memoria}`} />}
+                        {item.bateria && <StatusPill tone="ok" label={`🔋 ${item.bateria}`} />}
+                      </Box>
+                    ) : (
+                      <Typography sx={{ fontSize: '.78rem', color: 'text.disabled' }}>—</Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <StatusPill tone={tonoStock(item.stock)} label={`${item.stock} un.`} />
+                  </TableCell>
+                  <TableCell align="right">
+                    <Money
+                      ars={(esMayorista ? item.precioMayor : item.precioMenor) * DOLAR_HOY}
+                      usd={esMayorista ? item.precioMayor : item.precioMenor}
+                    />
+                  </TableCell>
+                  <TableCell align="right">
+                    <Box sx={{ display: 'inline-flex', gap: .5 }}>
+                      {esMiStock ? (
+                        <Tooltip title="Ver detalle">
+                          <IconButton size="small" onClick={() => navigate(`/app/inventario/detalle/${item.id}`)}>
+                            <Visibility sx={{ fontSize: 17 }} />
+                          </IconButton>
+                        </Tooltip>
+                      ) : (
+                        <Button size="small" variant="outlined" startIcon={<LocalShipping sx={{ fontSize: '15px !important' }} />}
+                          onClick={() => abrirTransferencia(item)}>
+                          Traspaso
+                        </Button>
+                      )}
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        {!cargando && inventarioFiltrado.length > 0 && (
+          <TablePager
+            page={paginaSegura}
+            pageCount={totalPaginas}
+            from={desdeFila}
+            to={hastaFila}
+            total={inventarioFiltrado.length}
+            unidad={inventarioFiltrado.length === 1 ? 'artículo' : 'artículos'}
+            onChange={setPagina}
+          />
+        )}
       </Paper>
 
-      {/* Barra de búsqueda y botones */}
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'stretch', lg: 'center' }, gap: 2, mb: 3 }}>
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, flex: 1 }}>
-          <TextField 
-            placeholder="Buscar equipo, modelo, IMEI..." 
-            size="small" 
-            fullWidth
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            InputProps={{ startAdornment: <Search sx={{ color: 'text.disabled', mr: 1 }} /> }}
-            sx={{ bgcolor: 'background.paper' }}
-          />
-          <Box sx={{ bgcolor: 'background.paper', px: 2, py: 0.75, borderRadius: 2, border: '1px solid #e2e8f0' }}>
-            <FormControlLabel
-              control={<Switch size="small" checked={mostrarAgotados} onChange={(e) => setMostrarAgotados(e.target.checked)} />}
-              label={<Typography sx={{ fontSize: '0.875rem', fontWeight: 'bold', color: 'text.secondary' }}>Ver Agotados</Typography>}
-            />
-          </Box>
-
-          <ToggleButtonGroup
-            size="small"
-            value={filtroTipo}
-            exclusive
-            onChange={(e, valor) => setFiltroTipo(valor || 'todos')}
-            sx={{ bgcolor: 'background.paper' }}
-          >
-            <ToggleButton value="todos" sx={{ fontWeight: 'bold', px: 1.5 }}>Todos</ToggleButton>
-            <ToggleButton value="vendibles" sx={{ fontWeight: 'bold', px: 1.5 }}>
-              <Tooltip title="Listar dispositivos vendibles"><Box sx={{ display: 'flex', alignItems: 'center' }}><Sell fontSize="small" sx={{ mr: 0.5 }} /> Vendibles</Box></Tooltip>
-            </ToggleButton>
-            <ToggleButton value="repuestos" sx={{ fontWeight: 'bold', px: 1.5 }}>
-              <Tooltip title="Listar dispositivos repuestos"><Box sx={{ display: 'flex', alignItems: 'center' }}><Build fontSize="small" sx={{ mr: 0.5 }} /> Repuestos</Box></Tooltip>
-            </ToggleButton>
-            <ToggleButton value="canje" sx={{ fontWeight: 'bold', px: 1.5 }}>
-              <Tooltip title="Listar dispositivos plan canje"><Box sx={{ display: 'flex', alignItems: 'center' }}><SwapHoriz fontSize="small" sx={{ mr: 0.5 }} /> Plan Canje</Box></Tooltip>
-            </ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
-          <Button 
-            variant="outlined" color="success" startIcon={<PointOfSale />}
-            onClick={() => navigate('/app/punto-venta')} 
-            sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}
-          >
-            Ir a Caja
-          </Button>
-          {(esMiStock) && (
-            <Button 
-              variant="contained" color="primary" startIcon={<Add />}
-              onClick={() => navigate('/app/inventario/nuevo')} 
-              sx={{ fontWeight: 'bold', boxShadow: 1 }}
-            >
-              Registrar Ingreso
-            </Button>
-          )}
-        </Box>
-      </Box>
-
-      {/* Tabla principal */}
-      <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3 }}>
-        <Table sx={{ minWidth: 650 }}>
-          <TableHead>
-            <TableRow>
-              <TableCell>Dispositivo / IMEI</TableCell>
-              <TableCell>Características</TableCell>
-              <TableCell align="center">Stock</TableCell>
-              <TableCell>Precio Venta</TableCell>
-              <TableCell align="right">Acciones</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {inventarioFiltrado.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                  No se encontraron productos en la base de datos.
-                </TableCell>
-              </TableRow>
-            ) : (
-              inventarioPaginado.map((item) => {
-                const precioArs = item.precioMenor * DOLAR_HOY;
-                const opacidad = item.stock === 0 ? 0.5 : 1;
-                
-                return (
-                  <TableRow key={item.id} hover sx={{ opacity: opacidad, '&:last-child td, &:last-child th': { border: 0 } }}>
-                    
-                    <TableCell>
-                      <Typography sx={{ fontWeight: 'bold', color: 'text.primary', lineHeight: 1.2 }}>{item.producto}</Typography>
-                      {item.imei && <Typography sx={{ fontSize: '0.6875rem', color: 'text.disabled', fontFamily: 'monospace', mt: 0.5, textTransform: 'uppercase', letterSpacing: '-0.025em' }}>{item.imei}</Typography>}
-                      <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mt: 0.5, fontStyle: 'italic' }}>{item.modelo}</Typography>
-                    </TableCell>
-
-                    <TableCell>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
-                        {item.color && <Box component="span" sx={{ px: 1, py: 0.25, fontSize: '0.75rem', fontWeight: 'bold', bgcolor: 'white', border: '1px solid #e2e8f0', borderRadius: 1 }}>🎨 {item.color}</Box>}
-                        {item.memoria && <Box component="span" sx={{ px: 1, py: 0.25, fontSize: '0.75rem', fontWeight: 'bold', bgcolor: '#1e293b', color: 'white', borderRadius: 1 }}>💾 {item.memoria}</Box>}
-                      </Box>
-                    </TableCell>
-
-                    <TableCell align="center">
-                      <Box component="span" sx={{ display: 'inline-block', px: 1.5, py: 0.5, fontSize: '0.75rem', fontWeight: 'bold', borderRadius: 5, bgcolor: item.stock <= 2 ? '#ef4444' : '#f1f5f9', color: item.stock <= 2 ? 'white' : '#1e293b', border: item.stock > 2 ? '1px solid #e2e8f0' : 'none' }}>
-                        {item.stock} un.
-                      </Box>
-                    </TableCell>
-
-                    <TableCell>
-                      <Typography sx={{ fontWeight: 'bold', color: '#16a34a', fontSize: '1.125rem' }}>U$S {item.precioMenor.toLocaleString()}</Typography>
-                      <Typography sx={{ fontSize: '0.875rem', color: 'text.secondary' }}>AR$ {precioArs.toLocaleString()}</Typography>
-                    </TableCell>
-
-                    <TableCell align="right">
-                      <Box sx={{ display: 'inline-flex', gap: 0.5 }}>
-                        {esMiStock ? (
-                          <>
-                            <Tooltip title="Editar">
-                              <IconButton size="small" onClick={() => navigate(`/app/inventario/editar/${item.id}`)} sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5, color: 'primary.main' }}>
-                                <Edit fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Ver Detalle">
-                              <IconButton size="small" onClick={() => navigate(`/app/inventario/detalle/${item.id}`)} sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5, color: 'text.secondary' }}>
-                                <Visibility fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </>
-                        ) : (
-                          <Tooltip title="Solicitar Traspaso">
-                            <Button variant="contained" size="small" sx={{ bgcolor: '#f59e0b', '&:hover': { bgcolor: '#d97706' }, minWidth: 40, p: '4px 8px' }} onClick={() => abrirTransferencia(item)}>
-                              <LocalShipping fontSize="small" />
-                            </Button>
-                          </Tooltip>
-                        )}
-                      </Box>
-                    </TableCell>
-
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-        {inventarioFiltrado.length > FILAS_POR_PAGINA && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2, borderTop: '1px solid #e2e8f0' }}>
-            <Pagination
-              count={totalPaginas}
-              page={paginaSegura}
-              onChange={(_, p) => setPagina(p)}
-              color="primary"
-              shape="rounded"
-              size="small"
-            />
-          </Box>
-        )}
-      </TableContainer>
-
-      {/* Modal de transferencia */}
+      {/* ─── Traspaso ──────────────────────────────────────────── */}
       <Dialog open={openModal} onClose={() => setOpenModal(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ bgcolor: '#f97316', color: 'white', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
-          <LocalShipping sx={{ mr: 1 }} /> Solicitar Transferencia
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3, textAlign: 'center' }}>
-          <Typography sx={{ color: 'text.secondary', fontSize: '0.875rem', mb: 0.5 }}>Vas a solicitar el producto:</Typography>
-          <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'primary.main', mb: 2 }}>{productoTransferir?.producto}</Typography>
-          
-          {productoTransferir?.esSerializado ? (
-            <Box sx={{ bgcolor: '#eff6ff', color: '#1e40af', p: 1.5, borderRadius: 2, fontSize: '0.875rem', border: '1px solid #bfdbfe' }}>
-              <strong>Producto Único:</strong> Se transferirá la unidad completa (Stock: 1).
+        <DialogTitle sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5 }}>
+          <Box>
+            Solicitar traspaso
+            <Box sx={{ display: 'block', color: 'text.disabled', fontSize: '.72rem', fontWeight: 400, mt: '-1px' }}>
+              De {nombreSucursal(sucursalActual)} a {nombreSucursal(miSucursalReal)}
             </Box>
+          </Box>
+          <IconButton size="small" onClick={() => setOpenModal(false)} aria-label="Cerrar">
+            <Close sx={{ fontSize: 17 }} />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.75 }}>
+          <Box sx={{ p: '11px 13px', borderRadius: '9px', bgcolor: 'pc.accentSoft', color: 'primary.main' }}>
+            <Box sx={{ typography: 'eyebrow', color: 'inherit', opacity: .75 }}>Producto</Box>
+            <Typography sx={{ fontWeight: 600, fontSize: '.9rem', letterSpacing: '-.015em' }}>
+              {productoTransferir?.producto}
+            </Typography>
+          </Box>
+
+          {productoTransferir?.esSerializado ? (
+            <Typography sx={{ color: 'text.secondary', fontSize: '.78rem' }}>
+              Es un equipo serializado: se transfiere la unidad completa.
+            </Typography>
           ) : (
-            <Box sx={{ textAlign: 'left' }}>
-              <Typography sx={{ fontWeight: 'bold', fontSize: '0.875rem', color: 'text.primary' }}>Cantidad a transferir</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                <Button variant="outlined" onClick={() => setProductoTransferir({...productoTransferir, cantidadPedir: Math.max(1, productoTransferir.cantidadPedir - 1)})}>-</Button>
-                <TextField 
-                  value={productoTransferir?.cantidadPedir} 
-                  inputProps={{ style: { textAlign: 'center', fontWeight: 'bold' } }}
-                  sx={{ mx: 1, width: 80 }}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: .5 }}>
+              <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>Cantidad a transferir</Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Button variant="outlined" sx={{ minWidth: 32, px: 0 }}
+                  onClick={() => setProductoTransferir({ ...productoTransferir, cantidadPedir: Math.max(1, productoTransferir.cantidadPedir - 1) })}>
+                  −
+                </Button>
+                <TextField
+                  value={productoTransferir?.cantidadPedir ?? 1}
+                  slotProps={{ input: { className: 'mono', readOnly: true }, htmlInput: { style: { textAlign: 'center' } } }}
+                  sx={{ width: 76 }}
                 />
-                <Button variant="outlined" onClick={() => setProductoTransferir({...productoTransferir, cantidadPedir: Math.min(productoTransferir.stock, productoTransferir.cantidadPedir + 1)})}>+</Button>
+                <Button variant="outlined" sx={{ minWidth: 32, px: 0 }}
+                  onClick={() => setProductoTransferir({ ...productoTransferir, cantidadPedir: Math.min(productoTransferir.stock, productoTransferir.cantidadPedir + 1) })}>
+                  +
+                </Button>
+                <Typography className="num" sx={{ ml: 'auto', color: 'text.disabled', fontSize: '.72rem' }}>
+                  Disponible {productoTransferir?.stock}
+                </Typography>
               </Box>
-              <Typography sx={{ textAlign: 'right', fontSize: '0.75rem', color: 'text.secondary', mt: 0.5 }}>
-                Stock máximo: <strong>{productoTransferir?.stock}</strong>
-              </Typography>
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2, bgcolor: '#f8fafc' }}>
-          <Button onClick={() => setOpenModal(false)} color="inherit">Cancelar</Button>
-          <Button variant="contained" onClick={confirmarTraspaso} sx={{ bgcolor: '#f97316', fontWeight: 'bold', '&:hover': { bgcolor: '#ea580c' } }}>
-            Confirmar Traspaso
-          </Button>
+
+        <DialogActions sx={{ justifyContent: 'flex-end', gap: 1 }}>
+          <Button onClick={() => setOpenModal(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={confirmarTraspaso}>Confirmar traspaso</Button>
         </DialogActions>
       </Dialog>
     </Box>

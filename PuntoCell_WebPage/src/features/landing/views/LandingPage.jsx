@@ -1,22 +1,20 @@
+import { Box } from '@mui/material'
 import Navbar from '../components/Navbar'
 import Hero from '../components/Hero'
 import Services from '../components/Services'
-import CatalogHighlight from '../components/CatalogHighlight' // El nuevo catálogo
-import Team from '../components/Team' // Mantenemos el equipo para la presentación académica
+import CatalogHighlight from '../components/CatalogHighlight'
+import Team from '../components/Team'
 import FooterCTA from '../components/FooterCTA'
 
-function App() {
+export default function LandingPage() {
   return (
-    <main className="w-full min-h-screen font-sans bg-gray-50">
+    <Box component="main" sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <Navbar />
       <Hero />
       <Services />
-      <CatalogHighlight /> 
-      {/* Sección del equipo desarrollador para el tribunal evaluador */}
-      {/* <Team /> */}
+      <CatalogHighlight />
+      <Team />
       <FooterCTA />
-    </main>
+    </Box>
   )
 }
-
-export default App

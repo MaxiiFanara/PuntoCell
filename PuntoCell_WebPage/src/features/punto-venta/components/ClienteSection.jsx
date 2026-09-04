@@ -1,17 +1,12 @@
 import { useState } from 'react';
-import {
-  TextField, Button, Alert, Box, Paper, Typography,
-  InputAdornment
-} from '@mui/material';
+import { Alert, Box, Button, IconButton, Paper, TextField, Tooltip, Typography } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import StoreIcon from '@mui/icons-material/Store';
 import CloseIcon from '@mui/icons-material/Close';
-import PersonIcon from '@mui/icons-material/Person';
 import { useVenta } from '../context/VentaContext';
 import { clientesService } from '../../../services/clientesServices';
 
 export const ClienteSection = ({ onOpenNuevoCliente }) => {
-  const { cliente, setCliente, nombreSucursal } = useVenta();
+  const { cliente, setCliente } = useVenta();
   const [dni, setDni] = useState('');
   const [buscando, setBuscando] = useState(false);
   const [noEncontrado, setNoEncontrado] = useState(false);
@@ -90,106 +85,92 @@ export const ClienteSection = ({ onOpenNuevoCliente }) => {
     setDni('');
   };
 
+  const iniciales = cliente?.nombre
+    ? cliente.nombre.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()
+    : '?';
+
   return (
-    <Paper elevation={3} sx={{ p: 2, borderRadius: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {/* HEADER DE SUCURSAL */}
-      <Box sx={{ bgcolor: 'grey.800', color: 'white', p: 1.5, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <StoreIcon />
-        <Typography sx={{ fontWeight: 'bold', fontSize: '1.125rem' }}>
-          Sucursal {nombreSucursal || 'Centro'}
-        </Typography>
+    <Paper sx={{ overflow: 'hidden' }}>
+      <Box sx={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5,
+        p: '12px 15px', borderBottom: 1, borderColor: 'pc.dividerSoft',
+      }}>
+        <Typography sx={{ fontWeight: 600, fontSize: '.84rem', letterSpacing: '-.01em' }}>Cliente</Typography>
+        {cliente && (
+          <Tooltip title="Cambiar cliente">
+            <IconButton size="small" onClick={limpiarCliente} aria-label="Cambiar cliente">
+              <CloseIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+        )}
       </Box>
 
-      {/* ZONA DE BÚSQUEDA O CLIENTE ACTIVO */}
-      <Box sx={{ flex: 1 }}>
-        {!cliente ? (
-          <>
+      {cliente ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: '13px 15px' }}>
+          <Box sx={{
+            width: 32, height: 32, borderRadius: '50%', flex: 'none',
+            bgcolor: 'primary.main', color: 'primary.contrastText',
+            display: 'grid', placeItems: 'center', fontSize: '.72rem', fontWeight: 700,
+          }}>
+            {iniciales}
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 600, fontSize: '.84rem', letterSpacing: '-.01em' }}>
+              {cliente.nombre}
+            </Typography>
+            <Typography className="mono" sx={{ color: 'text.disabled', fontSize: '.69rem', mt: '-2px' }}>
+              DNI {cliente.dni}
+            </Typography>
+          </Box>
+        </Box>
+      ) : (
+        <Box sx={{ p: '13px 15px', display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            <Box component="label" htmlFor="dni-cliente" sx={{ typography: 'eyebrow', color: 'text.disabled' }}>
+              DNI del cliente
+            </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
               <TextField
+                id="dni-cliente"
                 fullWidth
-                label="DNI del Cliente"
-                variant="outlined"
-                size="small"
+                className="mono"
+                placeholder="Sin puntos"
                 value={dni}
                 onChange={(e) => setDni(e.target.value.replace(/\D/g, '').slice(0, 8))}
                 onKeyDown={(e) => e.key === 'Enter' && handleBuscar()}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon color="action" />
-                    </InputAdornment>
-                  ),
+                slotProps={{
+                  input: {
+                    className: 'mono',
+                    startAdornment: <SearchIcon sx={{ fontSize: 15, color: 'text.disabled', mr: 0.75 }} />,
+                  },
                 }}
               />
-              <Button
-                variant="contained"
-                onClick={handleBuscar}
-                disabled={buscando}
-                sx={{ 
-                  bgcolor: '#1976d2', 
-                  boxShadow: 'none',
-                  textTransform: 'none',
-                  fontWeight: 'bold'
-                }}
-              >
-                {buscando ? 'Buscando...' : 'Buscar'}
+              <Button variant="contained" onClick={handleBuscar} disabled={buscando} sx={{ flex: 'none' }}>
+                {buscando ? 'Buscando…' : 'Buscar'}
               </Button>
             </Box>
+          </Box>
 
-            {/* ALERTA DE NO ENCONTRADO */}
-            {noEncontrado && dniOcupadoPorNoCliente && (
-              <Alert
-                severity="error"
-                sx={{ mt: 2, borderRadius: 2, alignItems: 'center' }}
-              >
-                <Typography sx={{ fontWeight: 'bold' }}>
-                  Ese DNI ya pertenece a otro usuario del sistema (no es cliente). No se puede registrar como cliente nuevo.
-                </Typography>
-              </Alert>
-            )}
-            {noEncontrado && !dniOcupadoPorNoCliente && (
-              <Alert
-                severity="warning"
-                sx={{ mt: 2, borderRadius: 2, alignItems: 'center' }}
-              >
-                <Typography sx={{ fontWeight: 'bold', color: '#9a3412', mb: 1 }}>
-                  Cliente no encontrado
-                </Typography>
-               <Button
-                  variant="outlined"
-                  color="warning"
-                  fullWidth
-                  onClick={() => onOpenNuevoCliente(dni)}
-                  sx={{ py: 1, borderRadius: 2, textTransform: 'none', fontWeight: 'bold' }}
-                >
-                  ➕ Registrar Cliente
+          {noEncontrado && dniOcupadoPorNoCliente && (
+            <Alert severity="error">
+              Ese DNI ya pertenece a otro usuario del sistema y no es cliente. No se puede registrar como cliente nuevo.
+            </Alert>
+          )}
+
+          {noEncontrado && !dniOcupadoPorNoCliente && (
+            <Alert
+              severity="warning"
+              action={
+                <Button size="small" color="inherit" onClick={() => onOpenNuevoCliente(dni)}>
+                  Registrar
                 </Button>
-              </Alert>
-            )}
-          </>
-        ) : (
-          <Alert
-            severity="success"
-            sx={{ display: 'flex', alignItems: 'center' }}
-            action={
-              <Button
-                size="small"
-                color="error"
-                onClick={limpiarCliente}
-                startIcon={<CloseIcon />}
-                sx={{ textTransform: 'none' }}
-              >
-                Cambiar
-              </Button>
-            }
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#14532d' }}>
-              <PersonIcon color="success" />
-              <Typography sx={{ fontWeight: 'bold' }}>{cliente.nombre}</Typography>
-            </Box>
-          </Alert>
-        )}
-      </Box>
+              }
+            >
+              Cliente no encontrado
+            </Alert>
+          )}
+        </Box>
+      )}
     </Paper>
   );
 };

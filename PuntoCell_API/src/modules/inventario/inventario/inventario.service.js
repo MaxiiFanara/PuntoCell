@@ -1,5 +1,6 @@
 import { Op } from 'sequelize';
 import { registerAudit } from '../../../core/utils/audit.util.js';
+import { resolverListasPrecioCategoria, reprecificarInventario } from '../../../core/utils/precios.util.js';
 
 export default class InventarioService {
   constructor(inventarioDAO, bitacoraService = null) {
@@ -26,6 +27,7 @@ export default class InventarioService {
     const { page, limit, IdSucursal, soloVendibles, soloRepuestos, soloCanje, IMEI } = query;
     const { Sucursal, Articulo, EstadoInventario, Proveedor } = this._getRelatedModels();
     const sequelize = this.inventarioDAO.model.sequelize;
+    const { Color, Memoria, Bateria, ModeloArticulo } = sequelize.models;
 
     const whereClause = {};
     if (IdSucursal) {
@@ -44,6 +46,8 @@ export default class InventarioService {
       : esTruthy(soloRepuestos)
         ? { model: Articulo, as: 'articulo', where: { EsRepuesto: true }, required: true }
         : { model: Articulo, as: 'articulo' };
+    // Nombre del modelo para la columna "Dispositivo" del listado
+    articuloInclude.include = [{ model: ModeloArticulo, as: 'modelo', attributes: ['Nombre'] }];
 
     // Plan Canje: proveedor = placeholder de canje de clientes
     const proveedorInclude = esTruthy(soloCanje)
@@ -61,7 +65,12 @@ export default class InventarioService {
         { model: Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'] },
         articuloInclude,
         proveedorInclude,
-        { model: EstadoInventario, as: 'estado', attributes: ['Id', 'Nombre'] }
+        { model: EstadoInventario, as: 'estado', attributes: ['Id', 'Nombre'] },
+        // Características por renglón: LEFT JOIN, así los accesorios/repuestos que no las
+        // tienen igual vuelven con color/memoria/bateria en null.
+        { model: Color, as: 'color', attributes: ['Nombre'] },
+        { model: Memoria, as: 'memoria', attributes: ['Capacidad'] },
+        { model: Bateria, as: 'bateria', attributes: ['Capacidad', 'Porcentaje'] }
       ]
     });
   }
@@ -175,9 +184,30 @@ export default class InventarioService {
     await this._validarIMEI(data.IMEI);
     this._validarStockSerializado(art, data.Stock);
 
-    const created = await this.inventarioDAO.create(data);
+    // CostoBase no es columna de Inventario: si viene (alta por canje / ingreso manual con
+    // costo), se usa para generar automáticamente el PrecioArticulo en las listas de la
+    // categoría — igual que una compra. Se separa del payload que va al modelo.
+    const { CostoBase, ...invData } = data;
+
+    const sequelize = this.inventarioDAO.model.sequelize;
+    const t = await sequelize.transaction();
+    let created;
+    try {
+      created = await this.inventarioDAO.create(invData, { transaction: t });
+
+      if (Number(CostoBase) > 0) {
+        const modelo = await sequelize.models.ModeloArticulo.findByPk(art.IdModeloArticulo, { transaction: t });
+        const listas = await resolverListasPrecioCategoria(sequelize, modelo?.IdCategoriaArticulo, t);
+        await reprecificarInventario(sequelize, { IdInventario: created.Id, CostoBase, listas }, t);
+      }
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+
     await registerAudit(this.bitacoraService, {
-      detalle: `Inventario creado Id=${created.Id || created.id || ''}`,
+      detalle: `Inventario creado Id=${created.Id || created.id || ''}${Number(CostoBase) > 0 ? ` (con precio, CostoBase=${CostoBase})` : ''}`,
       Accion: 'Crear Inventario',
       IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
       IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,

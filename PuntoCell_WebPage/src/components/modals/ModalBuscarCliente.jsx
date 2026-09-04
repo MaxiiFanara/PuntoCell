@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, TextField, Typography, Box, Paper,
-  Alert, CircularProgress, IconButton, Grid, Divider,
+  Button, TextField, Typography, Box,
+  Alert, CircularProgress, IconButton,
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import PersonSearchIcon from '@mui/icons-material/PersonSearch'
@@ -14,18 +14,27 @@ import BadgeIcon from '@mui/icons-material/Badge'
 import { getClienteByDNI } from '../../services/api'
 import { soloDigitos } from '../../utils/validators'
 import { capitalizar } from '../../utils/format'
+import StatusPill from '../ui/StatusPill'
+
+const Campo = ({ label, children, sx }) => (
+  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0, ...sx }}>
+    {label && <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>{label}</Box>}
+    {children}
+  </Box>
+)
 
 const InfoFila = ({ icon: Icon, label, value }) => (
-  <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
-    <Box sx={{ width: 28, height: 28, borderRadius: 1.5, backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, mt: 0.25 }}>
-      <Icon sx={{ fontSize: 14, color: '#64748b' }} />
+  <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start' }}>
+    <Box sx={{
+      width: 26, height: 26, borderRadius: '7px', bgcolor: 'pc.surfaceMuted',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    }}>
+      <Icon sx={{ fontSize: 14, color: 'text.disabled' }} />
     </Box>
-    <Box>
-      <Typography sx={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', lineHeight: 1, mb: 0.4 }}>
-        {label}
-      </Typography>
-      <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#0f172a' }}>
-        {value || <span style={{ color: '#cbd5e1' }}>–</span>}
+    <Box sx={{ minWidth: 0 }}>
+      <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>{label}</Box>
+      <Typography sx={{ fontSize: '.8125rem', fontWeight: 600, color: value ? 'text.primary' : 'text.disabled' }}>
+        {value || '—'}
       </Typography>
     </Box>
   </Box>
@@ -60,123 +69,100 @@ const ModalBuscarCliente = ({ open, onClose }) => {
     : ''
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-      <DialogTitle sx={{ background: 'linear-gradient(135deg, #1e293b, #334155)', color: '#fff', display: 'flex', alignItems: 'center', gap: 2, py: 2.5, px: 3 }}>
-        <Box sx={{ width: 38, height: 38, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <PersonSearchIcon sx={{ fontSize: 19 }} />
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5 }}>
+        <Box>
+          Buscar cliente
+          <Box sx={{ display: 'block', color: 'text.disabled', fontSize: '.72rem', fontWeight: 400, mt: '-1px' }}>
+            Consultá datos registrados por DNI
+          </Box>
         </Box>
-        <Box sx={{ flex: 1 }}>
-          <Typography sx={{ fontWeight: 800, fontSize: '1rem', lineHeight: 1.2 }}>Buscar Cliente</Typography>
-          <Typography sx={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', mt: 0.25 }}>Consultá datos por DNI</Typography>
-        </Box>
-        <IconButton onClick={handleClose} sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#fff', backgroundColor: 'rgba(255,255,255,0.1)' } }}>
-          <CloseIcon />
+        <IconButton size="small" onClick={handleClose} aria-label="Cerrar">
+          <CloseIcon sx={{ fontSize: 17 }} />
         </IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ p: 0, backgroundColor: '#eef2f7' }}>
-        <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+      <DialogContent>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
 
-          {/* Buscador */}
-          <Paper elevation={0} sx={{ border: '1.5px solid #e2e8f0', borderRadius: 2.5, p: 2.5 }}>
-            <Typography sx={{ fontSize: '0.82rem', color: '#64748b', mb: 2, fontWeight: 500 }}>
-              Ingresá el DNI del cliente para consultar sus datos registrados en el sistema.
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+            <Campo label="DNI" sx={{ flex: 1 }}>
               <TextField
-                label="DNI" placeholder="Ej: 30123456"
+                fullWidth placeholder="Ej: 30123456"
                 value={dni}
                 onChange={(e) => { setDni(soloDigitos(e.target.value, 8)); setError(''); setBuscado(false); setCliente(null) }}
                 onKeyDown={(e) => e.key === 'Enter' && buscar()}
-                inputProps={{ maxLength: 8, inputMode: 'numeric' }}
-                sx={{ width: 180 }}
+                slotProps={{ htmlInput: { maxLength: 8, inputMode: 'numeric' } }}
               />
-              <Button
-                variant="contained"
-                onClick={buscar}
-                disabled={loading || !dni.trim()}
-                startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <SearchIcon />}
-                sx={{ height: 40, minWidth: 110 }}
-              >
-                {loading ? 'Buscando…' : 'Buscar'}
-              </Button>
-              {buscado && !loading && (
-                <Button size="small" onClick={reset} sx={{ color: '#94a3b8', fontWeight: 600 }}>
-                  Nueva búsqueda
-                </Button>
-              )}
-            </Box>
-          </Paper>
+            </Campo>
+            <Button
+              variant="contained"
+              onClick={buscar}
+              disabled={loading || !dni.trim()}
+              startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <SearchIcon sx={{ fontSize: 16 }} />}
+              sx={{ height: 32 }}
+            >
+              {loading ? 'Buscando…' : 'Buscar'}
+            </Button>
+          </Box>
 
-          {/* Error */}
-          {error && !loading && (
-            <Alert severity="warning" onClose={() => setError('')} sx={{ borderRadius: 2 }}>{error}</Alert>
+          {buscado && !loading && (
+            <Button size="small" onClick={reset} sx={{ alignSelf: 'flex-start', color: 'text.disabled' }}>
+              Nueva búsqueda
+            </Button>
           )}
 
-          {/* Resultado */}
+          {error && !loading && (
+            <Alert severity="warning" onClose={() => setError('')}>{error}</Alert>
+          )}
+
           {cliente && buscado && (
-            <Paper elevation={0} sx={{ border: '1.5px solid #6ee7b7', borderRadius: 2.5, overflow: 'hidden' }}>
-              {/* Header resultado */}
-              <Box sx={{ p: 2.5, background: 'linear-gradient(135deg, #ecfdf5, #d1fae5)', display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ borderRadius: '9px', border: 1, borderColor: 'divider', overflow: 'hidden' }}>
+              <Box sx={{ p: '13px 15px', bgcolor: 'pc.accentSoft', display: 'flex', alignItems: 'center', gap: 1.5 }}>
                 <Box sx={{
-                  width: 52, height: 52, borderRadius: 3, flexShrink: 0,
-                  background: 'linear-gradient(135deg, #059669, #10b981)',
+                  width: 42, height: 42, borderRadius: '9px', flexShrink: 0,
+                  bgcolor: 'primary.main', color: 'primary.contrastText',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 4px 12px rgba(5,150,105,0.3)',
                 }}>
-                  <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: '1.1rem', letterSpacing: '-0.02em' }}>
-                    {iniciales}
-                  </Typography>
+                  <Typography sx={{ fontWeight: 700, fontSize: '.95rem', letterSpacing: '-.02em' }}>{iniciales}</Typography>
                 </Box>
-                <Box>
-                  <Typography sx={{ fontWeight: 800, fontSize: '1.05rem', color: '#0f172a', lineHeight: 1.2 }}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: '.9rem', color: 'text.primary', lineHeight: 1.2 }}>
                     {capitalizar(cliente.Apellido)}, {capitalizar(cliente.Nombre)}
                   </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.5 }}>
-                    <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#10b981' }} />
-                    <Typography sx={{ fontSize: '0.75rem', color: '#059669', fontWeight: 700 }}>
-                      Cliente registrado
-                    </Typography>
-                  </Box>
+                  <StatusPill tone="ok" label="Cliente registrado" sx={{ mt: 0.5 }} />
                 </Box>
               </Box>
 
-              <Divider sx={{ borderColor: '#a7f3d0' }} />
-
-              {/* Datos */}
-              <Box sx={{ p: 2.5, backgroundColor: '#fff' }}>
-                <Grid container spacing={2.5}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <InfoFila icon={BadgeIcon}   label="DNI"     value={cliente.DNI || dni} />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <InfoFila icon={PhoneIcon}   label="Celular" value={cliente.Celular} />
-                  </Grid>
-                  <Grid size={{ xs: 12 }}>
-                    <InfoFila icon={EmailIcon}   label="Email"   value={cliente.Email} />
-                  </Grid>
-                  {(cliente.Calle || cliente.Numero) && (
-                    <Grid size={{ xs: 12 }}>
-                      <InfoFila
-                        icon={LocationOnIcon}
-                        label="Dirección"
-                        value={[cliente.Calle, cliente.Numero, cliente.Piso && `Piso ${cliente.Piso}`, cliente.Depto && `Dpto ${cliente.Depto}`].filter(Boolean).join(' ')}
-                      />
-                    </Grid>
-                  )}
-                </Grid>
+              <Box sx={{
+                p: '15px', bgcolor: 'background.paper',
+                display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 1.5,
+              }}>
+                <InfoFila icon={BadgeIcon} label="DNI" value={cliente.DNI || dni} />
+                <InfoFila icon={PhoneIcon} label="Celular" value={cliente.Celular} />
+                <Box sx={{ gridColumn: 'span 2' }}>
+                  <InfoFila icon={EmailIcon} label="Email" value={cliente.Email} />
+                </Box>
+                {(cliente.Calle || cliente.Numero) && (
+                  <Box sx={{ gridColumn: 'span 2' }}>
+                    <InfoFila
+                      icon={LocationOnIcon}
+                      label="Dirección"
+                      value={[cliente.Calle, cliente.Numero, cliente.Piso && `Piso ${cliente.Piso}`, cliente.Depto && `Dpto ${cliente.Depto}`].filter(Boolean).join(' ')}
+                    />
+                  </Box>
+                )}
               </Box>
-            </Paper>
+            </Box>
           )}
 
-          {/* Estado inicial */}
           {!buscado && !loading && !error && (
-            <Box sx={{ py: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
-              <Box sx={{ width: 60, height: 60, borderRadius: 4, backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <PersonSearchIcon sx={{ fontSize: 30, color: '#cbd5e1' }} />
-              </Box>
-              <Typography sx={{ fontSize: '0.875rem', color: '#94a3b8', fontWeight: 600 }}>Ingresá un DNI para comenzar</Typography>
-              <Typography sx={{ fontSize: '0.78rem', color: '#cbd5e1', textAlign: 'center' }}>
+            <Box sx={{ py: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, textAlign: 'center' }}>
+              <PersonSearchIcon sx={{ fontSize: 28, color: 'text.disabled' }} />
+              <Typography sx={{ fontSize: '.8125rem', color: 'text.secondary', fontWeight: 600 }}>
+                Ingresá un DNI para comenzar
+              </Typography>
+              <Typography sx={{ fontSize: '.72rem', color: 'text.disabled' }}>
                 Presioná Enter o hacé clic en Buscar
               </Typography>
             </Box>
@@ -185,10 +171,8 @@ const ModalBuscarCliente = ({ open, onClose }) => {
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, py: 2, borderTop: '1.5px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
-        <Button variant="outlined" onClick={handleClose} sx={{ borderColor: '#e2e8f0', color: '#475569' }}>
-          Cerrar
-        </Button>
+      <DialogActions>
+        <Button onClick={handleClose}>Cerrar</Button>
       </DialogActions>
     </Dialog>
   )

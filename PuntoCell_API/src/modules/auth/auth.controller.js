@@ -1,4 +1,5 @@
 import { env } from '../../core/config/env.js';
+import { verifyToken } from '../../core/utils/jwt.util.js';
 
 export default class AuthController {
   constructor(service) {
@@ -18,7 +19,7 @@ export default class AuthController {
   login = async (req, res, next) => {
     try {
       const { Identificador, Pwd } = req.body;
-      const data = await this.service.login(Identificador, Pwd);
+      const data = await this.service.login(Identificador, Pwd, { Ip: req.ip });
       
       const { token, user } = data;
 
@@ -39,14 +40,39 @@ export default class AuthController {
     }
   };
 
-  logout = (req, res) => {
+  // GET /auth/me — resuelve el usuario desde la cookie firmada (ruta pública).
+  // Lo usa el front al montar para recuperar la sesión si perdió el perfil local.
+  me = async (req, res, next) => {
+    try {
+      const payload = verifyToken(req.signedCookies?.jwt_punto_cell || '');
+      if (!payload || payload.type !== 'session') {
+        return res.status(401).json({ status: 'error', message: 'Sin sesión activa' });
+      }
+      const user = await this.service.getUsuarioActual(payload.id);
+      if (!user) {
+        return res.status(401).json({ status: 'error', message: 'Sesión inválida' });
+      }
+      return res.status(200).json({ status: 'success', data: { user } });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  logout = async (req, res) => {
+    // La ruta es pública (no pasa por requireAuth): resolvemos el usuario desde la
+    // cookie firmada para poder auditar el cierre de sesión.
+    const payload = verifyToken(req.signedCookies?.jwt_punto_cell || '');
+    if (payload?.id) {
+      await this.service.logout({ IdEmpleado: payload.id, IdSucursal: payload.sucursal, Ip: req.ip });
+    }
+
     res.clearCookie('jwt_punto_cell', {
       httpOnly: true,
       secure: env.APP.NODE_ENV === 'production',
       sameSite: 'strict',
       signed: true
     });
-    
+
     return res.status(200).json({ status: 'success', message: 'Sesión cerrada exitosamente' });
   };
 

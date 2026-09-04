@@ -99,26 +99,16 @@ GO
 --- TABLAS MÓDULO BITÁCORA Y CAJA ---
 -------------------------------------
 
-CREATE TABLE Accion ( -- Catálogo de acciones sensibles para el log de auditoría.
-    Id          INT           PRIMARY KEY IDENTITY, 
-    Nombre      NVARCHAR(100) NOT NULL, -- Ej: 'Login fallido', 'Anulación de venta'.
-    CreatedAt   DATETIME2     NOT NULL DEFAULT SYSDATETIME(),
-    IdPermiso   INT           NULL, 
-    CONSTRAINT FK_Accion_Permiso FOREIGN KEY (IdPermiso) REFERENCES Permiso (Id)
-);
-GO
-
 CREATE TABLE Bitacora ( -- El "Gran Hermano". Registra todas las operaciones críticas del personal.
-    Id         INT           PRIMARY KEY IDENTITY, 
-    Detalle    NVARCHAR(MAX) NULL, -- Información adicional (Ej: JSON con los datos borrados).
-    IpAddress  NVARCHAR(50)  NULL, -- Desde qué computadora se hizo, por seguridad.
-    Fecha      DATETIME2     NOT NULL DEFAULT SYSDATETIME(), -- Momento exacto.
-    IdEmpleado INT           NOT NULL, -- Quién fue.
-    IdSucursal INT           NOT NULL, -- Dónde estaba logueado.
-    IdAccion   INT           NOT NULL, -- Qué hizo.
-    CONSTRAINT FK_Bitacora_Empleado FOREIGN KEY (IdEmpleado) REFERENCES Usuario (Id), 
-    CONSTRAINT FK_Bitacora_Sucursal FOREIGN KEY (IdSucursal) REFERENCES Sucursal (Id), 
-    CONSTRAINT FK_Bitacora_Accion   FOREIGN KEY (IdAccion)   REFERENCES Accion (Id) 
+    Id         INT            PRIMARY KEY IDENTITY,
+    Detalle    NVARCHAR(MAX)  NULL, -- Información adicional (Ej: JSON con los datos borrados).
+    IpAddress  NVARCHAR(50)   NULL, -- Desde qué computadora se hizo, por seguridad.
+    Fecha      DATETIME2      NOT NULL DEFAULT SYSDATETIME(), -- Momento exacto.
+    IdEmpleado INT            NULL, -- Quién fue. NULL para acciones previas al login (ej. "Login fallido" con identificador inexistente).
+    IdSucursal INT            NULL, -- Dónde estaba logueado. NULL si la acción no tiene sesión asociada.
+    Accion     NVARCHAR(150)  NOT NULL, -- Qué pasó, en texto: el backend lo arma manualmente (ej. "Usuario admin inició sesión", "Login fallido para juan").
+    CONSTRAINT FK_Bitacora_Empleado FOREIGN KEY (IdEmpleado) REFERENCES Usuario (Id),
+    CONSTRAINT FK_Bitacora_Sucursal FOREIGN KEY (IdSucursal) REFERENCES Sucursal (Id)
 );
 GO
 
@@ -196,14 +186,23 @@ CREATE TABLE Producto (
 GO
 
 CREATE TABLE Proveedor ( -- Quienes nos suministran el stock de artículos o repuestos.
-    Id          INT           PRIMARY KEY IDENTITY, 
-    Nombre      NVARCHAR(100) NOT NULL UNIQUE, 
-    Email       NVARCHAR(100) NULL UNIQUE, 
-    Celular     NVARCHAR(20)  NULL, 
-    Activo      BIT           NOT NULL DEFAULT 1, 
+    Id          INT           PRIMARY KEY IDENTITY,
+    Nombre      NVARCHAR(100) NOT NULL UNIQUE,
+    Email       NVARCHAR(100) NULL, -- UNIQUE real vía índice filtrado más abajo (ver UQ_Proveedor_Email)
+    Celular     NVARCHAR(20)  NULL, -- UNIQUE real vía índice filtrado más abajo (ver UQ_Proveedor_Celular)
+    Activo      BIT           NOT NULL DEFAULT 1,
     IdLocalidad INT           NULL,
-    CONSTRAINT FK_Proveedor_Localidad FOREIGN KEY (IdLocalidad) REFERENCES Localidad (Id) 
+    CONSTRAINT FK_Proveedor_Localidad FOREIGN KEY (IdLocalidad) REFERENCES Localidad (Id)
 );
+GO
+
+-- Índices únicos FILTRADOS sobre Email/Celular: mismo motivo que UQ_Inventario_IMEI —
+-- un UNIQUE de columna estándar en SQL Server solo permite UN NULL en toda la tabla,
+-- así que un segundo proveedor sin email (o sin celular) rompería como si fuera un
+-- duplicado. Filtrando a "IS NOT NULL" solo se exige unicidad entre los valores reales.
+SET QUOTED_IDENTIFIER ON;
+CREATE UNIQUE INDEX UQ_Proveedor_Email ON Proveedor(Email) WHERE Email IS NOT NULL;
+CREATE UNIQUE INDEX UQ_Proveedor_Celular ON Proveedor(Celular) WHERE Celular IS NOT NULL;
 GO
 
 CREATE TABLE Color ( -- Catálogo de colores para las variantes de los productos.
@@ -238,12 +237,9 @@ CREATE TABLE EstadoInventario ( -- Define si el stock es Nuevo, Usado (Reacondic
 );
 GO
 
-CREATE TABLE Inventario ( -- Representa la cantidad FÍSICA actual de un producto en una sucursal específica.
+CREATE TABLE Inventario ( -- Representa la cantidad FÍSICA actual de un producto en una sucursal específica. El costo/precio de venta vive en PrecioArticulo (ver más abajo), con historial.
     Id                 INT            PRIMARY KEY IDENTITY,
     IMEI                VARCHAR(50)    NULL, -- Único entre equipos serializados; ver índice único filtrado más abajo.
-    PrecioCosto        DECIMAL(18, 2) NOT NULL CHECK (PrecioCosto >= 0), -- Cuánto le costó al dueño comprarlo (vital para saber la ganancia real).
-    PrecioMayor        DECIMAL(18, 2) NULL CHECK (PrecioMayor >= 0), -- Opcional: precio especial para venta mayorista.
-    PrecioMenor        DECIMAL(18, 2) NULL CHECK (PrecioMenor >= 0), -- Opcional: precio mínimo permitido antes de requerir autorización.
     Stock              INT            NOT NULL DEFAULT 0 CHECK (Stock >= 0), -- Unidades disponibles actualmente en esta sucursal.
     CreatedAt          DATETIME2      NOT NULL DEFAULT SYSDATETIME(), -- Cuándo ingresó este lote.
     MesesGarantiaMarca DATETIME2      NULL,
@@ -264,8 +260,7 @@ CREATE TABLE Inventario ( -- Representa la cantidad FÍSICA actual de un product
     CONSTRAINT FK_Inventario_Sucursal           FOREIGN KEY (IdSucursal)         REFERENCES Sucursal (Id), 
     CONSTRAINT FK_Inventario_Producto           FOREIGN KEY (IdProducto)         REFERENCES Producto (Id),
     CONSTRAINT FK_Inventario_Estado             FOREIGN KEY (IdEstadoInventario) REFERENCES EstadoInventario (Id),
-    CONSTRAINT FK_Inventario_Proveedor          FOREIGN KEY (IdProveedor)        REFERENCES Proveedor (Id),
-    CONSTRAINT UQ_Inventario_SucursalProducto   UNIQUE (IdSucursal, IdProducto, IdEstadoInventario) -- Ahora la unicidad es por Sucursal + Artículo + ESTADO. Permite tener "5 iPhone 13 Nuevos" y "2 iPhone 13 Defectuosos" sin que la base tire error de duplicado.
+    CONSTRAINT FK_Inventario_Proveedor          FOREIGN KEY (IdProveedor)        REFERENCES Proveedor (Id)
 );
 GO
 
@@ -274,6 +269,45 @@ GO
 -- estándar no sirve acá: SQL Server trata todos los NULL como iguales entre sí en un índice
 -- único, así que solo dejaría cargar UN producto sin IMEI en todo el inventario.
 CREATE UNIQUE INDEX UQ_Inventario_IMEI ON Inventario(IMEI) WHERE IMEI IS NOT NULL;
+GO
+
+-- Índice único FILTRADO sobre Sucursal+Producto+Estado: un producto NO serializado
+-- (IMEI NULL) tiene una sola fila de stock por sucursal/estado (se incrementa, no se
+-- duplica). Filtrado a IMEI IS NULL para no chocar con productos serializados, donde
+-- cada unidad es su propia fila (identificada por IMEI, ver índice de arriba) y puede
+-- haber varias filas para el mismo Sucursal+Producto+Estado.
+SET QUOTED_IDENTIFIER ON;
+CREATE UNIQUE INDEX UQ_Inventario_SucursalProducto ON Inventario(IdSucursal, IdProducto, IdEstadoInventario) WHERE IMEI IS NULL;
+GO
+
+CREATE TABLE ListaPrecio ( -- Regla de formación de precio por categoría de producto (Ej: "Mayorista Smartphones"). La lista Id=1 es el fallback default cuando un producto no tiene lista activa para su categoría.
+    Id                     INT           PRIMARY KEY IDENTITY,
+    Nombre                 NVARCHAR(100) NOT NULL,
+    PorcentajeRentabilidad DECIMAL(5, 2) NOT NULL CHECK (PorcentajeRentabilidad >= 0), -- % de ganancia que se aplica sobre el CostoReal.
+    Activo                 BIT           NOT NULL DEFAULT 1,
+    IdCategoriaProducto    INT           NULL, -- NULL = lista genérica, no atada a una categoría (ej. la lista Id=1 default).
+    CONSTRAINT FK_ListaPrecio_Categoria FOREIGN KEY (IdCategoriaProducto) REFERENCES CategoriaProducto (Id)
+);
+GO
+
+CREATE TABLE PrecioArticulo ( -- Precio concreto vigente de un renglón de Inventario, aplicando una ListaPrecio. Con historial: nunca se pisa un registro, se cierra su vigencia (FechaHasta) y se crea uno nuevo.
+    Id                 INT            PRIMARY KEY IDENTITY,
+    IdInventario       INT            NOT NULL,
+    IdListaPrecio      INT            NOT NULL,
+    ValorFinal         DECIMAL(18, 2) NOT NULL CHECK (ValorFinal >= 0), -- Precio de venta resultante (lo que paga el cliente).
+    CostoBase          DECIMAL(18, 2) NOT NULL CHECK (CostoBase >= 0), -- Lo que costó comprarlo (viene de Compras).
+    CostosVariables    DECIMAL(18, 2) NOT NULL CHECK (CostosVariables >= 0), -- Costos indirectos calculados sobre el CostoBase.
+    CostoReal          DECIMAL(18, 2) NOT NULL CHECK (CostoReal >= 0), -- CostoBase + CostosVariables.
+    PorcentajeGanancia DECIMAL(5, 2)  NOT NULL CHECK (PorcentajeGanancia >= 0), -- Copiado de ListaPrecio.PorcentajeRentabilidad al momento de calcular.
+    FechaDesde         DATETIME2      NOT NULL DEFAULT SYSDATETIME(),
+    FechaHasta         DATETIME2      NULL, -- NULL = vigencia actual.
+    CONSTRAINT FK_PrecioArticulo_Inventario  FOREIGN KEY (IdInventario)  REFERENCES Inventario (Id),
+    CONSTRAINT FK_PrecioArticulo_ListaPrecio FOREIGN KEY (IdListaPrecio) REFERENCES ListaPrecio (Id)
+);
+GO
+
+-- Acelera la búsqueda del precio vigente de un renglón de inventario (WHERE IdInventario = ? AND FechaHasta IS NULL).
+CREATE INDEX IX_PrecioArticulo_InventarioVigencia ON PrecioArticulo (IdInventario, FechaHasta);
 GO
 
 CREATE TABLE MovimientoStock ( -- Historial inmutable de todo lo que entra, sale o se transfiere. Auditoría pura.
@@ -308,15 +342,17 @@ GO
 -----------------------------
 
 CREATE TABLE Compra ( -- Cabecera de la factura de compra
-    Id                INT            PRIMARY KEY IDENTITY, 
-    Fecha             DATETIME2      NOT NULL DEFAULT SYSDATETIME(), 
+    Id                INT            PRIMARY KEY IDENTITY,
+    Fecha             DATETIME2      NOT NULL DEFAULT SYSDATETIME(),
     TotalCosto        DECIMAL(18, 2) NOT NULL CHECK(TotalCosto >= 0), -- Cuánto costó en total el pedido
+    EstadoPago        SMALLINT       NOT NULL DEFAULT 1 CHECK (EstadoPago IN (1, 2, 3)), -- 1=Pendiente, 2=Parcial, 3=Pagado (lo calcula el backend, ver compra.service.js)
+    SaldoPendiente    DECIMAL(18, 2) NOT NULL DEFAULT 0 CHECK (SaldoPendiente >= 0), -- TotalCosto - TotalPagado, nunca negativo
     IdProveedor       INT            NOT NULL, -- A quién le compramos
     IdSucursalDestino INT            NOT NULL, -- Dónde entra la mercadería
     IdEmpleado        INT            NOT NULL, -- Quién cargó la compra
-    CONSTRAINT FK_Compra_Proveedor FOREIGN KEY (IdProveedor)       REFERENCES Proveedor (Id), 
-    CONSTRAINT FK_Compra_Sucursal  FOREIGN KEY (IdSucursalDestino) REFERENCES Sucursal (Id), 
-    CONSTRAINT FK_Compra_Empleado  FOREIGN KEY (IdEmpleado)        REFERENCES Usuario (Id) 
+    CONSTRAINT FK_Compra_Proveedor FOREIGN KEY (IdProveedor)       REFERENCES Proveedor (Id),
+    CONSTRAINT FK_Compra_Sucursal  FOREIGN KEY (IdSucursalDestino) REFERENCES Sucursal (Id),
+    CONSTRAINT FK_Compra_Empleado  FOREIGN KEY (IdEmpleado)        REFERENCES Usuario (Id)
 );
 GO
 
@@ -369,6 +405,22 @@ CREATE TABLE DetalleDevolucionCompra ( -- Los artículos exactos que mandamos de
     CONSTRAINT FK_DetDevCompra_Inventario     FOREIGN KEY (IdInventario)       REFERENCES Inventario (Id),
     CONSTRAINT FK_DetDevCompra_MovStock       FOREIGN KEY (IdMovimientoStock)  REFERENCES MovimientoStock (Id),
     CONSTRAINT UQ_DetalleDevCompra_Inventario UNIQUE (IdDevolucionCompra, IdInventario)
+);
+GO
+
+CREATE TABLE CuentaCorrienteProveedor ( -- Historial cronológico de deuda con cada proveedor (Debe = nueva deuda, Haber = pago que la cancela).
+    Id              INT            PRIMARY KEY IDENTITY,
+    IdProveedor     INT            NOT NULL,
+    FechaMovimiento DATETIME2      NOT NULL DEFAULT SYSDATETIME(),
+    Concepto        NVARCHAR(100)  NOT NULL, -- Valores fijos que arma el backend (ej. "Factura de Compra", "Pago a cuenta/total"), nunca texto libre del frontend.
+    Debe            DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    Haber           DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    SaldoAcumulado  DECIMAL(18, 2) NOT NULL, -- Saldo del proveedor después de aplicar este movimiento; lo calcula el backend, nunca se recibe del frontend.
+    IdCompra        INT            NULL,
+    IdPagoCompra    INT            NULL,
+    CONSTRAINT FK_CCProv_Proveedor  FOREIGN KEY (IdProveedor)  REFERENCES Proveedor (Id),
+    CONSTRAINT FK_CCProv_Compra     FOREIGN KEY (IdCompra)     REFERENCES Compra (Id),
+    CONSTRAINT FK_CCProv_PagoCompra FOREIGN KEY (IdPagoCompra) REFERENCES PagoCompra (Id)
 );
 GO
 
@@ -621,9 +673,17 @@ GO
 
 -- 1. VISTA DE INVENTARIO COMPLETO (Ideal para el Catálogo y Control de Stock)
 -- Resuelve todas las claves foráneas para devolver una tabla plana lista para consumir.
+-- El precio y el costo salen del PrecioArticulo VIGENTE (FechaHasta IS NULL) de cada
+-- renglón de Inventario, tras migrar el modelo de precios a ListaPrecio/PrecioArticulo.
+-- Si el renglón todavía no tiene un precio cargado, las columnas de precio quedan NULL
+-- (OUTER APPLY). Si hubiera más de una lista vigente, se toma la de FechaDesde más reciente.
+-- IMPORTANTE: ValorFinal/CostoReal en PrecioArticulo son USD (moneda central del sistema,
+-- ver catalogo.service.js) — las columnas de esta vista se nombran ...USD para no sugerir
+-- lo contrario. Cualquier equivalente en ARS se calcula en el momento de mostrar, con la
+-- cotización vigente, nunca acá.
 GO
 CREATE VIEW vw_Inventario_PuntoCell AS
-SELECT 
+SELECT
     i.Id                            AS IdInventario,
     s.Nombre                        AS Sucursal,
     cp.Nombre                       AS Categoria,
@@ -631,16 +691,22 @@ SELECT
     mo.Nombre                       AS Modelo,
     p.Nombre                        AS Producto,
     i.Stock,
-    i.PrecioMayor                   AS PrecioMayorista,
-    i.PrecioMenor                   AS PrecioMinorista,
-    i.PrecioCosto,
-    (i.PrecioMenor - i.PrecioCosto) AS GananciaEstimadaARS
+    pa.IdListaPrecio,
+    pa.ValorFinal                   AS PrecioVentaUSD,
+    pa.CostoReal                    AS CostoRealUSD,
+    (pa.ValorFinal - pa.CostoReal)  AS GananciaEstimadaUSD
 FROM Inventario i
 INNER JOIN Sucursal           s  ON i.IdSucursal = s.Id
 INNER JOIN Producto           p  ON i.IdProducto = p.Id
 INNER JOIN ModeloProducto     mo ON p.IdModeloProducto = mo.Id
 INNER JOIN MarcaProducto      ma ON mo.IdMarcaProducto = ma.Id
 INNER JOIN CategoriaProducto  cp ON mo.IdCategoriaProducto = cp.Id
+OUTER APPLY (
+    SELECT TOP 1 pa2.IdListaPrecio, pa2.ValorFinal, pa2.CostoReal
+    FROM PrecioArticulo pa2
+    WHERE pa2.IdInventario = i.Id AND pa2.FechaHasta IS NULL
+    ORDER BY pa2.FechaDesde DESC
+) pa
 WHERE p.Activo = 1;
 GO
 
@@ -802,13 +868,14 @@ GO
 -- 5) FINANZAS - reparaciones (detalle, una fila por orden ENTREGADA)
 --    Modelo de MARGEN (rentabilidad), solo módulo taller:
 --      Ingreso  = TotalReparacion (mano de obra + repuestos cobrados)
---      Costo    = SUM(Inventario.PrecioCosto * RepuestoOrden.Cantidad)
---                 -> el costo REAL de los repuestos usados
+--      Costo    = SUM(PrecioArticulo.CostoReal * RepuestoOrden.Cantidad)
+--                 -> el costo REAL de los repuestos usados, tomado del precio VIGENTE
+--                    (FechaHasta IS NULL) de cada renglón de Inventario.
 --      Ganancia = Ingreso - Costo
 --    Lleva FechaEntrega e IdSucursal (del empleado) para que el endpoint
 --    filtre por período o sucursal con un WHERE.
 --    El LEFT JOIN contempla órdenes sin repuestos (solo mano de obra):
---    en ese caso Costo = 0.
+--    en ese caso Costo = 0. Un repuesto sin PrecioArticulo vigente aporta costo 0.
 -- ---------------------------------------------------------------------
 IF OBJECT_ID('vw_Finanzas_Reparaciones', 'V') IS NOT NULL DROP VIEW vw_Finanzas_Reparaciones;
 GO
@@ -827,9 +894,15 @@ INNER JOIN EstadoOrden eo  ON o.IdEstadoOrden = eo.Id
 INNER JOIN Usuario     emp ON o.IdEmpleado    = emp.Id
 LEFT JOIN (
     SELECT ro.IdOrdenReparacion,
-           SUM(i.PrecioCosto * ro.Cantidad) AS CostoRepuestos
+           SUM(ISNULL(pa.CostoReal, 0) * ro.Cantidad) AS CostoRepuestos
     FROM RepuestoOrden ro
     INNER JOIN Inventario i ON ro.IdInventario = i.Id
+    OUTER APPLY (
+        SELECT TOP 1 pa2.CostoReal
+        FROM PrecioArticulo pa2
+        WHERE pa2.IdInventario = i.Id AND pa2.FechaHasta IS NULL
+        ORDER BY pa2.FechaDesde DESC
+    ) pa
     GROUP BY ro.IdOrdenReparacion
 ) cr ON cr.IdOrdenReparacion = o.Id
 WHERE eo.Nombre = 'Entregado';
@@ -872,8 +945,9 @@ GO
 --- INSERTS BASE ---
 --------------------
 
+
 -- 1. Localidades (Id 1 = La Calera DEFAULT)
-INSERT INTO Localidad (Nombre) VALUES 
+INSERT INTO Localidad (Nombre) VALUES
 ('la calera'),
 ('cordoba capital'),
 ('villa carlos paz'),
@@ -884,7 +958,7 @@ INSERT INTO Localidad (Nombre) VALUES
 GO
 
 -- 2. Métodos de Pago
-INSERT INTO MetodoPago (Nombre) VALUES 
+INSERT INTO MetodoPago (Nombre) VALUES
 ('efectivo'),
 ('billetera virtual (qr/alias)'),
 ('transferencia bancaria'),
@@ -897,14 +971,14 @@ GO
 
 --- MÓDULO GESTIÓN DE USUARIOS ---
 
--- 3. Sucursales 
-INSERT INTO Sucursal (Nombre, Calle, Numero, Telefono, Activa, IdLocalidad) VALUES 
-('centro', '', '', '', 1, 1),
-('barrio', '', '', '', 1, 1);
+-- 3. Sucursales
+INSERT INTO Sucursal (Nombre, Calle, Numero, Telefono, Activa, IdLocalidad) VALUES
+('La Calera Centro', '', '', '', 1, 1),
+('La Calera Stoecklin', '', '', '', 1, 1);
 GO
 
 -- 5. Roles
-INSERT INTO Rol (Nombre) VALUES 
+INSERT INTO Rol (Nombre) VALUES
 ('administrador'),
 ('owner'),
 ('vendedor'),
@@ -958,143 +1032,365 @@ INSERT INTO RolPermiso (IdRol, IdPermiso) VALUES
 (3, 6), (3, 7), (3, 8), (3, 9), (3, 10),
 
 -- Técnico
-(4, 1), (4, 11), (4, 12), (4, 13), (4, 14), (4, 15); 
+(4, 1), (4, 11), (4, 12), (4, 13), (4, 14), (4, 15);
 GO
 
--- 8. Usuarios Base — login de prueba: admin / owner / vendedor / tecnico, todos con clave "talleres123456"
--- Pwd es el hash bcrypt (10 salt rounds) de "talleres123456", generado con core/utils/bcrypt.js
-INSERT INTO Usuario (DNI, Apellido, Nombre, Email, Celular, EsCliente, UsuarioEmpleado, Pwd, IdRol, IdSucursal, IdLocalidad) VALUES 
-('10000001', 'Demo', 'Admin', 'admin@puntocell.com.ar', '3510000001', 0, 'admin', '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 1, 1, 1),
-('10000002', 'Demo', 'Owner', 'owner@puntocell.com.ar', '3510000002', 0, 'owner', '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 2, 1, 1),
-('10000003', 'Demo', 'Vendedor', 'vendedor@puntocell.com.ar', '3510000003', 0, 'vendedor', '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 3, 1, 1),
-('10000004', 'Demo', 'Tecnico', 'tecnico@puntocell.com.ar', '3510000004', 0, 'tecnico', '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 4, 1, 1);
+-- 8. Usuarios Base — un empleado por rol + un cliente genérico. Login de prueba:
+-- admin / owner / vendedor / tecnico, todos con clave "talleres123456"
+-- (Pwd es el hash bcrypt (10 salt rounds) de esa clave, generado con core/utils/bcrypt.js).
+-- Credenciales completas al final de este archivo, en el resumen del seed.
+INSERT INTO Usuario (DNI, Apellido, Nombre, Email, Celular, EsCliente, UsuarioEmpleado, Pwd, IdRol, IdSucursal, IdLocalidad) VALUES
+('10000001', 'Demo', 'Admin',     'admin@puntocell.com.ar',     '3510000001', 0, 'admin',     '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 1, 1, 1),
+('10000002', 'Demo', 'Owner',     'owner@puntocell.com.ar',     '3510000002', 0, 'owner',     '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 2, 1, 1),
+('10000003', 'Demo', 'Vendedor',  'vendedor@puntocell.com.ar',  '3510000003', 0, 'vendedor',  '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 3, 1, 1),
+('10000004', 'Demo', 'Tecnico',   'tecnico@puntocell.com.ar',   '3510000004', 0, 'tecnico',   '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 4, 1, 1);
 
 -- Cliente genérico (Id resultante: 5)
-INSERT INTO Usuario (DNI, Apellido, Nombre, Email, Celular, EsCliente, IdLocalidad) VALUES 
+INSERT INTO Usuario (DNI, Apellido, Nombre, Email, Celular, EsCliente, IdLocalidad) VALUES
 ('38222333', 'Gómez', 'Martín', 'martin.gomez@cliente.com.ar', '3512222222', 1, 1);
 GO
 
 
 --- MÓDULO INVENTARIO ---
 
--- 8. Estados de Inventario (Vital para el catálogo que definimos)
-INSERT INTO EstadoInventario (Nombre) VALUES 
+-- 9. Estados de Inventario (Vital para el catálogo que definimos)
+INSERT INTO EstadoInventario (Nombre) VALUES
 ('nuevo'),
 ('usado'),
 ('reacondicionado'),
 ('defectuoso');
 GO
 
--- 9. Categorías
-INSERT INTO CategoriaProducto(Nombre, EsDispositivo) VALUES 
+-- 10. Categorías. "repuesto" se agrega como categoría propia (no estaba en la propuesta
+-- original): sin ella los repuestos no tienen dónde colgar su ModeloProducto/ListaPrecio.
+INSERT INTO CategoriaProducto (Nombre, EsDispositivo) VALUES
 ('smartphone', 1),
 ('tablet', 1),
 ('notebook', 1),
-('funda / Carcasa', 0),
-('cargador / Cable', 0),
-('repuesto taller', 0);
+('accesorio', 0),
+('repuesto', 0);
 GO
 
--- 10. Marcas
-INSERT INTO MarcaProducto(Nombre) VALUES 
+-- 11. Marcas
+INSERT INTO MarcaProducto (Nombre) VALUES
 ('apple'),
 ('samsung'),
 ('motorola'),
 ('xiaomi'),
-('genérica');
+('huawei'),
+('google'),
+('oneplus'),
+('realme'),
+('nokia'),
+('lg'),
+('tcl'),
+('generica'); -- para accesorios y repuestos sin marca original
 GO
 
--- 11. Modelos (Se asocian a Marca y Categoría)
--- Apple (IdMarca 1), Smartphone (IdCat 1)
-INSERT INTO ModeloProducto(Nombre, IdMarcaProducto, IdCategoriaProducto) VALUES 
-('iPhone 11', 1, 1),
-('iPhone 13', 1, 1),
-('galaxy a54', 2, 1),
-('moto g84', 3, 1),
-('pantalla iphone 11', 5, 6),
-('funda', 5, 4),
-('redmi note 13', 4, 1);
+-- 12. Modelos (Se asocian a Marca y Categoría)
+-- Apple (IdMarca 1), Smartphone (IdCat 1): línea completa iPhone 11 → 17 (base/Pro/Pro Max)
+INSERT INTO ModeloProducto (Nombre, IdMarcaProducto, IdCategoriaProducto) VALUES
+('iPhone 11', 1, 1),                 -- 1
+('iPhone 11 Pro', 1, 1),             -- 2
+('iPhone 11 Pro Max', 1, 1),         -- 3
+('iPhone 12', 1, 1),                 -- 4
+('iPhone 12 Pro', 1, 1),             -- 5
+('iPhone 12 Pro Max', 1, 1),         -- 6
+('iPhone 13', 1, 1),                 -- 7
+('iPhone 13 Pro', 1, 1),             -- 8
+('iPhone 13 Pro Max', 1, 1),         -- 9
+('iPhone 14', 1, 1),                 -- 10
+('iPhone 14 Pro', 1, 1),             -- 11
+('iPhone 14 Pro Max', 1, 1),         -- 12
+('iPhone 15', 1, 1),                 -- 13
+('iPhone 15 Pro', 1, 1),             -- 14
+('iPhone 15 Pro Max', 1, 1),         -- 15
+('iPhone 16', 1, 1),                 -- 16
+('iPhone 16 Pro', 1, 1),             -- 17
+('iPhone 16 Pro Max', 1, 1),         -- 18
+('iPhone 17', 1, 1),                 -- 19
+('iPhone 17 Pro', 1, 1),             -- 20
+('iPhone 17 Pro Max', 1, 1),         -- 21
+-- Otros smartphones (Samsung, Xiaomi, Motorola, Google)
+('Galaxy S24', 2, 1),                -- 22
+('Galaxy S24 Ultra', 2, 1),          -- 23
+('Galaxy A55', 2, 1),                -- 24
+('Redmi Note 13', 4, 1),             -- 25
+('Redmi Note 13 Pro', 4, 1),         -- 26
+('Moto G84', 3, 1),                  -- 27
+('Moto G54', 3, 1),                  -- 28
+('Pixel 8', 6, 1),                   -- 29
+-- Tablets (IdCat 2)
+('iPad (10ma Gen)', 1, 2),           -- 30
+('iPad Air M2', 1, 2),               -- 31
+('Galaxy Tab S9', 2, 2),             -- 32
+-- Notebooks (IdCat 3)
+('MacBook Air M2', 1, 3),            -- 33
+('MacBook Pro 14 M3', 1, 3),         -- 34
+('Galaxy Book4', 2, 3),              -- 35
+-- Accesorios (IdCat 4), marca genérica
+('Funda Silicona', 12, 4),                -- 36
+('Vidrio Templado 9H', 12, 4),            -- 37
+('Cargador 20W USB-C', 12, 4),            -- 38
+('Cable USB-C a Lightning', 12, 4),       -- 39
+('Auriculares Bluetooth', 12, 4),         -- 40
+('Power Bank 10000mAh', 12, 4),           -- 41
+('Soporte de Auto Magnético', 12, 4),     -- 42
+-- Repuestos (IdCat 5), marca genérica: pantalla / batería / pin de carga / tapa trasera
+-- para las generaciones de iPhone con más rotación en el taller, + un par de Samsung/genéricos.
+('Pantalla iPhone 11', 12, 5),            -- 43
+('Batería iPhone 11', 12, 5),             -- 44
+('Pin de Carga iPhone 11', 12, 5),        -- 45
+('Tapa Trasera iPhone 11', 12, 5),        -- 46
+('Pantalla iPhone 12', 12, 5),            -- 47
+('Batería iPhone 12', 12, 5),             -- 48
+('Pin de Carga iPhone 12', 12, 5),        -- 49
+('Tapa Trasera iPhone 12', 12, 5),        -- 50
+('Pantalla iPhone 13', 12, 5),            -- 51
+('Batería iPhone 13', 12, 5),             -- 52
+('Pin de Carga iPhone 13', 12, 5),        -- 53
+('Tapa Trasera iPhone 13', 12, 5),        -- 54
+('Pantalla iPhone 14', 12, 5),            -- 55
+('Batería iPhone 14', 12, 5),             -- 56
+('Pin de Carga iPhone 14', 12, 5),        -- 57
+('Tapa Trasera iPhone 14', 12, 5),        -- 58
+('Pantalla iPhone 15', 12, 5),            -- 59
+('Batería iPhone 15', 12, 5),             -- 60
+('Pin de Carga iPhone 15', 12, 5),        -- 61
+('Tapa Trasera iPhone 15', 12, 5),        -- 62
+('Pantalla iPhone 16', 12, 5),            -- 63
+('Batería iPhone 16', 12, 5),             -- 64
+('Pin de Carga iPhone 16', 12, 5),        -- 65
+('Tapa Trasera iPhone 16', 12, 5),        -- 66
+('Pantalla Galaxy S24', 12, 5),           -- 67
+('Batería Galaxy S24', 12, 5),            -- 68
+('Batería Universal 4000mAh', 12, 5),     -- 69
+('Flex de Carga Universal', 12, 5);       -- 70
 GO
 
--- 12. Catálogos de Especificaciones
-INSERT INTO Color (Nombre) VALUES ('negro'), ('blanco'), ('azul'), ('plata'), ('rojo');
-
-INSERT INTO Memoria (Capacidad) VALUES ('4gb'), ('6gb'), ('8gb'), ('12gb');
-
-INSERT INTO Almacenamiento (Capacidad) VALUES ('64gb'), ('128gb'), ('256gb');
-
--- Catálogos de Especificaciones (Corregido para Batería)
-INSERT INTO Bateria (Capacidad, Porcentaje, CiclosCarga) VALUES ('100% (nueva)', 100.00, 0), ('90%', 90.00, 250), ('85%', 85.00, 400);
+-- 13. Catálogos de Especificaciones
+INSERT INTO Color (Nombre) VALUES
+('negro'), ('blanco'), ('azul'), ('plata'), ('rojo'),
+('verde'), ('dorado'), ('gris espacial'), ('morado'), ('rosa'),
+('titanio natural'), ('titanio azul'), ('titanio negro'), ('titanio blanco'),
+('medianoche'), ('blanco estrella'), ('amarillo'), ('coral'), ('grafito'), ('lavanda');
 GO
 
--- 13. Productos
--- iPhone 13 256GB (Modelo 2)
-INSERT INTO Producto(Nombre, EsSerializado, EsVendible, EsRepuesto, Activo, IdModeloProducto) VALUES 
-('apple iPhone 13 256GB', 1, 1, 0, 1, 3);
-
--- Repuesto: Módulo Pantalla iPhone 11 (Modelo 1)
-INSERT INTO Producto (Nombre, EsSerializado, EsVendible, EsRepuesto, Activo, IdModeloProducto) VALUES 
-('modulo display pantalla iPhone 11', 0, 0, 1, 1, 5);
-
--- Accesorio: Funda genérica Samsung A54
-INSERT INTO Producto(Nombre, EsSerializado, EsVendible, EsRepuesto, Activo, IdModeloProducto) VALUES 
-('funda silicona transparente galaxy a54', 0, 1, 0, 1, 6);
+-- Memoria = RAM del equipo
+INSERT INTO Memoria (Capacidad) VALUES
+('2gb'), ('3gb'), ('4gb'), ('6gb'), ('8gb'), ('12gb'), ('16gb'), ('18gb');
 GO
 
--- 14. Proveedor
-INSERT INTO Proveedor (Nombre, Email, Celular, IdLocalidad) VALUES 
+INSERT INTO Almacenamiento (Capacidad) VALUES
+('32gb'), ('64gb'), ('128gb'), ('256gb'), ('512gb'), ('1tb');
+GO
+
+-- Bateria = estado/salud de la batería (para reacondicionados)
+INSERT INTO Bateria (Capacidad, Porcentaje, CiclosCarga) VALUES
+('100% (nueva)', 100.00, 0),
+('nueva original', 100.00, 0),
+('95%', 95.00, 120),
+('90%', 90.00, 250),
+('85%', 85.00, 400),
+('80%', 80.00, 600),
+('75%', 75.00, 850);
+GO
+
+-- 14. Productos: un renglón vendible por modelo (equipos), o repuesto/accesorio.
+-- Recordar: los bits de tipo (serializado / vendible / repuesto) viven acá, en Producto,
+-- no en ModeloProducto (evaluado y descartado — ver memoria "propuesta-mover-flags-tipo-a-modelo").
+INSERT INTO Producto (Nombre, EsSerializado, EsVendible, EsRepuesto, Activo, IdModeloProducto) VALUES
+-- Apple iPhone 11 → 17 (serializados, vendibles) — Producto.Id = ModeloProducto.Id (1:1)
+('Apple iPhone 11', 1, 1, 0, 1, 1),
+('Apple iPhone 11 Pro', 1, 1, 0, 1, 2),
+('Apple iPhone 11 Pro Max', 1, 1, 0, 1, 3),
+('Apple iPhone 12', 1, 1, 0, 1, 4),
+('Apple iPhone 12 Pro', 1, 1, 0, 1, 5),
+('Apple iPhone 12 Pro Max', 1, 1, 0, 1, 6),
+('Apple iPhone 13', 1, 1, 0, 1, 7),
+('Apple iPhone 13 Pro', 1, 1, 0, 1, 8),
+('Apple iPhone 13 Pro Max', 1, 1, 0, 1, 9),
+('Apple iPhone 14', 1, 1, 0, 1, 10),
+('Apple iPhone 14 Pro', 1, 1, 0, 1, 11),
+('Apple iPhone 14 Pro Max', 1, 1, 0, 1, 12),
+('Apple iPhone 15', 1, 1, 0, 1, 13),
+('Apple iPhone 15 Pro', 1, 1, 0, 1, 14),
+('Apple iPhone 15 Pro Max', 1, 1, 0, 1, 15),
+('Apple iPhone 16', 1, 1, 0, 1, 16),
+('Apple iPhone 16 Pro', 1, 1, 0, 1, 17),
+('Apple iPhone 16 Pro Max', 1, 1, 0, 1, 18),
+('Apple iPhone 17', 1, 1, 0, 1, 19),
+('Apple iPhone 17 Pro', 1, 1, 0, 1, 20),
+('Apple iPhone 17 Pro Max', 1, 1, 0, 1, 21),
+-- Otros smartphones
+('Samsung Galaxy S24', 1, 1, 0, 1, 22),
+('Samsung Galaxy S24 Ultra', 1, 1, 0, 1, 23),
+('Samsung Galaxy A55', 1, 1, 0, 1, 24),
+('Xiaomi Redmi Note 13', 1, 1, 0, 1, 25),
+('Xiaomi Redmi Note 13 Pro', 1, 1, 0, 1, 26),
+('Motorola Moto G84', 1, 1, 0, 1, 27),
+('Motorola Moto G54', 1, 1, 0, 1, 28),
+('Google Pixel 8', 1, 1, 0, 1, 29),
+-- Tablets
+('Apple iPad (10ma Gen)', 1, 1, 0, 1, 30),
+('Apple iPad Air M2', 1, 1, 0, 1, 31),
+('Samsung Galaxy Tab S9', 1, 1, 0, 1, 32),
+-- Notebooks
+('Apple MacBook Air M2', 1, 1, 0, 1, 33),
+('Apple MacBook Pro 14 M3', 1, 1, 0, 1, 34),
+('Samsung Galaxy Book4', 1, 1, 0, 1, 35),
+-- Accesorios (no serializados, vendibles, no repuesto)
+('Funda Silicona', 0, 1, 0, 1, 36),
+('Vidrio Templado 9H', 0, 1, 0, 1, 37),
+('Cargador 20W USB-C', 0, 1, 0, 1, 38),
+('Cable USB-C a Lightning', 0, 1, 0, 1, 39),
+('Auriculares Bluetooth', 0, 1, 0, 1, 40),
+('Power Bank 10000mAh', 0, 1, 0, 1, 41),
+('Soporte de Auto Magnético', 0, 1, 0, 1, 42),
+-- Repuestos de taller (no serializados, no vendibles al público, EsRepuesto=1)
+('Pantalla iPhone 11 (repuesto)', 0, 0, 1, 1, 43),
+('Batería iPhone 11 (repuesto)', 0, 0, 1, 1, 44),
+('Pin de Carga iPhone 11 (repuesto)', 0, 0, 1, 1, 45),
+('Tapa Trasera iPhone 11 (repuesto)', 0, 0, 1, 1, 46),
+('Pantalla iPhone 12 (repuesto)', 0, 0, 1, 1, 47),
+('Batería iPhone 12 (repuesto)', 0, 0, 1, 1, 48),
+('Pin de Carga iPhone 12 (repuesto)', 0, 0, 1, 1, 49),
+('Tapa Trasera iPhone 12 (repuesto)', 0, 0, 1, 1, 50),
+('Pantalla iPhone 13 (repuesto)', 0, 0, 1, 1, 51),
+('Batería iPhone 13 (repuesto)', 0, 0, 1, 1, 52),
+('Pin de Carga iPhone 13 (repuesto)', 0, 0, 1, 1, 53),
+('Tapa Trasera iPhone 13 (repuesto)', 0, 0, 1, 1, 54),
+('Pantalla iPhone 14 (repuesto)', 0, 0, 1, 1, 55),
+('Batería iPhone 14 (repuesto)', 0, 0, 1, 1, 56),
+('Pin de Carga iPhone 14 (repuesto)', 0, 0, 1, 1, 57),
+('Tapa Trasera iPhone 14 (repuesto)', 0, 0, 1, 1, 58),
+('Pantalla iPhone 15 (repuesto)', 0, 0, 1, 1, 59),
+('Batería iPhone 15 (repuesto)', 0, 0, 1, 1, 60),
+('Pin de Carga iPhone 15 (repuesto)', 0, 0, 1, 1, 61),
+('Tapa Trasera iPhone 15 (repuesto)', 0, 0, 1, 1, 62),
+('Pantalla iPhone 16 (repuesto)', 0, 0, 1, 1, 63),
+('Batería iPhone 16 (repuesto)', 0, 0, 1, 1, 64),
+('Pin de Carga iPhone 16 (repuesto)', 0, 0, 1, 1, 65),
+('Tapa Trasera iPhone 16 (repuesto)', 0, 0, 1, 1, 66),
+('Pantalla Galaxy S24 (repuesto)', 0, 0, 1, 1, 67),
+('Batería Galaxy S24 (repuesto)', 0, 0, 1, 1, 68),
+('Batería Universal 4000mAh (repuesto)', 0, 0, 1, 1, 69),
+('Flex de Carga Universal (repuesto)', 0, 0, 1, 1, 70);
+GO
+
+-- 15. Proveedores
+INSERT INTO Proveedor (Nombre, Email, Celular, IdLocalidad) VALUES
 ('Distribuidora CBA', 'ventas@distribuidoracba.com', '3514445555', 2),
-('Apple Importaciones S.A.', 'import@apple.com', '3519998888', 2);
+('Apple Importaciones S.A.', 'import@apple.com', '3519998888', 2),
+('Repuestos Mayoristas SRL', 'ventas@repuestosmayoristas.com.ar', '3513332222', 1),
+('Canje de Clientes', 'canje@puntocell.com.ar', NULL, 1); -- placeholder que usa el front (ver inventarioServices.js) para altas por canje
 GO
 
--- 15. Inventario (Stock físico ingresado en Sucursal 1)
--- Lote de 5 iPhones 13 (IdProducto 1), Estado Nuevo (Id 1), Prov (2), Color Negro (1), 8GB (3), 100% Bat (1), 256GB (3)
-INSERT INTO Inventario (PrecioCosto, PrecioMayor, PrecioMenor, Stock, MesesGarantiaMarca, MesesGarantiaLocal, Observaciones, IdSucursal, IdProducto, IdEstadoInventario, IdProveedor, IdColor, IdMemoria, IdBateria, IdAlmacenamiento) VALUES 
-(800000.00, 950000.00, 900000.00, 5, '2027-01-01', '2026-12-01', 'Lote nuevo sellado en perfectas condiciones', 1, 1, 1, 2, 1, 3, 1, 3);
-
--- Lote de 20 Fundas (IdProducto 3), Estado Nuevo (Id 1), Prov (1)
-INSERT INTO Inventario (PrecioCosto, PrecioMayor, PrecioMenor, Stock, MesesGarantiaMarca, MesesGarantiaLocal, Observaciones, IdSucursal, IdProducto, IdEstadoInventario, IdProveedor) VALUES 
-(1500.00, 3000.00, 2500.00, 20, NULL, '2026-08-01', 'Fundas genéricas transparentes', 1, 3, 1, 1);
+-- 16. Listas de precios: Id 1 = fallback default (sin categoría) + Minorista/Mayorista
+-- por cada categoría de producto. El front detecta "mayorista" por /mayor/i en el Nombre
+-- (ver preciosServices.js::idsListasMayoristas).
+INSERT INTO ListaPrecio (Nombre, PorcentajeRentabilidad, Activo, IdCategoriaProducto) VALUES
+('Lista General (Default)', 30.00, 1, NULL),          -- 1
+('Minorista Smartphone', 35.00, 1, 1),                -- 2
+('Mayorista Smartphone', 18.00, 1, 1),                -- 3
+('Minorista Tablet', 32.00, 1, 2),                    -- 4
+('Mayorista Tablet', 16.00, 1, 2),                    -- 5
+('Minorista Notebook', 25.00, 1, 3),                  -- 6
+('Mayorista Notebook', 12.00, 1, 3),                  -- 7
+('Minorista Accesorio', 60.00, 1, 4),                 -- 8
+('Mayorista Accesorio', 30.00, 1, 4),                 -- 9
+('Minorista Repuesto', 55.00, 1, 5),                  -- 10
+('Mayorista Repuesto', 28.00, 1, 5);                  -- 11
 GO
 
--- 16. MovimientoStock (Registro de auditoría inmutable del ingreso)
-INSERT INTO MovimientoStock (TipoMovimiento, Cantidad, Observaciones, IdInventario, IdEmpleado) VALUES 
-('Ingreso por Compra', 5, 'Lote de celulares recibido correctamente', 1, 3),
-('Ingreso por Compra', 20, 'Fundas para exhibición', 2, 3);
+-- 17. Inventario (Stock físico ingresado en las sucursales)
+INSERT INTO Inventario (IMEI, Stock, MesesGarantiaMarca, MesesGarantiaLocal, Observaciones, IdSucursal, IdProducto, IdEstadoInventario, IdProveedor, IdColor, IdMemoria, IdBateria, IdAlmacenamiento) VALUES
+-- Inv 1: la unidad que se compra y se vende en el flujo de ejemplo de abajo -> Stock 0 (vendida)
+('359000000000017', 0, '2027-01-01', '2026-12-01', 'Vendida en el ticket de ejemplo #1', 1, 7, 1, 2, 1, NULL, 1, 4),
+-- Inv 2: Fundas en stock (no serializado)
+(NULL, 20, NULL, '2026-08-01', 'Fundas genéricas transparentes', 1, 36, 1, 3, NULL, NULL, NULL, NULL),
+-- Inv 3: Pantallas iPhone 13 para el taller
+(NULL, 10, NULL, '2026-08-01', 'Repuesto para taller', 1, 51, 1, 3, NULL, NULL, NULL, NULL),
+-- Inv 4: iPhone 14 Pro en stock, disponible para la venta
+('359000000000024', 1, '2027-06-01', '2026-12-01', 'Lote nuevo sellado', 1, 11, 1, 2, 13, NULL, 1, 4),
+-- Inv 5: iPhone 12 recibido en canje (usado), pendiente de fijarle precio final
+('359000000000031', 1, NULL, '2026-06-01', 'Recibido en canje, revisar antes de publicar', 1, 4, 2, 4, 1, NULL, 4, 3),
+-- Inv 6: Cargadores en stock
+(NULL, 30, NULL, '2026-08-01', 'Cargadores 20W', 1, 38, 1, 3, NULL, NULL, NULL, NULL),
+-- Inv 7: Baterías iPhone 13 para el taller
+(NULL, 15, NULL, '2026-08-01', 'Repuesto para taller', 1, 52, 1, 3, NULL, NULL, NULL, NULL),
+-- Inv 8: iPhone 13 en stock en la sucursal Stoecklin
+('359000000000048', 1, '2027-01-01', '2026-12-01', 'Lote nuevo sellado', 2, 7, 1, 2, 2, NULL, 1, 4);
+GO
+
+-- 18. PrecioArticulo — CostosVariables = 26% del CostoBase, ValorFinal = CostoReal * (1 + %/100)
+-- (ver precios-articulos.service.js::computeFields y compra.service.js::_actualizarPreciosArticulo).
+-- Cada renglón de Inventario lleva su precio en las DOS listas de su categoría
+-- (minorista + mayorista), igual que lo deja una compra: mismo CostoBase, distinto
+-- ValorFinal según el % de cada lista. El POS alterna entre ambos con el toggle.
+INSERT INTO PrecioArticulo (IdInventario, IdListaPrecio, ValorFinal, CostoBase, CostosVariables, CostoReal, PorcentajeGanancia, FechaDesde, FechaHasta) VALUES
+-- Inv 1 — Apple iPhone 13 (smartphone): Minorista(2) 35% / Mayorista(3) 18%
+(1, 2, 1360800.00, 800000.00, 208000.00, 1008000.00, 35.00, SYSDATETIME(), NULL),
+(1, 3, 1189440.00, 800000.00, 208000.00, 1008000.00, 18.00, SYSDATETIME(), NULL),
+-- Inv 2 — Funda Silicona (accesorio): Minorista(8) 60% / Mayorista(9) 30%
+(2, 8, 3024.00, 1500.00, 390.00, 1890.00, 60.00, SYSDATETIME(), NULL),
+(2, 9, 2457.00, 1500.00, 390.00, 1890.00, 30.00, SYSDATETIME(), NULL),
+-- Inv 3 — Pantalla iPhone 13 repuesto: Minorista(10) 55% / Mayorista(11) 28%
+(3, 10, 87885.00, 45000.00, 11700.00, 56700.00, 55.00, SYSDATETIME(), NULL),
+(3, 11, 72576.00, 45000.00, 11700.00, 56700.00, 28.00, SYSDATETIME(), NULL),
+-- Inv 4 — Apple iPhone 14 Pro (smartphone)
+(4, 2, 1871100.00, 1100000.00, 286000.00, 1386000.00, 35.00, SYSDATETIME(), NULL),
+(4, 3, 1635480.00, 1100000.00, 286000.00, 1386000.00, 18.00, SYSDATETIME(), NULL),
+-- Inv 5 — Apple iPhone 12 usado / canje (smartphone)
+(5, 2, 680400.00, 400000.00, 104000.00, 504000.00, 35.00, SYSDATETIME(), NULL),
+(5, 3, 594720.00, 400000.00, 104000.00, 504000.00, 18.00, SYSDATETIME(), NULL),
+-- Inv 6 — Cargador 20W (accesorio)
+(6, 8, 6048.00, 3000.00, 780.00, 3780.00, 60.00, SYSDATETIME(), NULL),
+(6, 9, 4914.00, 3000.00, 780.00, 3780.00, 30.00, SYSDATETIME(), NULL),
+-- Inv 7 — Batería iPhone 13 repuesto
+(7, 10, 35154.00, 18000.00, 4680.00, 22680.00, 55.00, SYSDATETIME(), NULL),
+(7, 11, 29030.40, 18000.00, 4680.00, 22680.00, 28.00, SYSDATETIME(), NULL),
+-- Inv 8 — Apple iPhone 13 en sucursal Stoecklin (smartphone)
+(8, 2, 1360800.00, 800000.00, 208000.00, 1008000.00, 35.00, SYSDATETIME(), NULL),
+(8, 3, 1189440.00, 800000.00, 208000.00, 1008000.00, 18.00, SYSDATETIME(), NULL);
+GO
+
+-- 19. MovimientoStock (Registro de auditoría inmutable de cada ingreso/salida)
+INSERT INTO MovimientoStock (TipoMovimiento, Cantidad, Observaciones, IdInventario, IdEmpleado) VALUES
+('Ingreso por Compra', 1, 'Compra Id=1', 1, 3),
+('Venta', -1, 'Venta Id=1', 1, 3),
+('Ingreso Inicial', 20, 'Carga inicial de stock', 2, 3),
+('Ingreso Inicial', 10, 'Carga inicial de stock', 3, 3),
+('Ingreso Inicial', 1, 'Carga inicial de stock', 4, 3),
+('Ingreso por Canje', 1, 'Equipo recibido en canje de cliente', 5, 3),
+('Ingreso Inicial', 30, 'Carga inicial de stock', 6, 3),
+('Ingreso Inicial', 15, 'Carga inicial de stock', 7, 3),
+('Ingreso Inicial', 1, 'Carga inicial de stock', 8, 3);
 GO
 
 
 --- MÓDULO BITÁCORA Y CAJA ---
 
--- 17. Acciones (Catálogo de auditoría)
-INSERT INTO Accion (Nombre, IdPermiso) VALUES 
-('Login exitoso', NULL),
-('Login fallido', NULL),
-('Apertura de caja', 10),
-('Cierre de caja', 10),
-('Venta registrada', 3);
-GO
-
--- 18. Turno Caja (Simulamos una caja abierta por el usuario vendedor, Id 3, en Sucursal 1)
-INSERT INTO TurnoCaja (MontoInicial, TotalIngresos, TotalEgresos, MontoCierreFisico, Observaciones, IdSucursal, IdEmpleadoApertura, IdEmpleadoCierre) VALUES 
+-- 20. Turno Caja (Simulamos una caja abierta por el usuario vendedor, Id 3, en Sucursal 1)
+INSERT INTO TurnoCaja (MontoInicial, TotalIngresos, TotalEgresos, MontoCierreFisico, Observaciones, IdSucursal, IdEmpleadoApertura, IdEmpleadoCierre) VALUES
 (15000.00, 50000.00, 5000.00, 60000.00, 'Caja del turno mañana, todo en orden', 1, 3, 3);
 GO
 
--- 19. Movimiento Caja (Egreso de dinero de la caja física)
-INSERT INTO MovimientoCaja (Monto, TipoMovimiento, Descripcion, IdTurnoCaja, IdEmpleado) VALUES 
+-- 21. Movimiento Caja (Egreso de dinero de la caja física)
+INSERT INTO MovimientoCaja (Monto, TipoMovimiento, Descripcion, IdTurnoCaja, IdEmpleado) VALUES
 (5000.00, 0, 'Retiro para comprar artículos de limpieza', 1, 3);
 GO
 
--- 20. Bitácora (El "Gran Hermano")
-INSERT INTO Bitacora (Detalle, IpAddress, IdEmpleado, IdSucursal, IdAccion) VALUES 
-('El usuario inició turno en caja correctamente', '192.168.1.15', 3, 1, 3);
+-- 22. Bitácora (El "Gran Hermano")
+INSERT INTO Bitacora (Detalle, IpAddress, IdEmpleado, IdSucursal, Accion) VALUES
+('El usuario inició turno en caja correctamente', '192.168.1.15', 3, 1, 'Apertura de caja');
 GO
 
 
 --- MÓDULO REPARACIONES ---
 
--- 21. Estados de las Órdenes del Taller
-INSERT INTO EstadoOrden (Nombre) VALUES 
+-- 23. Estados de las Órdenes del Taller
+INSERT INTO EstadoOrden (Nombre) VALUES
 ('en espera'),
 ('en reparación'),
 ('terminado'),
@@ -1102,91 +1398,101 @@ INSERT INTO EstadoOrden (Nombre) VALUES
 ('anulado');
 GO
 
--- 22. Fallas 
-INSERT INTO Falla (Nombre, IdCategoriaProducto) VALUES 
+-- 24. Fallas
+INSERT INTO Falla (Nombre, IdCategoriaProducto) VALUES
 ('Cambio de Módulo / Pantalla Rota', 1),
 ('Pin de carga dañado / No carga', 1),
 ('Batería inflada / Se apaga rápido', 1),
 ('Placa en corto / No enciende', 1),
 ('Micrófono / Altavoz dañado', 1),
-('Software / Queda en el logo', 1);
+('Software / Queda en el logo', 1),
+('No toma señal / Sin servicio', 1),
+('Cámara con manchas / No enfoca', 1);
 GO
 
--- 23. Dispositivo Cliente (El cliente Id 5 trae un equipo propio, Moto G84 - IdModelo 4)
-INSERT INTO DispositivoCliente (IMEI, Desbloqueo, Observaciones, Activo, IdCliente, IdModeloProducto, IdColor) VALUES 
-('358741258963214', 'Patron L', 'Pantalla astillada, marco golpeado', 1, 5, 4, 1);
+-- 25. Dispositivo Cliente (El cliente Id 5 trae un equipo propio, Moto G84 - IdModelo 27)
+INSERT INTO DispositivoCliente (IMEI, Desbloqueo, Observaciones, Activo, IdCliente, IdModeloProducto, IdColor) VALUES
+('358741258963214', 'Patron L', 'Pantalla astillada, marco golpeado', 1, 5, 27, 1);
 GO
 
--- 24. Orden de Reparación (Ingresa al taller del usuario tecnico, Id 4)
-INSERT INTO OrdenReparacion (CostoRepuestos, PrecioManoObra, TotalReparacion, IdEmpleado, IdDispositivoCliente, IdEstadoOrden) VALUES 
+-- 26. Orden de Reparación (Ingresa al taller del usuario tecnico, Id 4)
+INSERT INTO OrdenReparacion (CostoRepuestos, PrecioManoObra, TotalReparacion, IdEmpleado, IdDispositivoCliente, IdEstadoOrden) VALUES
 (25000.00, 15000.00, 40000.00, 4, 1, 1); -- Estado 1: En espera
 GO
 
--- 25. Orden Falla (Falla Id 1 = Cambio de Módulo / Pantalla)
-INSERT INTO OrdenFalla (IdOrdenReparacion, IdFalla) VALUES 
+-- 27. Orden Falla (Falla Id 1 = Cambio de Módulo / Pantalla)
+INSERT INTO OrdenFalla (IdOrdenReparacion, IdFalla) VALUES
 (1, 1);
 GO
 
--- 26. Seguimiento Orden (Trazabilidad del estado)
-INSERT INTO SeguimientoOrden (ObservacionTecnico, IdOrdenReparacion, IdEmpleado, IdEstadoOrden) VALUES 
+-- 28. Seguimiento Orden (Trazabilidad del estado)
+INSERT INTO SeguimientoOrden (ObservacionTecnico, IdOrdenReparacion, IdEmpleado, IdEstadoOrden) VALUES
 ('Equipo ingresado en mostrador, a la espera de desarme por el técnico', 1, 4, 1);
 GO
 
--- 27. Pago Reparacion (El cliente deja una seña para pedir repuesto)
-INSERT INTO PagoReparacion (Monto, Senia, Observacion, IdOrdenReparacion, IdMetodoPago, IdTurnoCaja) VALUES 
+-- 29. Pago Reparacion (El cliente deja una seña para pedir repuesto)
+INSERT INTO PagoReparacion (Monto, Senia, Observacion, IdOrdenReparacion, IdMetodoPago, IdTurnoCaja) VALUES
 (10000.00, 10000.00, 'Seña inicial para solicitar módulo', 1, 1, 1);
 GO
 
 
 --- MÓDULO COMPRAS ---
 
--- 28. Compra (Cabecera de la factura al proveedor)
-INSERT INTO Compra (TotalCosto, IdProveedor, IdSucursalDestino, IdEmpleado) VALUES 
-(4000000.00, 2, 1, 3);
+-- 30. Compra (Cabecera de la factura al proveedor) — pagada al contado, por eso EstadoPago=3 y SaldoPendiente=0
+-- Compra el iPhone 13 que después se vende en el Venta #1 de más abajo (Inv 1).
+INSERT INTO Compra (TotalCosto, EstadoPago, SaldoPendiente, IdProveedor, IdSucursalDestino, IdEmpleado) VALUES
+(800000.00, 3, 0.00, 2, 1, 3);
 GO
 
--- 29. Detalle Compra
-INSERT INTO DetalleCompra (Cantidad, PrecioCostoUnitario, IdCompra, IdInventario) VALUES 
-(5, 800000.00, 1, 1);
+-- 31. Detalle Compra
+INSERT INTO DetalleCompra (Cantidad, PrecioCostoUnitario, IdCompra, IdInventario) VALUES
+(1, 800000.00, 1, 1);
 GO
 
--- 30. Pago Compra (Pagamos al proveedor por Transferencia - MetodoPago 3)
-INSERT INTO PagoCompra (Monto, IdCompra, IdMetodoPago, IdTurnoCaja) VALUES 
-(4000000.00, 1, 3, 1);
+-- 32. Pago Compra (Pagamos al proveedor por Transferencia - MetodoPago 3)
+INSERT INTO PagoCompra (Monto, IdCompra, IdMetodoPago, IdTurnoCaja) VALUES
+(800000.00, 1, 3, 1);
+GO
+
+-- 33. Cuenta corriente del proveedor: la compra genera la deuda completa (Debe) y el pago la cancela (Haber) en el mismo momento.
+INSERT INTO CuentaCorrienteProveedor (IdProveedor, Concepto, Debe, Haber, SaldoAcumulado, IdCompra, IdPagoCompra) VALUES
+(2, 'Factura de Compra', 800000.00, 0.00, 800000.00, 1, NULL),
+(2, 'Pago a cuenta/total', 0.00, 800000.00, 0.00, 1, 1);
 GO
 
 
 --- MÓDULO VENTAS ---
 
--- 31. Cotización Dólar (Historial congelado)
-INSERT INTO Cotizacion (Clave, Valor) VALUES 
+-- 34. Cotización Dólar (Historial congelado)
+INSERT INTO Cotizacion (Clave, Valor) VALUES
 ('DolarBlue', 1450.00),
 ('DolarOficial', 1000.00);
 GO
 
--- 32. Descuento
-INSERT INTO Descuento (Nombre, Porcentaje, FechaDesde, FechaHasta) VALUES 
+-- 35. Descuento
+INSERT INTO Descuento (Nombre, Porcentaje, FechaDesde, FechaHasta) VALUES
 ('Hot Sale 2026', 15.00, '2026-05-10', '2026-05-20'),
 ('Efectivo 10%', 10.00, NULL, NULL);
 GO
 
--- 33. Venta (Cabecera del ticket: Cliente Id 5, Empleado Id 3)
-INSERT INTO Venta (TotalVenta, TotalVentaARS, TotalCosto, Observaciones, IdTurnoCaja, IdCliente, IdEmpleado, IdCotizacionDolar, IdDescuento) VALUES 
-(620.68, 900000.00, 800000.00, 'Venta de iPhone 13 a consumidor final', 1, 5, 3, 1, 2);
+-- 36. Venta (Cabecera del ticket: Cliente Id 5, Empleado Id 3) — vende el Inv 1 (iPhone 13)
+-- al precio de la Lista Minorista Smartphone ($1.360.800) con el 10% de descuento en efectivo.
+INSERT INTO Venta (TotalVenta, TotalVentaARS, TotalCosto, Observaciones, IdTurnoCaja, IdCliente, IdEmpleado, IdCotizacionDolar, IdDescuento) VALUES
+(844.63, 1224720.00, 1008000.00, 'Venta de iPhone 13 a consumidor final', 1, 5, 3, 1, 2);
 GO
 
--- 34. Detalle Venta (El cliente se lleva 1 iPhone - IdInventario 1)
-INSERT INTO DetalleVenta (Cantidad, PrecioUnitario, IdVenta, IdInventario) VALUES 
-(1, 900000.00, 1, 1);
+-- 37. Detalle Venta (El cliente se lleva 1 iPhone - IdInventario 1)
+INSERT INTO DetalleVenta (Cantidad, PrecioUnitario, IdVenta, IdInventario) VALUES
+(1, 1360800.00, 1, 1);
 GO
 
--- 35. Pago Venta (Se cobró en Efectivo - IdMetodoPago 1)
-INSERT INTO PagoVenta (Monto, Observacion, IdVenta, IdMetodoPago, IdTurnoCaja) VALUES 
-(900000.00, 'Abona completo en efectivo con descuento aplicado', 1, 1, 1);
+-- 38. Pago Venta (Se cobró en Efectivo - IdMetodoPago 1)
+INSERT INTO PagoVenta (Monto, Observacion, IdVenta, IdMetodoPago, IdTurnoCaja) VALUES
+(1224720.00, 'Abona completo en efectivo con descuento aplicado', 1, 1, 1);
 GO
 
--- 36. Estado Reclamo (Catálogo de Garantías)
-INSERT INTO EstadoReclamo (Nombre) VALUES 
+-- 39. Estado Reclamo (Catálogo de Garantías)
+INSERT INTO EstadoReclamo (Nombre) VALUES
 ('En Revisión'),
 ('Aprobada'),
 ('Rechazada');

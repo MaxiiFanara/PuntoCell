@@ -23,7 +23,8 @@ export default class CompraController {
 
   create = async (req, res, next) => {
     try {
-      const data = await this.service.create(req.body);
+      const auditContext = { IdEmpleado: req.user?.id, IdSucursal: req.user?.sucursal, Ip: req.ip };
+      const data = await this.service.create(req.body, auditContext);
       return res.status(201).json({ status: 'success', data });
     } catch (err) {
       next(err);

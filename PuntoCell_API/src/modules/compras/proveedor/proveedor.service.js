@@ -1,6 +1,9 @@
+import { auditar } from '../../../core/utils/audit.util.js';
+
 export default class ProveedorService {
-  constructor(proveedorDAO) {
+  constructor(proveedorDAO, bitacoraService = null) {
     this.proveedorDAO = proveedorDAO;
+    this.bitacoraService = bitacoraService;
   }
 
   async getAll(query = {}) {
@@ -14,36 +17,63 @@ export default class ProveedorService {
 
   async getById(id) {
     const proveedor = await this.proveedorDAO.getById(id);
-    if (!proveedor) throw new Error('Proveedor no encontrado');
+    if (!proveedor) {
+      const err = new Error('Proveedor no encontrado');
+      err.statusCode = 404;
+      throw err;
+    }
     return proveedor;
   }
 
-  async create(data) {
+  async create(data, ctx = null) {
     const existe = await this.proveedorDAO.findOne({ where: { Nombre: data.Nombre } });
-    if (existe) throw new Error('Ya existe un proveedor con ese nombre');
-    
-    return await this.proveedorDAO.create(data);
+    if (existe) {
+      const err = new Error('Ya existe un proveedor con ese nombre');
+      err.statusCode = 409;
+      throw err;
+    }
+
+    const creado = await this.proveedorDAO.create(data);
+    await auditar(this.bitacoraService, ctx, `Creó el proveedor "${data.Nombre}" (#${creado.Id})`,
+      `Alta de proveedor`);
+    return creado;
   }
 
-  async update(id, data) {
+  async update(id, data, ctx = null) {
     const proveedor = await this.proveedorDAO.getById(id);
-    if (!proveedor) throw new Error('Proveedor no encontrado');
-    
+    if (!proveedor) {
+      const err = new Error('Proveedor no encontrado');
+      err.statusCode = 404;
+      throw err;
+    }
+
     if (data.Nombre) {
       const existe = await this.proveedorDAO.findOne({ where: { Nombre: data.Nombre } });
-      if (existe && existe.Id !== parseInt(id)) throw new Error('Ya existe un proveedor con ese nombre');
+      if (existe && existe.Id !== parseInt(id)) {
+        const err = new Error('Ya existe un proveedor con ese nombre');
+        err.statusCode = 409;
+        throw err;
+      }
     }
-    
-    return await this.proveedorDAO.update(id, data);
+
+    const actualizado = await this.proveedorDAO.update(id, data);
+    await auditar(this.bitacoraService, ctx, `Modificó el proveedor "${proveedor.Nombre}" (#${id})`,
+      `Campos: ${Object.keys(data).join(', ')}`);
+    return actualizado;
   }
 
-  async delete(id) {
+  async delete(id, ctx = null) {
     const proveedor = await this.proveedorDAO.getById(id);
-    if (!proveedor) throw new Error('Proveedor no encontrado');
-    
-    // Baja lógica
+    if (!proveedor) {
+      const err = new Error('Proveedor no encontrado');
+      err.statusCode = 404;
+      throw err;
+    }
+
     const actualizado = await this.proveedorDAO.update(id, { Activo: false });
     if (!actualizado) throw new Error('No se pudo dar de baja el proveedor');
+    await auditar(this.bitacoraService, ctx, `Dio de baja el proveedor "${proveedor.Nombre}" (#${id})`,
+      `Baja lógica de proveedor`);
     return true;
   }
 }

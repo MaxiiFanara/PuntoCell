@@ -37,31 +37,39 @@ export default class CatalogoService {
       ?? cotizacion[0]?.Valor
     ) || 0;
 
-    // Determine price list to use: query param or active one
-    let listaId = IdListaPrecio ? Number(IdListaPrecio) : undefined;
-    if (!listaId) {
-      const listaActiva = await models.ListaPrecio.findOne({ where: { Activo: true } });
-      listaId = listaActiva?.Id || null;
-    }
-
-    // If no price list available, return products without prices
+    // Precio a mostrar: si viene IdListaPrecio se respeta; si no, el catálogo público
+    // siempre muestra el MINORISTA — el precio vigente de cada renglón en cualquier lista
+    // que NO sea mayorista (detectadas por nombre). Cada categoría tiene su lista
+    // minorista y mayorista; acá nunca se expone la mayorista.
     const invIds = inventario.map((i) => i.Id);
     let preciosMap = {};
-    if (listaId && invIds.length) {
+    if (invIds.length) {
       const now = new Date();
-      const precios = await models.PrecioArticulo.findAll({
-        where: {
-          IdListaPrecio: listaId,
-          IdInventario: { [Op.in]: invIds },
-          FechaDesde: { [Op.lte]: now },
-          [Op.or]: [ { FechaHasta: null }, { FechaHasta: { [Op.gte]: now } } ]
-        },
-        order: [['FechaDesde', 'DESC']]
-      });
+      const listas = await models.ListaPrecio.findAll();
+      const idsMayoristas = new Set(
+        listas.filter((l) => /mayor/i.test(l.Nombre || '')).map((l) => l.Id)
+      );
 
-      // keep the most recent FechaDesde per IdInventario
+      const where = {
+        IdInventario: { [Op.in]: invIds },
+        FechaDesde: { [Op.lte]: now },
+        [Op.or]: [ { FechaHasta: null }, { FechaHasta: { [Op.gte]: now } } ]
+      };
+      if (IdListaPrecio) where.IdListaPrecio = Number(IdListaPrecio);
+
+      const precios = await models.PrecioArticulo.findAll({ where, order: [['FechaDesde', 'DESC']] });
+
+      // 1ª pasada: el más reciente de una lista NO mayorista (o de la lista pedida)
       for (const p of precios) {
-        if (!preciosMap[p.IdInventario]) preciosMap[p.IdInventario] = p;
+        if (!IdListaPrecio && idsMayoristas.has(p.IdListaPrecio)) continue;
+        const prev = preciosMap[p.IdInventario];
+        if (!prev || new Date(p.FechaDesde) > new Date(prev.FechaDesde)) preciosMap[p.IdInventario] = p;
+      }
+      // 2ª pasada: si un renglón sólo tiene precio en lista mayorista, se usa igual
+      if (!IdListaPrecio) {
+        for (const p of precios) {
+          if (!preciosMap[p.IdInventario]) preciosMap[p.IdInventario] = p;
+        }
       }
     }
 

@@ -2,14 +2,21 @@ import { useState, useEffect } from 'react'
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, TextField, Alert, CircularProgress,
-  Typography, IconButton, Box, Paper, MenuItem, Grid,
+  Typography, IconButton, Box, MenuItem,
 } from '@mui/material'
-import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid'
 import CloseIcon from '@mui/icons-material/Close'
 import SaveIcon from '@mui/icons-material/Save'
 import { crearModeloArticulo } from '../../services/api'
 
 const EMPTY = { idTipo: '', idMarca: '', nombre: '' }
+
+const Campo = ({ label, hint, children }) => (
+  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
+    {label && <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>{label}</Box>}
+    {children}
+    {hint && <Typography sx={{ fontSize: '.69rem', color: 'text.disabled' }}>{hint}</Typography>}
+  </Box>
+)
 
 const ModalRegistroDispositivo = ({ open, onClose, tipos, marcas, onDispositivoGuardado }) => {
   const [form, setForm]       = useState(EMPTY)
@@ -51,67 +58,58 @@ const ModalRegistroDispositivo = ({ open, onClose, tipos, marcas, onDispositivoG
   }
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-      <DialogTitle sx={{ background: 'linear-gradient(135deg, #0c4a6e, #0284c7)', color: '#fff', display: 'flex', alignItems: 'center', gap: 2, py: 2.5, px: 3 }}>
-        <Box sx={{ width: 38, height: 38, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <PhoneAndroidIcon sx={{ fontSize: 19 }} />
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5 }}>
+        <Box>
+          Registrar dispositivo
+          <Box sx={{ display: 'block', color: 'text.disabled', fontSize: '.72rem', fontWeight: 400, mt: '-1px' }}>
+            Ingresá los datos del nuevo modelo
+          </Box>
         </Box>
-        <Box sx={{ flex: 1 }}>
-          <Typography sx={{ fontWeight: 800, fontSize: '1rem', lineHeight: 1.2 }}>Registrar Dispositivo</Typography>
-          <Typography sx={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', mt: 0.25 }}>Ingresá los datos del nuevo modelo</Typography>
-        </Box>
-        <IconButton onClick={onClose} sx={{ color: 'rgba(255,255,255,0.6)', '&:hover': { color: '#fff', backgroundColor: 'rgba(255,255,255,0.12)' } }}>
-          <CloseIcon />
+        <IconButton size="small" onClick={onClose} aria-label="Cerrar">
+          <CloseIcon sx={{ fontSize: 17 }} />
         </IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ p: 0, backgroundColor: '#eef2f7' }}>
-        {(error || success) && (
-          <Box sx={{ px: 3, pt: 2.5 }}>
-            {error   && <Alert severity="error"   onClose={() => setError('')} sx={{ borderRadius: 2 }}>{error}</Alert>}
-            {success && <Alert severity="success" sx={{ borderRadius: 2 }}>¡Dispositivo registrado!</Alert>}
-          </Box>
-        )}
+      <DialogContent>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          {error   && <Alert severity="error"   onClose={() => setError('')}>{error}</Alert>}
+          {success && <Alert severity="success">¡Dispositivo registrado!</Alert>}
 
-        <Box sx={{ p: 3 }}>
-          <Paper elevation={0} sx={{ border: '1.5px solid #e2e8f0', borderRadius: 2.5, p: 2.5 }}>
-            <Grid container spacing={2.5}>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField fullWidth select label="Tipo de dispositivo *" value={form.idTipo} onChange={set('idTipo')}>
-                  <MenuItem value="">Seleccione…</MenuItem>
-                  {tipos.map((t) => <MenuItem key={t.id} value={t.id}>{t.nombre}</MenuItem>)}
-                </TextField>
-                <Typography sx={{ fontSize: '0.72rem', color: '#94a3b8', mt: 0.75 }}>Ej: Celular, Tablet, Notebook</Typography>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField fullWidth select label="Marca *" value={form.idMarca} onChange={set('idMarca')} disabled={!form.idTipo}>
-                  <MenuItem value="">Seleccione…</MenuItem>
-                  {(marcas ?? []).map((m) => <MenuItem key={m.id} value={m.id}>{m.nombre}</MenuItem>)}
-                </TextField>
-                <Typography sx={{ fontSize: '0.72rem', color: '#94a3b8', mt: 0.75 }}>Ej: Samsung, Apple, Motorola</Typography>
-              </Grid>
-              <Grid size={{ xs: 12 }}>
-                <TextField fullWidth label="Nombre / Modelo *" placeholder="Ej: Galaxy S24, iPhone 15 Pro, Moto G85…"
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 1.5 }}>
+            <Campo label="Tipo de dispositivo" hint="Ej: Celular, Tablet, Notebook">
+              <TextField fullWidth select value={form.idTipo} onChange={set('idTipo')}>
+                <MenuItem value="">Seleccione…</MenuItem>
+                {tipos.map((t) => <MenuItem key={t.id} value={t.id}>{t.nombre}</MenuItem>)}
+              </TextField>
+            </Campo>
+            <Campo label="Marca" hint="Ej: Samsung, Apple, Motorola">
+              <TextField fullWidth select value={form.idMarca} onChange={set('idMarca')} disabled={!form.idTipo}>
+                <MenuItem value="">Seleccione…</MenuItem>
+                {(marcas ?? []).map((m) => <MenuItem key={m.id} value={m.id}>{m.nombre}</MenuItem>)}
+              </TextField>
+            </Campo>
+            <Box sx={{ gridColumn: 'span 2' }}>
+              <Campo label="Nombre / modelo" hint="Ingresá el modelo específico del dispositivo">
+                <TextField fullWidth placeholder="Ej: Galaxy S24, iPhone 15 Pro, Moto G85…"
                   value={form.nombre} onChange={set('nombre')} />
-                <Typography sx={{ fontSize: '0.72rem', color: '#94a3b8', mt: 0.75 }}>Ingresá el modelo específico del dispositivo</Typography>
-              </Grid>
-            </Grid>
-
-            <Box sx={{ mt: 2.5, p: 1.75, borderRadius: 2, background: 'linear-gradient(135deg, #e0f2fe, #f0f9ff)', border: '1.5px solid #7dd3fc' }}>
-              <Typography sx={{ fontSize: '0.78rem', color: '#0369a1', fontWeight: 600 }}>
-                💡 El dispositivo quedará disponible para seleccionar al crear nuevas órdenes de reparación.
-              </Typography>
+              </Campo>
             </Box>
-          </Paper>
+          </Box>
+
+          <Box sx={{ p: '11px 13px', borderRadius: '9px', bgcolor: 'pc.accentSoft', color: 'primary.main' }}>
+            <Typography sx={{ fontSize: '.78rem', fontWeight: 600, color: 'inherit' }}>
+              El dispositivo quedará disponible para seleccionar al crear nuevas órdenes de reparación.
+            </Typography>
+          </Box>
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, py: 2.5, gap: 1.5, borderTop: '1.5px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
-        <Button variant="outlined" onClick={onClose} disabled={loading} sx={{ borderColor: '#e2e8f0', color: '#475569' }}>Cancelar</Button>
-        <Button variant="contained" color="info" onClick={handleGuardar} disabled={loading || success}
-          startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <SaveIcon />}
-          sx={{ minWidth: 180 }}>
-          {loading ? 'Guardando…' : 'Guardar Dispositivo'}
+      <DialogActions>
+        <Button onClick={onClose} disabled={loading}>Cancelar</Button>
+        <Button variant="contained" onClick={handleGuardar} disabled={loading || success}
+          startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <SaveIcon sx={{ fontSize: 16 }} />}>
+          {loading ? 'Guardando…' : 'Guardar dispositivo'}
         </Button>
       </DialogActions>
     </Dialog>

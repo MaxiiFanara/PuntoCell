@@ -23,7 +23,8 @@ export default class RepuestoOrdenController {
 
   create = async (req, res, next) => {
     try {
-      const data = await this.service.create(req.body);
+      const ctx = { IdEmpleado: req.user?.id, IdSucursal: req.user?.sucursal, Ip: req.ip };
+      const data = await this.service.create(req.body, ctx);
       return res.status(201).json({ status: 'success', data });
     } catch (err) {
       next(err);
@@ -32,7 +33,8 @@ export default class RepuestoOrdenController {
 
   delete = async (req, res, next) => {
     try {
-      await this.service.delete(req.params.id);
+      const ctx = { IdEmpleado: req.user?.id, IdSucursal: req.user?.sucursal, Ip: req.ip };
+      await this.service.delete(req.params.id, ctx);
       return res.status(200).json({ status: 'success', data: { message: 'Repuesto quitado de la orden exitosamente' } });
     } catch (err) {
       next(err);
