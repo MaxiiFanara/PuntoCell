@@ -13,7 +13,8 @@ export default class RolService {
       page,
       limit,
       where: { Activo: true },
-      attributes: this.ATTRIBUTES
+      attributes: this.ATTRIBUTES,
+      order: [['Nombre', 'ASC']]
     });
   }
 

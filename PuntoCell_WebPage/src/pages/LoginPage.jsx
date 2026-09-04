@@ -63,7 +63,7 @@ const STYLES = `
   }
 `
 
-const TEST_USER = { usuario: 'admin', password: 'talleres123456' }
+const TEST_USER = { usuario: 'admin', password: 'PuntoCell2026!' }
 
 export default function LoginPage() {
   const { usuario, login } = useAuth()
@@ -209,7 +209,7 @@ export default function LoginPage() {
                       Usuario de prueba:
                     </Typography>
                     <Typography className="mono" variant="caption" sx={{ color: 'text.secondary', fontSize: '0.78rem' }}>
-                      admin / talleres123456
+                      admin / PuntoCell2026!
                     </Typography>
                     <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 600, fontSize: '0.72rem', ml: 'auto' }}>
                       Completar →

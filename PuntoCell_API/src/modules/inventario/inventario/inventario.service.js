@@ -46,8 +46,9 @@ export default class InventarioService {
       : esTruthy(soloRepuestos)
         ? { model: Articulo, as: 'articulo', where: { EsRepuesto: true }, required: true }
         : { model: Articulo, as: 'articulo' };
-    // Nombre del modelo para la columna "Dispositivo" del listado
-    articuloInclude.include = [{ model: ModeloArticulo, as: 'modelo', attributes: ['Nombre'] }];
+    // Nombre del modelo para la columna "Dispositivo" del listado. IdCategoriaArticulo viaja
+    // también: el Actualizador de Precio (precios.jsx) lo necesita para ordenar Categoría ASC.
+    articuloInclude.include = [{ model: ModeloArticulo, as: 'modelo', attributes: ['Nombre', 'IdCategoriaArticulo'] }];
 
     // Plan Canje: proveedor = placeholder de canje de clientes
     const proveedorInclude = esTruthy(soloCanje)

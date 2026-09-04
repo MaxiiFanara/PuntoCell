@@ -11,7 +11,8 @@ export default class SucursalService {
     return await this.sucursalDAO.getAll({
       page,
       limit,
-      where: { Activa: true }
+      where: { Activa: true },
+      order: [['Nombre', 'ASC']]
     });
   }
 

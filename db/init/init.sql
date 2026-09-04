@@ -947,6 +947,9 @@ GO
 
 
 -- 1. Localidades (Id 1 = La Calera DEFAULT)
+-- Guardado con IF NOT EXISTS: ver comentario en el INSERT de Sucursal más abajo sobre por qué
+-- init.sql no es idempotente si corre más de una vez contra el mismo volumen.
+IF NOT EXISTS (SELECT 1 FROM Localidad)
 INSERT INTO Localidad (Nombre) VALUES
 ('la calera'),
 ('cordoba capital'),
@@ -972,6 +975,12 @@ GO
 --- MÓDULO GESTIÓN DE USUARIOS ---
 
 -- 3. Sucursales
+-- Guardado con IF NOT EXISTS: init.sql no es transaccional por lote (CREATE DATABASE /
+-- CREATE TABLE no tienen guarda propia y sqlcmd sigue ejecutando el resto del script aunque
+-- esas sentencias fallen por "ya existe"), así que si este script corre más de una vez contra
+-- el mismo volumen (p. ej. se reinicia el contenedor db-init), este INSERT se ejecutaba de
+-- nuevo y duplicaba las sucursales (no hay UNIQUE en Sucursal.Nombre).
+IF NOT EXISTS (SELECT 1 FROM Sucursal)
 INSERT INTO Sucursal (Nombre, Calle, Numero, Telefono, Activa, IdLocalidad) VALUES
 ('La Calera Centro', '', '', '', 1, 1),
 ('La Calera Stoecklin', '', '', '', 1, 1);

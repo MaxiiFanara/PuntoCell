@@ -11,7 +11,7 @@ export default class MetodoPagoService {
 
   async getAll(query = {}) {
     const { page, limit } = query;
-    return await this.dao.getAll({ page, limit, attributes: this.ATTRIBUTES });
+    return await this.dao.getAll({ page, limit, attributes: this.ATTRIBUTES, order: [['Nombre', 'ASC']] });
   }
 
   async getById(id) {

@@ -9,7 +9,7 @@ export default class ColorService {
 
   async getAll(query = {}) {
     const { page, limit } = query;
-    return await this.colorDAO.getAll({ page, limit, attributes: this.ATTRIBUTES });
+    return await this.colorDAO.getAll({ page, limit, attributes: this.ATTRIBUTES, order: [['Nombre', 'ASC']] });
   }
 
   async getById(id, auditContext = null) {

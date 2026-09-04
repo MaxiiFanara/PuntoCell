@@ -9,7 +9,9 @@ export default class BateriaService {
 
   async getAll(query = {}) {
     const { page, limit } = query;
-    return await this.bateriaDAO.getAll({ page, limit, attributes: this.ATTRIBUTES });
+    // Se ordena por Porcentaje (numérico) en vez de alfabético por Capacidad: acá el
+    // orden útil para el usuario es "mejor estado primero", no A→Z de la etiqueta.
+    return await this.bateriaDAO.getAll({ page, limit, attributes: this.ATTRIBUTES, order: [['Porcentaje', 'DESC']] });
   }
 
   async getById(id, auditContext = null) {

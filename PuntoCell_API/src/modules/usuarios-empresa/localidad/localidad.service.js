@@ -9,10 +9,11 @@ export default class LocalidadService {
 
   async getAll(query = {}) {
     const { page, limit } = query;
-    return await this.localidadDAO.getAll({ 
-      page, 
-      limit, 
-      attributes: this.ATTRIBUTES 
+    return await this.localidadDAO.getAll({
+      page,
+      limit,
+      attributes: this.ATTRIBUTES,
+      order: [['Nombre', 'ASC']]
     });
   }
 

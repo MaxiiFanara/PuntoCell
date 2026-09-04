@@ -10,7 +10,7 @@ export default class FallaService {
 
   async getAll(query = {}) {
     const { page, limit } = query;
-    return await this.fallaDAO.getAll({ page, limit, where: { Activa: true } });
+    return await this.fallaDAO.getAll({ page, limit, where: { Activa: true }, order: [['Nombre', 'ASC']] });
   }
 
   async getById(id) {

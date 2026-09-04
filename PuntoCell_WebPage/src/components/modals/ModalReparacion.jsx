@@ -83,7 +83,10 @@ const CampoReadonly = ({ label, value }) => (
       bgcolor: 'pc.surfaceMuted', border: 1, borderColor: 'divider',
       display: 'flex', alignItems: 'center',
     }}>
-      <Typography sx={{ fontSize: '.8125rem', fontWeight: 600, color: value ? 'text.primary' : 'text.disabled' }}>
+      {/* minWidth:0 es necesario porque este Typography es un hijo flex: sin él,
+          min-width:auto le impide achicarse y valores largos (ej. localidades como
+          "villa carlos paz") desbordan el box en vez de hacer wrap. */}
+      <Typography sx={{ fontSize: '.8125rem', fontWeight: 600, color: value ? 'text.primary' : 'text.disabled', minWidth: 0, whiteSpace: 'normal', wordBreak: 'break-word' }}>
         {value || '—'}
       </Typography>
     </Box>
