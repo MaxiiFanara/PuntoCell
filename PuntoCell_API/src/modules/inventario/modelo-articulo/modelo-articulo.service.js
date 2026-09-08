@@ -18,7 +18,8 @@ export default class ModeloArticuloService {
   async getAll(query = {}, auditContext = null) {
     try {
       return await this.modeloDAO.getAll({
-        attributes: this.ATTRIBUTES
+        attributes: this.ATTRIBUTES,
+        order: [['Nombre', 'ASC']]
       });
     } catch (error) {
       console.error("🔥 ERROR EXACTO DE SQL:", error.message);

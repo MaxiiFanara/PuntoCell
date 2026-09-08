@@ -11,7 +11,8 @@ export default class ProveedorService {
     return await this.proveedorDAO.getAll({
       page,
       limit,
-      where: { Activo: true }
+      where: { Activo: true },
+      order: [['Nombre', 'ASC']]
     });
   }
 

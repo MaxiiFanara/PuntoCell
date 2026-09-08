@@ -71,7 +71,18 @@ export default function PreciosScreen() {
   useEffect(() => { cargarTodo(); }, [cargarTodo]);
 
   const pagListas = usePaginacion(listas);
-  const pagInv = usePaginacion(inventario);
+
+  // Actualizador de Precio: Categoría ASC → Nombre ASC.
+  const inventarioOrdenado = useMemo(() => {
+    const catNombre = (idCat) => categorias.find((c) => (c.Id ?? c.id) === idCat)?.Nombre || '';
+    return [...inventario].sort((a, b) => {
+      const cmpCat = catNombre(a.articulo?.modelo?.IdCategoriaArticulo)
+        .localeCompare(catNombre(b.articulo?.modelo?.IdCategoriaArticulo), 'es', { sensitivity: 'base' });
+      if (cmpCat !== 0) return cmpCat;
+      return (a.articulo?.Nombre || '').localeCompare(b.articulo?.Nombre || '', 'es', { sensitivity: 'base' });
+    });
+  }, [inventario, categorias]);
+  const pagInv = usePaginacion(inventarioOrdenado);
 
   const [listaSel, setListaSel] = useState(LISTA_MINORISTA_ID);
   const listaSelObj = useMemo(
@@ -94,7 +105,7 @@ export default function PreciosScreen() {
     <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
       <PageHeader
         eyebrow="Ingeniería de precios"
-        title="Listas y precios de venta"
+        title="Actualizador de Precio"
         meta={`${listas.length} ${listas.length === 1 ? 'lista' : 'listas'} · ${inventario.length} productos vendibles`}
       />
 
@@ -115,7 +126,7 @@ export default function PreciosScreen() {
                 CostoReal (CostoBase × 1.26) × (1 + % / 100).
               </Typography>
               <Button variant="contained" startIcon={<AddIcon sx={{ fontSize: '16px !important' }} />} onClick={() => setListaEditar({ nuevo: true })}>
-                Nueva Lista
+                Registrar Lista
               </Button>
             </Box>
 

@@ -314,7 +314,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
         {/* Cabecera */}
         <Box sx={{ bgcolor: 'pc.surfaceMuted', border: 1, borderColor: 'divider', p: 2, borderRadius: '9px', mb: 3 }}>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <Autocomplete
                 size="small"
                 options={cat.proveedores}
@@ -325,7 +325,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
                 renderInput={(params) => <TextField {...params} label="Proveedor *" />}
               />
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid size={{ xs: 6, sm: 3 }}>
               <TextField
                 fullWidth size="small" type="date" label="Fecha"
                 value={fecha}
@@ -335,12 +335,12 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
                 helperText="Se registra siempre con la fecha de hoy"
               />
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid size={{ xs: 6, sm: 3 }}>
               <TextField select fullWidth size="small" label="Sucursal destino *" value={idSucursal} onChange={(e) => setIdSucursal(e.target.value)}>
                 {cat.sucursales.map((s) => <MenuItem key={s.Id ?? s.id} value={s.Id ?? s.id}>{s.Nombre ?? s.nombre}</MenuItem>)}
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={2}>
+            <Grid size={{ xs: 12, sm: 2 }}>
               <TextField fullWidth size="small" type="date" label="Garantía local" InputLabelProps={{ shrink: true }} value={garantiaLocal} onChange={(e) => setGarantiaLocal(e.target.value)} />
             </Grid>
           </Grid>
@@ -381,15 +381,15 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
                 </ToggleButtonGroup>
 
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={4}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
                     <ComboId label="Categoría *" options={categoriasOpts(l.clasificacion)}
                       valueId={l.idCategoria} onPick={(v) => setLinea(i, { idCategoria: v })} />
                   </Grid>
-                  <Grid item xs={12} sm={4}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
                     <ComboId label="Marca *" options={marcasOpts(l)} disabled={!l.idCategoria}
                       valueId={l.idMarca} onPick={(v) => setLinea(i, { idMarca: v })} />
                   </Grid>
-                  <Grid item xs={12} sm={4}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
                     <ComboId label="Modelo *" options={modelosOpts(l)} disabled={!l.idCategoria}
                       valueId={l.idModelo} onPick={(v) => setLinea(i, { idModelo: v })} />
                   </Grid>
@@ -414,21 +414,21 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
 
             {/* Cantidad / costo / specs */}
             <Grid container spacing={2} sx={{ mt: 0.5 }}>
-              <Grid item xs={4} sm={2}>
+              <Grid size={{ xs: 4, sm: 2 }}>
                 <TextField fullWidth size="small" label="Cantidad" value={l.cantidad}
                   disabled={serial}
                   inputProps={{ inputMode: 'numeric' }}
                   onChange={(e) => setLinea(i, { cantidad: soloEnteroPositivo(e.target.value) })}
                   helperText={serial ? 'Serializado: 1' : ' '} />
               </Grid>
-              <Grid item xs={4} sm={2}>
+              <Grid size={{ xs: 4, sm: 2 }}>
                 <NumberField fullWidth size="small" label="Costo Unit. (U$S)" value={l.costo}
                   onChange={(e) => setLinea(i, { costo: e.target.value })}
                   helperText={Number(l.costo) > 0 ? `≈ $ ${Math.round(Number(l.costo) * dolarGlobal).toLocaleString('es-AR')}` : ' '} />
               </Grid>
 
               {mostrarColor && (
-                <Grid item xs={4} sm={2}>
+                <Grid size={{ xs: 4, sm: 2 }}>
                   <EntityAutocomplete label="Color" options={cat.colores}
                     value={l.idColor} onChange={(id) => setLinea(i, { idColor: id })} />
                 </Grid>
@@ -436,17 +436,17 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
 
               {serial && (
                 <>
-                  <Grid item xs={4} sm={3}>
+                  <Grid size={{ xs: 4, sm: 3 }}>
                     <EntityAutocomplete label="Memoria" options={cat.memorias}
                       getLabel={(m) => m.Capacidad ?? m.capacidad ?? ''}
                       value={l.idMemoria} onChange={(id) => setLinea(i, { idMemoria: id })} />
                   </Grid>
-                  <Grid item xs={4} sm={3}>
+                  <Grid size={{ xs: 4, sm: 3 }}>
                     <EntityAutocomplete label="Batería" options={cat.baterias}
                       getLabel={(b) => (b.Porcentaje ?? b.porcentaje) != null ? `${b.Porcentaje ?? b.porcentaje}%` : (b.Nombre ?? b.nombre ?? '')}
                       value={l.idBateria} onChange={(id) => setLinea(i, { idBateria: id })} />
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                       {l.imeis.map((imei, k) => (
                         <TextField key={k} size="small" label={`IMEI ${k + 1} *`} value={imei}
@@ -483,7 +483,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
 
         {/* Pago */}
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={4}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <TextField select fullWidth size="small" label="Condición de pago" value={condicion} onChange={(e) => setCondicion(e.target.value)}>
               <MenuItem value="contado">Contado (pago total)</MenuItem>
               <MenuItem value="parcial">Pago parcial</MenuItem>
@@ -491,19 +491,19 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
             </TextField>
           </Grid>
           {condicion !== 'credito' && (
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField select fullWidth size="small" label="Método de pago" value={idMetodoPago} onChange={(e) => setIdMetodoPago(e.target.value)}>
                 {cat.metodos.map((m) => <MenuItem key={m.Id ?? m.id} value={m.Id ?? m.id}>{m.Nombre ?? m.nombre}</MenuItem>)}
               </TextField>
             </Grid>
           )}
           {condicion === 'parcial' && (
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <NumberField fullWidth size="small" label="Monto a pagar ahora" value={montoParcial}
                 onChange={(e) => setMontoParcial(e.target.value)} />
             </Grid>
           )}
-          <Grid item xs={12} sx={{ textAlign: 'right' }}>
+          <Grid size={12} sx={{ textAlign: 'right' }}>
             <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: 1 }}>
               <Typography sx={{ fontSize: '.84rem', color: 'text.secondary', fontWeight: 600 }}>Total:</Typography>
               <Money ars={total * dolarGlobal} usd={total} size="lg" />

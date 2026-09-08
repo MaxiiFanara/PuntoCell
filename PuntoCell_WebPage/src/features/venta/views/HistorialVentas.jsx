@@ -23,6 +23,7 @@ import FilterBar, { FilterField } from '../../../components/ui/FilterBar';
 import TablePager from '../../../components/ui/TablePager';
 
 const FILAS_POR_PAGINA = 10;
+const FILAS_POR_PAGINA_DEUDAS = 5;
 const FILTROS_VACIOS = { cliente: '', producto: '', idEmpleado: '', desde: null, hasta: null, montoMin: '' };
 
 const fechaCorta = (d) => new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -55,6 +56,7 @@ const HistorialVentas = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [pagina, setPagina] = useState(1);
+  const [paginaDeudas, setPaginaDeudas] = useState(1);
 
   const [deudas, setDeudas] = useState([]);
   const [deudasLoading, setDeudasLoading] = useState(false);
@@ -100,8 +102,9 @@ const HistorialVentas = () => {
         })
         .sort((a, b) => a.diasRestantes - b.diasRestantes);
       setDeudas(pendientes);
+      setPaginaDeudas(1);
     } catch (err) {
-      setDeudasError(err.message || 'No se pudieron cargar las cuentas a cobrar.');
+      setDeudasError(err.message || 'No se pudieron cargar las cuotas por cobrar.');
     } finally {
       setDeudasLoading(false);
     }
@@ -186,6 +189,12 @@ const HistorialVentas = () => {
   const desdeFila = ventas.length ? (paginaSegura - 1) * FILAS_POR_PAGINA + 1 : 0;
   const hastaFila = Math.min(paginaSegura * FILAS_POR_PAGINA, ventas.length);
   const ventasPaginadas = ventas.slice((paginaSegura - 1) * FILAS_POR_PAGINA, paginaSegura * FILAS_POR_PAGINA);
+
+  const totalPaginasDeudas = Math.max(1, Math.ceil(deudas.length / FILAS_POR_PAGINA_DEUDAS));
+  const paginaDeudasSegura = Math.min(paginaDeudas, totalPaginasDeudas);
+  const desdeDeuda = deudas.length ? (paginaDeudasSegura - 1) * FILAS_POR_PAGINA_DEUDAS + 1 : 0;
+  const hastaDeuda = Math.min(paginaDeudasSegura * FILAS_POR_PAGINA_DEUDAS, deudas.length);
+  const deudasPaginadas = deudas.slice((paginaDeudasSegura - 1) * FILAS_POR_PAGINA_DEUDAS, paginaDeudasSegura * FILAS_POR_PAGINA_DEUDAS);
 
   // Chips de filtros activos: quitar uno vuelve a buscar sin él.
   const chipsActivos = useMemo(() => {
@@ -481,13 +490,13 @@ const HistorialVentas = () => {
         </Box>
 
         {/* ─── Panel de cuentas a cobrar ───────────────────────── */}
-        <Paper component="aside" aria-label="Cuentas a cobrar" sx={{ position: { xl: 'sticky' }, top: 68, overflow: 'hidden' }}>
+        <Paper component="aside" aria-label="Cuotas por cobrar" sx={{ position: { xl: 'sticky' }, top: 68, overflow: 'hidden' }}>
           <Box sx={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5,
             p: '12px 15px', borderBottom: 1, borderColor: 'pc.dividerSoft',
           }}>
             <Typography sx={{ fontWeight: 600, fontSize: '.84rem', letterSpacing: '-.01em' }}>
-              Cuentas a cobrar
+              Cuotas por cobrar
             </Typography>
             {resumen.vencidas > 0 && (
               <StatusPill tone="late" label={`${resumen.vencidas} ${resumen.vencidas === 1 ? 'vencida' : 'vencidas'}`} />
@@ -505,7 +514,7 @@ const HistorialVentas = () => {
           </Box>
 
           {deudasLoading && (
-            <Box sx={{ p: '20px 15px', color: 'text.disabled', fontSize: '.78rem' }}>Cargando cuentas a cobrar…</Box>
+            <Box sx={{ p: '20px 15px', color: 'text.disabled', fontSize: '.78rem' }}>Cargando cuotas por cobrar…</Box>
           )}
           {!deudasLoading && deudasError && (
             <Box sx={{ p: '20px 15px', color: 'error.main', fontSize: '.78rem' }}>{deudasError}</Box>
@@ -514,7 +523,7 @@ const HistorialVentas = () => {
             <Box sx={{ p: '20px 15px', color: 'text.disabled', fontSize: '.78rem' }}>No hay cuotas pendientes de cobro.</Box>
           )}
 
-          {!deudasLoading && !deudasError && deudas.map((deuda, i) => (
+          {!deudasLoading && !deudasError && deudasPaginadas.map((deuda, i) => (
             <Box
               key={deuda.idCuota}
               sx={{
@@ -561,6 +570,18 @@ const HistorialVentas = () => {
               </Box>
             </Box>
           ))}
+
+          {!deudasLoading && !deudasError && deudas.length > 0 && (
+            <TablePager
+              page={paginaDeudasSegura}
+              pageCount={totalPaginasDeudas}
+              from={desdeDeuda}
+              to={hastaDeuda}
+              total={deudas.length}
+              unidad={deudas.length === 1 ? 'cuota' : 'cuotas'}
+              onChange={setPaginaDeudas}
+            />
+          )}
 
           {!deudasLoading && !deudasError && deudas.length > 0 && (
             <Box sx={{ p: '11px 15px', borderTop: 1, borderColor: 'pc.dividerSoft', bgcolor: 'pc.surfaceMuted' }}>

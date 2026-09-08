@@ -9,7 +9,7 @@ export default class MarcaArticuloService {
 
   async getAll(query = {}) {
     const { page, limit } = query;
-    return await this.marcaDAO.getAll({ page, limit, attributes: this.ATTRIBUTES });
+    return await this.marcaDAO.getAll({ page, limit, attributes: this.ATTRIBUTES, order: [['Nombre', 'ASC']] });
   }
 
   async getById(id, auditContext = null) {
