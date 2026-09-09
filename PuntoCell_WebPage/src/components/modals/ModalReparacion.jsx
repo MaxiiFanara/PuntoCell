@@ -5,7 +5,7 @@ import {
   Button, TextField, Alert, Snackbar, CircularProgress,
   Typography, Checkbox, FormControlLabel,
   Chip, Box, IconButton, MenuItem, Autocomplete,
-  InputAdornment, Table, TableBody, TableCell, TableHead, TableRow,
+  InputAdornment, Table, TableBody, TableCell, TableHead, TableRow, Skeleton,
 } from '@mui/material'
 import BuildIcon from '@mui/icons-material/Build'
 import EditIcon from '@mui/icons-material/Edit'
@@ -29,6 +29,7 @@ import ModalRegistroFalla from './ModalRegistroFalla'
 import StatusPill from '../ui/StatusPill'
 import Money from '../ui/Money'
 import NumberField from '../ui/NumberField'
+import SkeletonFilas from '../ui/SkeletonFilas'
 import { soloImei, esImeiValido } from '../../utils/validators'
 import { useVenta } from '../../features/punto-venta/context/VentaContext'
 
@@ -109,6 +110,7 @@ const ModalReparacion = ({
   const [clienteEncontrado, setClienteEncontrado] = useState(false)
   const [clienteNuevo, setClienteNuevo]           = useState(false)
   const [fallasPorTipo, setFallasPorTipo]         = useState([])
+  const [loadingFallas, setLoadingFallas]         = useState(false)
   const [loading, setLoading]                     = useState(false)
   const [buscandoCliente, setBuscandoCliente]     = useState(false)
   const [error, setError]                         = useState('')
@@ -281,8 +283,12 @@ const ModalReparacion = ({
 
   // Fallas por tipo
   useEffect(() => {
-    if (form.idTipo) getFallasPorTipo(Number(form.idTipo)).then(setFallasPorTipo)
-    else setFallasPorTipo([])
+    if (form.idTipo) {
+      setLoadingFallas(true)
+      getFallasPorTipo(Number(form.idTipo)).then(setFallasPorTipo).finally(() => setLoadingFallas(false))
+    } else {
+      setFallasPorTipo([])
+    }
   }, [form.idTipo])
 
   const set = (field) => (e) => {
@@ -726,8 +732,8 @@ const ModalReparacion = ({
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end', flexWrap: 'wrap', mb: 1.5 }}>
                 <Campo label="Seleccionar falla" sx={{ minWidth: 220 }}>
                   <TextField select fullWidth value={form.fallaSeleccionada}
-                    onChange={set('fallaSeleccionada')} disabled={!form.idTipo}>
-                    <MenuItem value="">Seleccione…</MenuItem>
+                    onChange={set('fallaSeleccionada')} disabled={!form.idTipo || loadingFallas}>
+                    <MenuItem value="">{loadingFallas ? 'Cargando fallas…' : 'Seleccione…'}</MenuItem>
                     {fallasPorTipo.map(f => <MenuItem key={f.id} value={f}>{f.nombre}</MenuItem>)}
                   </TextField>
                 </Campo>
@@ -740,13 +746,13 @@ const ModalReparacion = ({
                     Seleccioná un tipo de dispositivo primero
                   </Typography>
                 )}
-                {form.idTipo && fallasPorTipo.length === 0 && puedeGestionarFallas && (
+                {form.idTipo && fallasPorTipo.length === 0 && !loadingFallas && puedeGestionarFallas && (
                   <Button variant="outlined" startIcon={<AddCircleOutlineIcon sx={{ fontSize: 16 }} />} onClick={() => setModalFallaOpen(true)}
                     sx={{ height: 32 }}>
                     Agregar falla al catálogo
                   </Button>
                 )}
-                {form.idTipo && fallasPorTipo.length === 0 && !puedeGestionarFallas && (
+                {form.idTipo && fallasPorTipo.length === 0 && !loadingFallas && !puedeGestionarFallas && (
                   <Typography sx={{ fontSize: '.72rem', color: 'text.disabled', fontStyle: 'italic' }}>
                     No hay fallas cargadas para este tipo — pedile a un administrador o encargado que agregue una.
                   </Typography>
@@ -781,9 +787,24 @@ const ModalReparacion = ({
               subtitle={modoSoloLectura ? 'Repuestos registrados en esta orden' : puedeGestionarRepuestos ? 'Podés agregar o quitar repuestos' : 'Gestión disponible en estado "En reparación"'}>
 
               {loadingEditData ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-                  <CircularProgress size={26} />
-                </Box>
+                <>
+                  <Skeleton variant="rounded" height={40} sx={{ mb: 1.75 }} />
+                  <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '9px', overflow: 'hidden' }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Repuesto</TableCell>
+                          <TableCell align="center" sx={{ width: 120 }}>Cantidad</TableCell>
+                          <TableCell align="right" sx={{ width: 130 }}>Precio unit.</TableCell>
+                          <TableCell align="right" sx={{ width: 110 }}>Subtotal</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        <SkeletonFilas filas={3} columnas={4} />
+                      </TableBody>
+                    </Table>
+                  </Box>
+                </>
               ) : (
                 <>
                   {puedeGestionarRepuestos && !modoSoloLectura && (
@@ -1010,6 +1031,20 @@ const ModalReparacion = ({
           {/* Resumen financiero */}
           {showResumen && (
             <Seccion title="Resumen de costos">
+              {loadingEditData ? (
+                <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '9px', overflow: 'hidden' }}>
+                  {[0, 1].map(i => (
+                    <Box key={i} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: '15px', py: '11px', borderBottom: 1, borderColor: 'pc.dividerSoft' }}>
+                      <Skeleton width={90} height={18} />
+                      <Skeleton width={110} height={22} />
+                    </Box>
+                  ))}
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: '15px', py: '13px', bgcolor: 'pc.accentSoft' }}>
+                    <Skeleton width={70} height={20} />
+                    <Skeleton width={130} height={28} />
+                  </Box>
+                </Box>
+              ) : (
               <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '9px', overflow: 'hidden' }}>
 
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: '15px', py: '11px', borderBottom: 1, borderColor: 'pc.dividerSoft' }}>
@@ -1100,12 +1135,17 @@ const ModalReparacion = ({
                   </Box>
                 )}
               </Box>
+              )}
             </Seccion>
           )}
 
           {/* Detalles */}
           <Seccion title="Detalles de la orden">
-            {modoSoloLectura ? (
+            {loadingEditData ? (
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0,1fr))' }, gap: 1.5 }}>
+                {[0, 1, 2].map(i => <Skeleton key={i} variant="rounded" height={32} />)}
+              </Box>
+            ) : modoSoloLectura ? (
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0,1fr))' }, gap: 1.5 }}>
                 <CampoReadonly label="Fecha de ingreso" value={ordenEditar?.FechaEmision?.split('T')[0] ?? ordenEditar?.FechaEmision ?? '–'} />
                 <CampoReadonly label="Estado" value={ordenEditar?.Estado} />

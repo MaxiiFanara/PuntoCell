@@ -4,7 +4,7 @@ import StatusPill from '../../../components/ui/StatusPill';
 import Money from '../../../components/ui/Money';
 import { useVenta } from '../../punto-venta/context/VentaContext';
 
-export default function KpiCards({ compras }) {
+export default function KpiCards({ compras, loading }) {
   // c.total/c.saldo son USD (fuente de verdad, ver compra.service.js); dolarGlobal solo
   // se usa para mostrar el equivalente en pesos.
   const { dolarGlobal } = useVenta();
@@ -18,12 +18,14 @@ export default function KpiCards({ compras }) {
       <KpiCard
         eyebrow="Total comprado"
         tone="accent"
+        loading={loading}
         value={<Money ars={totalComprado * dolarGlobal} usd={totalComprado} align="left" size="lg" />}
         sub={`${compras.length} ${compras.length === 1 ? 'factura registrada' : 'facturas registradas'}`}
       />
       <KpiCard
         eyebrow="Cuentas por pagar"
         tone="warn"
+        loading={loading}
         value={<Money ars={deuda * dolarGlobal} usd={deuda} align="left" size="lg" />}
         sub={`${adeudadas.length} ${adeudadas.length === 1 ? 'factura con saldo' : 'facturas con saldo'}`}
         badge={adeudadas.length > 0 ? <StatusPill tone="due" label="Pendiente" /> : null}
@@ -31,6 +33,7 @@ export default function KpiCards({ compras }) {
       <KpiCard
         eyebrow="Pagadas"
         tone="ok"
+        loading={loading}
         value={pagadas}
         sub={`de ${compras.length} ${compras.length === 1 ? 'operación' : 'operaciones'}`}
       />

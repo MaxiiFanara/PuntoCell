@@ -11,14 +11,18 @@ import Money from '../../../components/ui/Money';
 export const CarritoSection = ({ onBuscar }) => {
   const { carrito, eliminarDelCarrito, dolarGlobal } = useVenta();
   const [resultadosBusqueda, setResultadosBusqueda] = useState([]);
+  const [buscando, setBuscando] = useState(false);
 
   const handleEjecutarBusqueda = async (termino) => {
     if (!termino) {
       setResultadosBusqueda([]);
+      setBuscando(false);
       return;
     }
+    setBuscando(true);
     const data = await onBuscar(termino);
     setResultadosBusqueda(data || []);
+    setBuscando(false);
   };
 
   const ars = (usd) => usd * (dolarGlobal || 0);
@@ -29,7 +33,7 @@ export const CarritoSection = ({ onBuscar }) => {
 
       {/* Buscador: es la acción principal de la pantalla, va arriba y solo. */}
       <Paper sx={{ p: '13px 15px' }}>
-        <ProductoSearch inventario={resultadosBusqueda} onTerminoChange={handleEjecutarBusqueda} />
+        <ProductoSearch inventario={resultadosBusqueda} onTerminoChange={handleEjecutarBusqueda} loading={buscando} />
       </Paper>
 
       <Paper sx={{ overflow: 'hidden' }}>

@@ -3,7 +3,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
   Button, IconButton, Typography, Chip, Dialog, DialogTitle, DialogContent,
   DialogContentText, TextField, DialogActions, Box, Tooltip, Avatar, FormControl,
-  InputLabel, Select, MenuItem, Alert,
+  InputLabel, Select, MenuItem, Alert, Skeleton,
 } from '@mui/material';
 import { Edit, Delete, PersonAdd, Email, WarningAmber } from '@mui/icons-material';
 import { usuariosService } from '../../../../services/usuariosServices';
@@ -141,9 +141,7 @@ const UsersScreen = () => {
     }
   };
 
-  const mensajeTabla = loading
-    ? 'Cargando usuarios…'
-    : (users.length === 0 ? 'No hay usuarios cargados.' : null);
+  const mensajeTabla = users.length === 0 ? 'No hay usuarios cargados.' : null;
 
   return (
     <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
@@ -184,7 +182,23 @@ const UsersScreen = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {mensajeTabla ? (
+              {loading ? (
+                Array.from({ length: 7 }).map((_, i) => (
+                  <TableRow key={`sk-${i}`}>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                        <Skeleton variant="circular" width={32} height={32} sx={{ opacity: 0.5 - i * 0.05 }} />
+                        <Skeleton variant="text" width={120} height={14} sx={{ opacity: 0.5 - i * 0.05 }} />
+                      </Box>
+                    </TableCell>
+                    {Array.from({ length: 5 }).map((__, c) => (
+                      <TableCell key={c}>
+                        <Skeleton variant="rounded" height={14} sx={{ borderRadius: 1, opacity: 0.5 - i * 0.05 }} />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : mensajeTabla ? (
                 <TableRow>
                   <TableCell colSpan={6} sx={{ height: 120, textAlign: 'center', color: 'text.disabled' }}>
                     {mensajeTabla}

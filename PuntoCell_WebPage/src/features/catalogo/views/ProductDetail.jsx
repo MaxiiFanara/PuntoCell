@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Grid, Typography, Button, Box, Alert } from '@mui/material';
+import { Container, Grid, Typography, Button, Box, Alert, Skeleton } from '@mui/material';
 import ProductInfoSection from './ProductInfoSection';
 import ProductCard from '../components/ProductCard';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -14,13 +14,33 @@ export default function ProductDetail() {
   const theme = useTheme();
   const { id } = useParams();
   const navigate = useNavigate();
-  const { products } = useProducts();
+  const { products, loading } = useProducts();
   const { addToCart } = useCart();
   const product = products.find((p) => p.id === id);
   const relatedProducts = products.filter((p) => p.id !== product?.id && p.category === product?.category).slice(0, 4);
   const [selectedImage, setSelectedImage] = useState(product?.image);
-  
+
   useEffect(() => { if (product?.image) setSelectedImage(product.image); }, [product]);
+
+  if (loading) return (
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', py: { xs: 4, md: 8 } }}>
+      <Container maxWidth="xl">
+        <Skeleton variant="text" width={100} height={40} sx={{ mb: 4 }} />
+        <Grid container spacing={{ xs: 5, md: 8 }}>
+          <Grid item xs={12} md={6}>
+            <Skeleton variant="rounded" sx={{ width: '100%', height: { xs: 360, md: 600 }, borderRadius: 6 }} />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Skeleton variant="text" sx={{ fontSize: '2rem', width: '70%' }} />
+            <Skeleton variant="text" sx={{ fontSize: '1.5rem', width: '40%', mb: 2 }} />
+            <Skeleton variant="text" sx={{ width: '100%' }} />
+            <Skeleton variant="text" sx={{ width: '90%' }} />
+            <Skeleton variant="text" sx={{ width: '80%' }} />
+          </Grid>
+        </Grid>
+      </Container>
+    </Box>
+  );
 
   if (!product) return (
     <Container sx={{ py: 10, textAlign: 'center' }}>

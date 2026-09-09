@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Box, Button, Paper, Table, TableBody, TableCell,
+  Box, Button, Paper, Skeleton, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Typography,
 } from '@mui/material';
 import { Print, ArrowBack, VerifiedUser } from '@mui/icons-material';
@@ -9,6 +9,7 @@ import { ventasService } from '../../../services/ventasServices';
 
 import StatusPill from '../../../components/ui/StatusPill';
 import Money from '../../../components/ui/Money';
+import SkeletonFilas from '../../../components/ui/SkeletonFilas';
 
 // Traduce la respuesta cruda del backend (Venta + asociaciones) a la forma plana
 // que espera este componente de ticket.
@@ -122,15 +123,18 @@ const TicketDetalle = () => {
   }, [id]);
 
   if (error) return <Box sx={{ p: 5, textAlign: 'center', color: 'error.main' }}>{error}</Box>;
-  if (!venta) return <Box sx={{ p: 5, textAlign: 'center', color: 'text.disabled' }}>Cargando datos del ticket…</Box>;
+
+  // Mantenemos el layout montado durante la carga y reemplazamos cada bloque por su
+  // molde de skeleton: el contenido es muy predecible (franja + tabla + 3 tarjetas).
+  const cargando = !venta;
 
   // Cotización de la venta, no la del día: un comprobante histórico se lee al
   // valor con el que se emitió.
-  const cotizacion = venta.pagos?.[0]?.cotizacionDolar || 0;
+  const cotizacion = venta?.pagos?.[0]?.cotizacionDolar || 0;
   const ars = (usd) => (cotizacion > 0 ? usd * cotizacion : 0);
-  const totalPagado = venta.pagos?.reduce((acc, p) => acc + p.monto, 0) || 0;
-  const saldada = totalPagado >= venta.totalVenta;
-  const unidades = venta.detalleVenta.reduce((a, d) => a + (d.cantidad || 0), 0);
+  const totalPagado = venta?.pagos?.reduce((acc, p) => acc + p.monto, 0) || 0;
+  const saldada = !cargando && totalPagado >= venta.totalVenta;
+  const unidades = venta?.detalleVenta?.reduce((a, d) => a + (d.cantidad || 0), 0) || 0;
 
   return (
     <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
@@ -150,11 +154,20 @@ const TicketDetalle = () => {
           <Box>
             <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>Venta</Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.375, mt: '2px' }}>
-              <Typography variant="h3" component="h1" className="mono">#{venta.id}</Typography>
-              <StatusPill tone={saldada ? 'ok' : 'due'} label={saldada ? 'Pagada' : 'Pendiente'} />
+              {cargando ? (
+                <>
+                  <Skeleton variant="text" width={70} sx={{ fontSize: '2.1rem' }} />
+                  <Skeleton variant="rounded" width={72} height={22} sx={{ borderRadius: '999px' }} />
+                </>
+              ) : (
+                <>
+                  <Typography variant="h3" component="h1" className="mono">#{venta.id}</Typography>
+                  <StatusPill tone={saldada ? 'ok' : 'due'} label={saldada ? 'Pagada' : 'Pendiente'} />
+                </>
+              )}
             </Box>
             <Typography sx={{ mt: '1px', fontSize: '.78rem', color: 'text.secondary' }}>
-              Registrada el {fechaLarga(venta.fechaISO)} a las {hora(venta.fechaISO)}
+              {cargando ? <Skeleton variant="text" width={220} /> : `Registrada el ${fechaLarga(venta.fechaISO)} a las ${hora(venta.fechaISO)}`}
             </Typography>
           </Box>
           <Button
@@ -173,26 +186,36 @@ const TicketDetalle = () => {
           gridTemplateColumns: { xs: 'repeat(2,minmax(0,1fr))', md: 'repeat(4,minmax(0,1fr))' },
           overflow: 'hidden',
         }}>
-          {[
+          {(cargando ? Array.from({ length: 4 }) : [
             { label: 'Cliente',   val: `${venta.clienteNombre} ${venta.clienteApellido}`.trim() || '—', sub: `DNI ${venta.clienteDni}`, subMono: true },
             { label: 'Vendedor',  val: venta.vendedorNombre, sub: `Sucursal ${venta.sucursalNombre}` },
             { label: 'Cotización aplicada', val: cotizacion > 0 ? `$ ${cotizacion.toLocaleString('es-AR')}` : '—', sub: 'Al momento de la venta', valMono: true },
             { label: 'Comprobante', val: `#${venta.id}`, sub: venta.fecha, valMono: true },
-          ].map((m, i) => (
-            <Box key={m.label} sx={{
+          ]).map((m, i) => (
+            <Box key={m?.label ?? i} sx={{
               p: '12px 15px',
               borderLeft: { xs: i % 2 === 0 ? 0 : 1, md: i === 0 ? 0 : 1 },
               borderColor: 'pc.dividerSoft',
             }}>
-              <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>{m.label}</Box>
-              <Typography className={m.valMono ? 'mono' : undefined}
-                sx={{ fontWeight: 600, fontSize: '.84rem', mt: '3px', letterSpacing: '-.01em' }}>
-                {m.val}
-              </Typography>
-              <Typography className={m.subMono ? 'mono' : undefined}
-                sx={{ color: 'text.disabled', fontSize: '.69rem' }}>
-                {m.sub}
-              </Typography>
+              {cargando ? (
+                <>
+                  <Skeleton variant="text" width={70} sx={{ fontSize: '.63rem' }} />
+                  <Skeleton variant="text" width="80%" sx={{ fontSize: '.84rem', mt: '3px' }} />
+                  <Skeleton variant="text" width="55%" sx={{ fontSize: '.69rem' }} />
+                </>
+              ) : (
+                <>
+                  <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>{m.label}</Box>
+                  <Typography className={m.valMono ? 'mono' : undefined}
+                    sx={{ fontWeight: 600, fontSize: '.84rem', mt: '3px', letterSpacing: '-.01em' }}>
+                    {m.val}
+                  </Typography>
+                  <Typography className={m.subMono ? 'mono' : undefined}
+                    sx={{ color: 'text.disabled', fontSize: '.69rem' }}>
+                    {m.sub}
+                  </Typography>
+                </>
+              )}
             </Box>
           ))}
         </Paper>
@@ -205,9 +228,11 @@ const TicketDetalle = () => {
             <Tarjeta
               titulo="Productos"
               extra={
-                <Typography sx={{ color: 'text.disabled', fontSize: '.72rem' }}>
-                  {venta.detalleVenta.length} {venta.detalleVenta.length === 1 ? 'ítem' : 'ítems'} · {unidades} {unidades === 1 ? 'unidad' : 'unidades'}
-                </Typography>
+                cargando ? <Skeleton variant="text" width={100} /> : (
+                  <Typography sx={{ color: 'text.disabled', fontSize: '.72rem' }}>
+                    {venta.detalleVenta.length} {venta.detalleVenta.length === 1 ? 'ítem' : 'ítems'} · {unidades} {unidades === 1 ? 'unidad' : 'unidades'}
+                  </Typography>
+                )
               }
             >
               <TableContainer sx={{ overflowX: 'auto' }}>
@@ -221,7 +246,9 @@ const TicketDetalle = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {venta.detalleVenta.map((det, i) => (
+                    {cargando ? (
+                      <SkeletonFilas filas={3} columnas={['auto', 70, 120, 130]} />
+                    ) : venta.detalleVenta.map((det, i) => (
                       <TableRow key={i}>
                         <TableCell sx={{ height: 'auto', py: 1.5 }}>
                           <Typography sx={{ fontWeight: 600, fontSize: '.84rem', letterSpacing: '-.01em' }}>
@@ -251,12 +278,25 @@ const TicketDetalle = () => {
 
             <Tarjeta
               titulo="Pagos recibidos"
-              extra={<StatusPill tone={saldada ? 'ok' : 'due'} label={saldada ? 'Saldado' : 'Con saldo'} />}
+              extra={cargando
+                ? <Skeleton variant="rounded" width={72} height={22} sx={{ borderRadius: '999px' }} />
+                : <StatusPill tone={saldada ? 'ok' : 'due'} label={saldada ? 'Saldado' : 'Con saldo'} />}
             >
-              {venta.pagos.length === 0 && (
+              {cargando && Array.from({ length: 2 }).map((_, i) => (
+                <Box key={`skeleton-pago-${i}`} sx={{ borderTop: i === 0 ? 0 : 1, borderColor: 'pc.dividerSoft' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, p: '11px 15px' }}>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Skeleton variant="text" width={110} sx={{ fontSize: '.78rem' }} />
+                      <Skeleton variant="text" width={90} sx={{ fontSize: '.69rem' }} />
+                    </Box>
+                    <Skeleton variant="text" width={60} sx={{ fontSize: '.78rem', flex: 'none' }} />
+                  </Box>
+                </Box>
+              ))}
+              {!cargando && venta.pagos.length === 0 && (
                 <Box sx={{ p: '16px 15px', color: 'text.disabled', fontSize: '.78rem' }}>Sin pagos registrados.</Box>
               )}
-              {venta.pagos.map((pago, i) => (
+              {!cargando && venta.pagos.map((pago, i) => (
                 <Box key={i} sx={{ borderTop: i === 0 ? 0 : 1, borderColor: 'pc.dividerSoft' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, p: '11px 15px' }}>
                     <Box sx={{ minWidth: 0 }}>
@@ -287,11 +327,11 @@ const TicketDetalle = () => {
                 p: '11px 15px', borderTop: 1, borderColor: 'pc.dividerSoft', bgcolor: 'pc.surfaceMuted',
               }}>
                 <Typography sx={{ fontWeight: 600, fontSize: '.78rem' }}>Total pagado</Typography>
-                <Money ars={ars(totalPagado)} usd={totalPagado} size="sm" />
+                {cargando ? <Skeleton variant="text" width={60} /> : <Money ars={ars(totalPagado)} usd={totalPagado} size="sm" />}
               </Box>
             </Tarjeta>
 
-            {venta.observaciones && (
+            {!cargando && venta.observaciones && (
               <Tarjeta titulo="Observaciones">
                 <Typography sx={{ p: '12px 15px', color: 'text.secondary', fontSize: '.78rem', lineHeight: 1.55 }}>
                   {venta.observaciones}
@@ -305,7 +345,7 @@ const TicketDetalle = () => {
 
             <Tarjeta titulo="Resumen">
               <Box sx={{ py: 0.5 }}>
-                {venta.bonificacion > 0 && (
+                {!cargando && venta.bonificacion > 0 && (
                   <>
                     <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.75, p: '8px 15px', fontSize: '.78rem' }}>
                       <Box sx={{ color: 'text.secondary' }}>Subtotal</Box>
@@ -326,30 +366,47 @@ const TicketDetalle = () => {
                   p: '12px 15px 8px', mt: 0.5, borderTop: 1, borderColor: 'divider',
                 }}>
                   <Box sx={{ fontWeight: 600, fontSize: '.8125rem' }}>Total</Box>
-                  <Box className="num" sx={{ fontSize: '1.44rem', fontWeight: 600, letterSpacing: '-.035em', color: 'primary.main' }}>
-                    U$S {venta.totalVenta.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </Box>
+                  {cargando ? (
+                    <Skeleton variant="text" width={110} sx={{ fontSize: '1.44rem' }} />
+                  ) : (
+                    <Box className="num" sx={{ fontSize: '1.44rem', fontWeight: 600, letterSpacing: '-.035em', color: 'primary.main' }}>
+                      U$S {venta.totalVenta.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </Box>
+                  )}
                 </Box>
               </Box>
               <Typography className="num" sx={{ p: '0 15px 12px', textAlign: 'right', color: 'text.disabled', fontSize: '.72rem' }}>
-                $ {Math.round(ars(venta.totalVenta)).toLocaleString('es-AR')}
-                {cotizacion > 0 && ` a la cotización de la venta ($ ${cotizacion.toLocaleString('es-AR')})`}
+                {cargando ? <Skeleton variant="text" width={130} sx={{ ml: 'auto' }} /> : (
+                  <>
+                    $ {Math.round(ars(venta.totalVenta)).toLocaleString('es-AR')}
+                    {cotizacion > 0 && ` a la cotización de la venta ($ ${cotizacion.toLocaleString('es-AR')})`}
+                  </>
+                )}
               </Typography>
             </Tarjeta>
 
             <Tarjeta titulo="Comprobante">
-              {[
+              {(cargando ? [null, null, null] : [
                 ['Número', `#${venta.id}`, true],
                 ['Emitido', venta.fecha, true],
                 ['Sucursal', venta.sucursalNombre, false],
-              ].map(([k, v, mono], i) => (
-                <Box key={k} sx={{
+              ]).map((fila, i) => (
+                <Box key={fila ? fila[0] : i} sx={{
                   display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.5,
                   p: '9px 15px', fontSize: '.78rem',
                   borderTop: i === 0 ? 0 : 1, borderColor: 'pc.dividerSoft',
                 }}>
-                  <Box sx={{ color: 'text.disabled' }}>{k}</Box>
-                  <Box className={mono ? 'mono' : undefined} sx={{ fontWeight: 600 }}>{v}</Box>
+                  {cargando ? (
+                    <>
+                      <Skeleton variant="text" width={55} />
+                      <Skeleton variant="text" width={70} />
+                    </>
+                  ) : (
+                    <>
+                      <Box sx={{ color: 'text.disabled' }}>{fila[0]}</Box>
+                      <Box className={fila[2] ? 'mono' : undefined} sx={{ fontWeight: 600 }}>{fila[1]}</Box>
+                    </>
+                  )}
                 </Box>
               ))}
               <Box sx={{
@@ -357,9 +414,11 @@ const TicketDetalle = () => {
                 p: '9px 15px', fontSize: '.78rem', borderTop: 1, borderColor: 'pc.dividerSoft',
               }}>
                 <Box sx={{ color: 'text.disabled' }}>Estado de pago</Box>
-                <Box sx={{ fontWeight: 600, color: saldada ? 'success.main' : 'warning.main' }}>
-                  {saldada ? 'Pagada' : 'Pendiente'}
-                </Box>
+                {cargando ? <Skeleton variant="text" width={60} /> : (
+                  <Box sx={{ fontWeight: 600, color: saldada ? 'success.main' : 'warning.main' }}>
+                    {saldada ? 'Pagada' : 'Pendiente'}
+                  </Box>
+                )}
               </Box>
               <Box sx={{
                 display: 'flex', alignItems: 'center', gap: 1.125, p: '11px 15px',

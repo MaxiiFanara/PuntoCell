@@ -10,7 +10,7 @@ import CloseIcon from '@mui/icons-material/Close'
 import SearchIcon from '@mui/icons-material/Search'
 import FilterBar, { FilterField } from '../ui/FilterBar'
 
-const ModalBuscarDispositivo = ({ open, onClose, tipos, marcas, modelos }) => {
+const ModalBuscarDispositivo = ({ open, onClose, tipos, marcas, modelos, loadingCatalogos = false }) => {
   const [busqueda,     setBusqueda]     = useState('')
   const [idTipoFiltro, setIdTipoFiltro] = useState('')
   const [idMarcaFiltro, setIdMarcaFiltro] = useState('')
@@ -102,9 +102,11 @@ const ModalBuscarDispositivo = ({ open, onClose, tipos, marcas, modelos }) => {
               <Typography sx={{ fontSize: '.8125rem', color: 'text.secondary', fontWeight: 600 }}>
                 Usá los filtros para buscar modelos
               </Typography>
-              <Typography sx={{ fontSize: '.72rem', color: 'text.disabled' }}>
-                Hay {(modelos ?? []).length} modelos registrados en total
-              </Typography>
+              {!loadingCatalogos && (
+                <Typography sx={{ fontSize: '.72rem', color: 'text.disabled' }}>
+                  Hay {(modelos ?? []).length} modelos registrados en total
+                </Typography>
+              )}
             </Box>
           ) : resultados.length === 0 ? (
             <Box sx={{ borderRadius: '9px', border: 1, borderColor: 'divider', bgcolor: 'pc.surfaceMuted', p: 2.5, textAlign: 'center' }}>

@@ -3,7 +3,7 @@ import { Autocomplete, Box, Button, TextField, Typography } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add';
 import { useVenta } from '../context/VentaContext';
 
-export const ProductoSearch = ({ inventario = [], onTerminoChange }) => {
+export const ProductoSearch = ({ inventario = [], onTerminoChange, loading = false }) => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [inputValue, setInputValue] = useState('');
   const { agregarAlCarrito, esMayorista, dolarGlobal, resolverPrecios } = useVenta();
@@ -90,6 +90,8 @@ export const ProductoSearch = ({ inventario = [], onTerminoChange }) => {
         <Autocomplete
           freeSolo
           options={opciones}
+          loading={loading}
+          loadingText="Buscando…"
           inputValue={inputValue}
           onInputChange={(e, value) => setInputValue(value)}
           onChange={(e, option) => option && setSelectedProduct(option.datos)}

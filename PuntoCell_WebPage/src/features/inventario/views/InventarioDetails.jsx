@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Button, Paper, Typography } from '@mui/material';
+import { Box, Button, Paper, Skeleton, Typography } from '@mui/material';
 import { ArrowBack } from '@mui/icons-material';
 import { inventarioService } from '../../../services/inventarioServices';
 import { preciosService, mapVigentePorInventario, idsListasMayoristas, resolverPrecioInventario } from '../../../services/preciosServices';
@@ -110,15 +110,21 @@ const InventarioDetails = () => {
     if (id) fetchDetalle();
   }, [id]);
 
-  if (cargando) {
-    return <Box sx={{ p: 5, textAlign: 'center', color: 'text.disabled' }}>Cargando ficha…</Box>;
-  }
-  if (!item) {
+  if (!cargando && !item) {
     return <Box sx={{ p: 5, textAlign: 'center', color: 'error.main' }}>No se encontró el producto.</Box>;
   }
 
   const ars = (usd) => (dolarGlobal > 0 ? usd * dolarGlobal : 0);
-  const sinPrecio = item.precioMenor === 0 && item.preciosOtrasListas.length === 0;
+  const sinPrecio = item && item.precioMenor === 0 && item.preciosOtrasListas.length === 0;
+
+  const franja = cargando
+    ? [{ label: 'IMEI' }, { label: 'Ubicación' }, { label: 'Stock' }, { label: 'Registrado' }]
+    : [
+        { label: 'IMEI', val: item.imei || 'No posee', mono: true },
+        { label: 'Ubicación', val: item.sucursal },
+        { label: 'Stock', val: item.stock > 0 ? 'Disponible para venta' : 'Sin unidades' },
+        { label: 'Registrado', val: item.createdAt, mono: true },
+      ];
 
   return (
     <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
@@ -135,12 +141,22 @@ const InventarioDetails = () => {
       <Box sx={{ minWidth: 0 }}>
         <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>Ficha de inventario</Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.375, mt: '2px' }}>
-          <Typography variant="h4" component="h1">{item.producto}</Typography>
-          <StatusPill tone={tonoStock(item.stock)} label={`${item.stock} un.`} />
+          {cargando ? (
+            <Skeleton variant="text" width={220} height={40} />
+          ) : (
+            <>
+              <Typography variant="h4" component="h1">{item.producto}</Typography>
+              <StatusPill tone={tonoStock(item.stock)} label={`${item.stock} un.`} />
+            </>
+          )}
         </Box>
-        <Typography className="mono" sx={{ mt: '1px', fontSize: '.78rem', color: 'text.secondary' }}>
-          #{item.id}{item.modelo && ` · ${item.modelo}`}
-        </Typography>
+        {cargando ? (
+          <Skeleton variant="text" width={140} sx={{ mt: '1px' }} />
+        ) : (
+          <Typography className="mono" sx={{ mt: '1px', fontSize: '.78rem', color: 'text.secondary' }}>
+            #{item.id}{item.modelo && ` · ${item.modelo}`}
+          </Typography>
+        )}
       </Box>
 
       {/* ─── Franja de datos ────────────────────────────────── */}
@@ -149,22 +165,21 @@ const InventarioDetails = () => {
         gridTemplateColumns: { xs: 'repeat(2,minmax(0,1fr))', md: 'repeat(4,minmax(0,1fr))' },
         overflow: 'hidden',
       }}>
-        {[
-          { label: 'IMEI',      val: item.imei || 'No posee', mono: true },
-          { label: 'Ubicación', val: item.sucursal },
-          { label: 'Stock',     val: item.stock > 0 ? 'Disponible para venta' : 'Sin unidades' },
-          { label: 'Registrado', val: item.createdAt, mono: true },
-        ].map((m, i) => (
+        {franja.map((m, i) => (
           <Box key={m.label} sx={{
             p: '12px 15px',
             borderLeft: { xs: i % 2 === 0 ? 0 : 1, md: i === 0 ? 0 : 1 },
             borderColor: 'pc.dividerSoft',
           }}>
             <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>{m.label}</Box>
-            <Typography className={m.mono ? 'mono' : undefined}
-              sx={{ fontWeight: 600, fontSize: '.84rem', mt: '3px', letterSpacing: '-.01em' }}>
-              {m.val}
-            </Typography>
+            {cargando ? (
+              <Skeleton variant="text" width={80} sx={{ mt: '3px' }} />
+            ) : (
+              <Typography className={m.mono ? 'mono' : undefined}
+                sx={{ fontWeight: 600, fontSize: '.84rem', mt: '3px', letterSpacing: '-.01em' }}>
+                {m.val}
+              </Typography>
+            )}
           </Box>
         ))}
       </Paper>
@@ -174,21 +189,29 @@ const InventarioDetails = () => {
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.75, minWidth: 0 }}>
           <Tarjeta titulo="Características">
-            <Box sx={{ p: '13px 15px', display: 'flex', alignItems: 'center', gap: 0.625, flexWrap: 'wrap' }}>
-              {item.modelo && <Spec>{item.modelo}</Spec>}
-              {item.color && <Spec>{item.color}</Spec>}
-              {item.memoria && <Spec>{item.memoria}</Spec>}
-              {item.bateria != null && <Spec>Batería {item.bateria}%</Spec>}
-              {item.imei && <Spec mono>IMEI {item.imei}</Spec>}
-              {!item.modelo && !item.color && !item.memoria && !item.imei && (
-                <Typography sx={{ color: 'text.disabled', fontSize: '.78rem' }}>
-                  Sin características cargadas.
-                </Typography>
-              )}
-            </Box>
+            {cargando ? (
+              <Box sx={{ p: '13px 15px', display: 'flex', alignItems: 'center', gap: 0.625, flexWrap: 'wrap' }}>
+                {[70, 55, 60, 90].map((w, i) => (
+                  <Skeleton key={i} variant="rounded" width={w} height={19} sx={{ borderRadius: '5px' }} />
+                ))}
+              </Box>
+            ) : (
+              <Box sx={{ p: '13px 15px', display: 'flex', alignItems: 'center', gap: 0.625, flexWrap: 'wrap' }}>
+                {item.modelo && <Spec>{item.modelo}</Spec>}
+                {item.color && <Spec>{item.color}</Spec>}
+                {item.memoria && <Spec>{item.memoria}</Spec>}
+                {item.bateria != null && <Spec>Batería {item.bateria}%</Spec>}
+                {item.imei && <Spec mono>IMEI {item.imei}</Spec>}
+                {!item.modelo && !item.color && !item.memoria && !item.imei && (
+                  <Typography sx={{ color: 'text.disabled', fontSize: '.78rem' }}>
+                    Sin características cargadas.
+                  </Typography>
+                )}
+              </Box>
+            )}
           </Tarjeta>
 
-          {item.observaciones && (
+          {!cargando && item.observaciones && (
             <Tarjeta titulo="Observaciones">
               <Typography sx={{ p: '12px 15px', color: 'text.secondary', fontSize: '.78rem', lineHeight: 1.55 }}>
                 {item.observaciones}
@@ -199,7 +222,12 @@ const InventarioDetails = () => {
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.75, minWidth: 0 }}>
           <Tarjeta titulo="Precios">
-            {sinPrecio ? (
+            {cargando ? (
+              <Box sx={{ p: '13px 15px' }}>
+                <Skeleton variant="rounded" height={32} sx={{ borderRadius: 1, mb: 1.25 }} />
+                <Skeleton variant="rounded" height={19} sx={{ borderRadius: 1 }} />
+              </Box>
+            ) : sinPrecio ? (
               <Typography sx={{ p: '13px 15px', color: 'text.disabled', fontSize: '.78rem', lineHeight: 1.55 }}>
                 Sin precio de venta vigente. Cargá uno desde la pantalla de Precios.
               </Typography>
@@ -224,15 +252,25 @@ const InventarioDetails = () => {
           </Tarjeta>
 
           <Tarjeta titulo="Ubicación y stock">
-            <Fila label="Sucursal" primero>
-              <Box sx={{ fontWeight: 600 }}>{item.sucursal}</Box>
-            </Fila>
-            <Fila label="Unidades">
-              <StatusPill tone={tonoStock(item.stock)} label={`${item.stock} un.`} />
-            </Fila>
-            <Fila label="Registrado">
-              <Box className="mono" sx={{ fontWeight: 600 }}>{item.createdAt}</Box>
-            </Fila>
+            {cargando ? (
+              <Box sx={{ p: '9px 15px', display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                <Skeleton variant="text" width="60%" />
+                <Skeleton variant="text" width="45%" />
+                <Skeleton variant="text" width="55%" />
+              </Box>
+            ) : (
+              <>
+                <Fila label="Sucursal" primero>
+                  <Box sx={{ fontWeight: 600 }}>{item.sucursal}</Box>
+                </Fila>
+                <Fila label="Unidades">
+                  <StatusPill tone={tonoStock(item.stock)} label={`${item.stock} un.`} />
+                </Fila>
+                <Fila label="Registrado">
+                  <Box className="mono" sx={{ fontWeight: 600 }}>{item.createdAt}</Box>
+                </Fila>
+              </>
+            )}
           </Tarjeta>
         </Box>
       </Box>

@@ -5,7 +5,7 @@ import { getEmpleados } from '../../../services/api';
 import { useVenta } from '../../punto-venta/context/VentaContext';
 import {
   Box, Button, Dialog, DialogTitle, DialogContent, DialogActions,
-  IconButton, MenuItem, Paper, Select, Table, TableBody, TableCell,
+  IconButton, MenuItem, Paper, Select, Skeleton, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material';
 import { Add, Close, Visibility } from '@mui/icons-material';
@@ -21,6 +21,7 @@ import Money from '../../../components/ui/Money';
 import NumberField from '../../../components/ui/NumberField';
 import FilterBar, { FilterField } from '../../../components/ui/FilterBar';
 import TablePager from '../../../components/ui/TablePager';
+import SkeletonFilas from '../../../components/ui/SkeletonFilas';
 
 const FILAS_POR_PAGINA = 10;
 const FILAS_POR_PAGINA_DEUDAS = 5;
@@ -269,9 +270,7 @@ const HistorialVentas = () => {
     }
   };
 
-  const mensajeTabla = loading
-    ? 'Cargando ventas…'
-    : error || (ventas.length === 0 ? 'No hay ventas para mostrar.' : null);
+  const mensajeTabla = loading ? null : error || (ventas.length === 0 ? 'No hay ventas para mostrar.' : null);
 
   return (
     <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
@@ -419,7 +418,9 @@ const HistorialVentas = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {mensajeTabla ? (
+                  {loading ? (
+                    <SkeletonFilas filas={6} columnas={[82, 140, 'auto', 'auto', 150, 120, 64]} />
+                  ) : mensajeTabla ? (
                     <TableRow>
                       <TableCell colSpan={7} sx={{ height: 120, textAlign: 'center', color: error ? 'error.main' : 'text.disabled' }}>
                         {mensajeTabla}
@@ -513,9 +514,30 @@ const HistorialVentas = () => {
             </Box>
           </Box>
 
-          {deudasLoading && (
-            <Box sx={{ p: '20px 15px', color: 'text.disabled', fontSize: '.78rem' }}>Cargando cuotas por cobrar…</Box>
-          )}
+          {deudasLoading && Array.from({ length: 3 }).map((_, i) => (
+            <Box
+              key={`skeleton-deuda-${i}`}
+              sx={{
+                display: 'flex', flexDirection: 'column', gap: 1, p: '12px 15px',
+                borderTop: i === 0 ? 0 : 1, borderColor: 'pc.dividerSoft',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.25 }}>
+                <Box sx={{ minWidth: 0, flex: 1 }}>
+                  <Skeleton variant="text" width="60%" sx={{ fontSize: '.8rem' }} />
+                  <Skeleton variant="text" width="80%" sx={{ fontSize: '.69rem' }} />
+                </Box>
+                <Skeleton variant="text" width={60} sx={{ fontSize: '.78rem', flex: 'none' }} />
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.25 }}>
+                <Skeleton variant="rounded" width={90} height={20} sx={{ borderRadius: '999px' }} />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Skeleton variant="circular" width={28} height={28} />
+                  <Skeleton variant="rounded" width={64} height={28} sx={{ borderRadius: '7px' }} />
+                </Box>
+              </Box>
+            </Box>
+          ))}
           {!deudasLoading && deudasError && (
             <Box sx={{ p: '20px 15px', color: 'error.main', fontSize: '.78rem' }}>{deudasError}</Box>
           )}

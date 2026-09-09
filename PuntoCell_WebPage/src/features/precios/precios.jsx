@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box, Typography, Card, Button, Table, TableHead, TableBody, TableRow, TableCell,
   Chip, TextField, Grid, IconButton, Tabs, Tab, Dialog, DialogTitle, DialogContent,
-  DialogActions, MenuItem, Switch, FormControlLabel, CircularProgress, Divider, Tooltip,
+  DialogActions, MenuItem, Switch, FormControlLabel, Divider, Tooltip,
   InputAdornment, Alert
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
@@ -15,6 +15,7 @@ import { inventarioService } from '../../services/inventarioServices';
 import { usePaginacion } from '../../hooks/usePaginacion';
 import PaginadorTabla from '../../components/PaginadorTabla';
 import PageHeader from '../../components/ui/PageHeader';
+import SkeletonFilas from '../../components/ui/SkeletonFilas';
 import StatusPill from '../../components/ui/StatusPill';
 import Money from '../../components/ui/Money';
 import NumberField from '../../components/ui/NumberField';
@@ -92,15 +93,6 @@ export default function PreciosScreen() {
 
   const nombreCategoria = (id) => categorias.find((c) => (c.Id ?? c.id) === id)?.Nombre || '—';
 
-  if (cargando) {
-    return (
-      <Box sx={{ p: 6, textAlign: 'center' }}>
-        <CircularProgress />
-        <Typography sx={{ mt: 2, color: 'text.secondary' }}>Cargando precios…</Typography>
-      </Box>
-    );
-  }
-
   return (
     <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
       <PageHeader
@@ -143,7 +135,7 @@ export default function PreciosScreen() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {pagListas.itemsPagina.map((l) => {
+                  {cargando ? <SkeletonFilas filas={7} columnas={6} /> : pagListas.itemsPagina.map((l) => {
                     const id = l.Id ?? l.id;
                     return (
                       <TableRow key={id} hover>
@@ -208,7 +200,7 @@ export default function PreciosScreen() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {pagInv.itemsPagina.map((inv) => {
+                  {cargando ? <SkeletonFilas filas={7} columnas={6} /> : pagInv.itemsPagina.map((inv) => {
                     const id = inv.Id ?? inv.id;
                     const p = preciosMap[id]?.[listaSel];
                     return (

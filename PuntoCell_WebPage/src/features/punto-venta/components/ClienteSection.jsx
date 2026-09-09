@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Box, Button, IconButton, Paper, TextField, Tooltip, Typography } from '@mui/material';
+import { Alert, Box, Button, IconButton, Paper, Skeleton, TextField, Tooltip, Typography } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import { useVenta } from '../context/VentaContext';
@@ -105,7 +105,15 @@ export const ClienteSection = ({ onOpenNuevoCliente }) => {
         )}
       </Box>
 
-      {cliente ? (
+      {buscando ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: '13px 15px' }}>
+          <Skeleton variant="circular" width={32} height={32} />
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Skeleton variant="text" sx={{ fontSize: '.84rem' }} width="55%" />
+            <Skeleton variant="text" sx={{ fontSize: '.69rem' }} width="35%" />
+          </Box>
+        </Box>
+      ) : cliente ? (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: '13px 15px' }}>
           <Box sx={{
             width: 32, height: 32, borderRadius: '50%', flex: 'none',

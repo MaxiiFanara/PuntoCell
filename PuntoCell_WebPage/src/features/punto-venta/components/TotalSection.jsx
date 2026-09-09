@@ -1,9 +1,10 @@
-import { Box, Button, Paper, Switch, Typography } from '@mui/material';
+import { Box, Button, Paper, Skeleton, Switch, Typography } from '@mui/material';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import { useVenta } from '../context/VentaContext';
 
 export const TotalSection = ({ onCobrar }) => {
-  const { totalVenta, esMayorista, dolarGlobal, carrito, cliente, toggleMayorista } = useVenta();
+  const { totalVenta, esMayorista, dolarGlobal, carrito, cliente, toggleMayorista, datosConfig } = useVenta();
+  const cargandoCotizacion = datosConfig?.loading;
 
   const totalArs = totalVenta * dolarGlobal;
   const unidades = carrito.reduce((a, i) => a + (Number(i.Cantidad) || 0), 0);
@@ -48,15 +49,24 @@ export const TotalSection = ({ onCobrar }) => {
           solo la representación visual según la cotización cargada. */}
       <Box sx={{ p: '16px 15px 14px', display: 'flex', flexDirection: 'column', gap: 0.25 }}>
         <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>Total a cobrar</Box>
-        <Box
-          className="num"
-          sx={{ fontSize: '2.1rem', fontWeight: 600, letterSpacing: '-.04em', lineHeight: 1.05, color: 'primary.main' }}
-        >
-          U$S {totalVenta.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </Box>
-        <Box className="num" sx={{ fontSize: '.78rem', color: 'text.secondary' }}>
-          $ {Math.round(totalArs).toLocaleString('es-AR')}
-        </Box>
+        {cargandoCotizacion ? (
+          <>
+            <Skeleton variant="text" width={150} sx={{ fontSize: '2.1rem' }} />
+            <Skeleton variant="text" width={80} sx={{ fontSize: '.78rem' }} />
+          </>
+        ) : (
+          <>
+            <Box
+              className="num"
+              sx={{ fontSize: '2.1rem', fontWeight: 600, letterSpacing: '-.04em', lineHeight: 1.05, color: 'primary.main' }}
+            >
+              U$S {totalVenta.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </Box>
+            <Box className="num" sx={{ fontSize: '.78rem', color: 'text.secondary' }}>
+              $ {Math.round(totalArs).toLocaleString('es-AR')}
+            </Box>
+          </>
+        )}
       </Box>
 
       <Box sx={{

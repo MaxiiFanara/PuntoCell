@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   TextField, Box, Typography, Paper, Button, Tooltip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  CircularProgress, TablePagination,
+  TablePagination,
 } from '@mui/material';
 import Search from '@mui/icons-material/Search';
 import Login from '@mui/icons-material/Login';
@@ -21,6 +21,7 @@ import PageHeader from '../../../../components/ui/PageHeader';
 import KpiCard from '../../../../components/ui/KpiCard';
 import StatusPill from '../../../../components/ui/StatusPill';
 import FilterBar, { FilterField } from '../../../../components/ui/FilterBar';
+import SkeletonFilas from '../../../../components/ui/SkeletonFilas';
 
 const getEstiloAccion = (accion = '') => {
   const acc = accion.toLowerCase();
@@ -144,24 +145,23 @@ const BitacoraList = () => {
         </FilterField>
       </FilterBar>
 
-      {cargando ? (
-        <Box sx={{ textAlign: 'center', py: 6 }}><CircularProgress /></Box>
-      ) : (
-        <Paper sx={{ overflow: 'hidden' }}>
-          <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table sx={{ minWidth: 860 }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Fecha / hora</TableCell>
-                  <TableCell>Sucursal</TableCell>
-                  <TableCell>Usuario</TableCell>
-                  <TableCell>Acción</TableCell>
-                  <TableCell>Detalle</TableCell>
-                  <TableCell>IP</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {visibles.length === 0 ? (
+      <Paper sx={{ overflow: 'hidden' }}>
+        <TableContainer sx={{ overflowX: 'auto' }}>
+          <Table sx={{ minWidth: 860 }}>
+            <TableHead>
+              <TableRow>
+                <TableCell>Fecha / hora</TableCell>
+                <TableCell>Sucursal</TableCell>
+                <TableCell>Usuario</TableCell>
+                <TableCell>Acción</TableCell>
+                <TableCell>Detalle</TableCell>
+                <TableCell>IP</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {cargando ? (
+                <SkeletonFilas filas={7} columnas={6} />
+              ) : visibles.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} sx={{ height: 120, textAlign: 'center', color: 'text.disabled' }}>
                       No se encontraron registros con esos filtros.
@@ -212,17 +212,18 @@ const BitacoraList = () => {
               </TableBody>
             </Table>
           </TableContainer>
-          <TablePagination
-            component="div"
-            count={logsFiltrados.length}
-            page={page}
-            onPageChange={(_, p) => setPage(p)}
-            rowsPerPage={rowsPerPage}
-            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
-            rowsPerPageOptions={[10, 25, 50, 100]}
-          />
-        </Paper>
-      )}
+          {!cargando && (
+            <TablePagination
+              component="div"
+              count={logsFiltrados.length}
+              page={page}
+              onPageChange={(_, p) => setPage(p)}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+              rowsPerPageOptions={[10, 25, 50, 100]}
+            />
+          )}
+      </Paper>
     </Box>
   );
 };

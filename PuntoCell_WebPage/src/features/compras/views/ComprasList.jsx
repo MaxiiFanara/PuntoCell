@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Box, Button, CircularProgress, Alert } from '@mui/material';
+import { Box, Button, Alert, Paper, Table, TableBody, TableContainer } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 
@@ -9,6 +9,7 @@ import CuentasPorPagarModal from '../components/CuentasPorPagarModal';
 import CompraDetalleModal from '../components/CompraDetalleModal';
 import CompraCreateModal from '../components/CompraCreateModal';
 import PageHeader from '../../../components/ui/PageHeader';
+import SkeletonFilas from '../../../components/ui/SkeletonFilas';
 
 import { comprasService, ESTADO_PAGO } from '../../../services/comprasServices';
 
@@ -84,13 +85,19 @@ export default function ComprasList() {
 
       {error && <Alert severity="error">{error}</Alert>}
 
+      <KpiCards compras={compras} loading={cargando} />
       {cargando ? (
-        <Box sx={{ textAlign: 'center', py: 6 }}><CircularProgress /></Box>
+        <Paper sx={{ overflow: 'hidden' }}>
+          <TableContainer sx={{ overflowX: 'auto' }}>
+            <Table sx={{ minWidth: 760 }}>
+              <TableBody>
+                <SkeletonFilas filas={7} columnas={7} />
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
       ) : (
-        <>
-          <KpiCards compras={compras} />
-          <ComprasTable compras={compras} onVerDetalle={(c) => setDetalleId(c.id)} />
-        </>
+        <ComprasTable compras={compras} onVerDetalle={(c) => setDetalleId(c.id)} />
       )}
 
       <CompraCreateModal

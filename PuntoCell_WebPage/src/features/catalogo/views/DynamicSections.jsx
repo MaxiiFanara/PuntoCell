@@ -78,7 +78,7 @@ export default function DynamicSections() {
   }, [products]);
 
   const featuredSection =
-    featuredProducts.length > 0 && (
+    (loading || featuredProducts.length > 0) && (
       <Box
         sx={{
           py: 8,
@@ -121,11 +121,17 @@ export default function DynamicSections() {
             alignItems: 'stretch'
           }}
         >
-          {featuredProducts.map((product) => (
-            <Box key={product.id} sx={{ display: 'flex', height: '100%' }}>
-              <ProductCard product={product} />
-            </Box>
-          ))}
+          {loading
+            ? [...Array(4)].map((_, i) => (
+                <Box key={i} sx={{ display: 'flex', height: '100%' }}>
+                  <ProductCardSkeleton />
+                </Box>
+              ))
+            : featuredProducts.map((product) => (
+                <Box key={product.id} sx={{ display: 'flex', height: '100%' }}>
+                  <ProductCard product={product} />
+                </Box>
+              ))}
         </Box>
       </Box>
     );

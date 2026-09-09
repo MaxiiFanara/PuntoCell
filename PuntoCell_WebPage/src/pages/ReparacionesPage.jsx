@@ -152,6 +152,7 @@ const ReparacionesPage = () => {
         tipos={catalogos.tipos}
         marcas={catalogos.marcas}
         modelos={catalogos.modelos ?? []}
+        loadingCatalogos={catalogos.loading}
       />
 
       <ModalRegistroCliente

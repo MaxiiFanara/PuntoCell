@@ -20,6 +20,7 @@ import StatusPill from '../../../components/ui/StatusPill';
 import Money from '../../../components/ui/Money';
 import FilterBar, { FilterField } from '../../../components/ui/FilterBar';
 import TablePager from '../../../components/ui/TablePager';
+import SkeletonFilas from '../../../components/ui/SkeletonFilas';
 
 const FILAS_POR_PAGINA = 10;
 
@@ -174,7 +175,7 @@ const InventarioList = () => {
   };
 
   const mensajeTabla = cargando
-    ? 'Cargando inventario…'
+    ? null
     : inventarioFiltrado.length === 0
       ? (mostrarAgotados ? 'No hay productos agotados.' : 'No se encontraron productos.')
       : null;
@@ -300,7 +301,9 @@ const InventarioList = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {mensajeTabla ? (
+              {cargando ? (
+                <SkeletonFilas filas={7} columnas={['auto', 150, 'auto', 110, 150, 90]} />
+              ) : mensajeTabla ? (
                 <TableRow>
                   <TableCell colSpan={6} sx={{ height: 140, textAlign: 'center', color: 'text.disabled' }}>
                     {mensajeTabla}
