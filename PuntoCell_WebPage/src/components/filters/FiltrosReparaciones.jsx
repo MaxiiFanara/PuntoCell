@@ -27,6 +27,11 @@ const FiltrosReparaciones = ({ filtros, setFiltros, empleados }) => {
   // El estado por defecto (null → "Activas") no cuenta como filtro activo.
   const hayFiltros = Boolean(filtros.busqueda || filtros.empleadoId || filtros.estado !== null)
 
+  const empleadosOrdenados = useMemo(() =>
+    [...(empleados ?? [])].sort((a, b) =>
+      `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`, 'es', { sensitivity: 'base' })
+    ), [empleados])
+
   const chipsActivos = useMemo(() => {
     const activos = []
     if (filtros.busqueda) activos.push({ campo: 'busqueda', texto: filtros.busqueda })
@@ -89,7 +94,7 @@ const FiltrosReparaciones = ({ filtros, setFiltros, empleados }) => {
         <FilterField label="Empleado">
           <TextField select value={filtros.empleadoId ?? ''} onChange={handleEmpleado} fullWidth>
             <MenuItem value="">Todos los empleados</MenuItem>
-            {empleados.map((emp) => (
+            {empleadosOrdenados.map((emp) => (
               <MenuItem key={emp.id} value={emp.id}>{emp.apellido}, {emp.nombre}</MenuItem>
             ))}
           </TextField>

@@ -142,7 +142,9 @@ const ModalReparacion = ({
 
   const marcas  = form.idTipo ? marcasPorTipo(Number(form.idTipo)) : []
   const modelos = form.idTipo && form.idMarca
-    ? dispositivosPorTipoYMarca(Number(form.idTipo), Number(form.idMarca)) : []
+    ? [...dispositivosPorTipoYMarca(Number(form.idTipo), Number(form.idMarca))]
+        .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es', { sensitivity: 'base' }))
+    : []
 
   const estadoSeleccionado = modoEdicion ? (estados ?? []).find(e => e.nombre === form.estado) : null
   const targetEstadoId     = estadoSeleccionado?.id ?? null

@@ -33,7 +33,7 @@ const GRUPOS = [
     items: [
       { name: 'Dashboard',           path: '/app/dashboard',        icon: Dashboard,  reqAdmin: true },
       { name: 'Reparaciones',        path: '/app/reparaciones',     icon: Build },
-      { name: 'Registrar una venta', path: '/app/punto-venta',      icon: Storefront },
+      { name: 'Ventas',              path: '/app/punto-venta',      icon: Storefront },
       { name: 'Historial de Ventas', path: '/app/ventas/historial', icon: ReceiptLong },
       { name: 'Inventario',          path: '/app/inventario',       icon: Inventory2 },
     ],

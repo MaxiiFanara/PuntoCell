@@ -37,15 +37,17 @@ export const useCatalogos = () => {
     }).catch(() => setLoading(false))
   }, [trigger])
 
-  // Devuelve siempre el catálogo completo de marcas. Antes se derivaban las marcas
-  // "disponibles" a partir de los modelos YA cargados para ese tipo — lo cual es un
-  // problema de huevo y gallina: para cargar el primer modelo de una categoría (ej.
-  // Notebook) hace falta elegir una marca, pero no aparecía ninguna marca porque
-  // todavía no existía ningún modelo Notebook del que derivarla. Además, en la base
-  // MarcaProducto no tiene ninguna relación con CategoriaProducto (es un catálogo
-  // genérico: Apple, Samsung, Lenovo...), así que filtrar por tipo nunca tuvo sustento
-  // real en el esquema. Se mantiene el parámetro idTipo para no romper la firma.
-  const marcasPorTipo = () => catalogos.marcas
+  // Con idTipo: solo las marcas que ya tienen algún modelo cargado en esa categoría
+  // (evita elegir "Notebook Motorola" al registrar una orden). Sin idTipo: catálogo
+  // completo — lo usa el alta de dispositivo nuevo (ModalRegistroDispositivo), que
+  // necesita poder elegir cualquier marca para cargar el primer modelo de una
+  // categoría nueva. Siempre ordenado alfabéticamente.
+  const marcasPorTipo = (idTipo) => {
+    const marcas = idTipo
+      ? catalogos.marcas.filter(ma => catalogos.modelos.some(m => m.idTipo === idTipo && m.idMarca === ma.id))
+      : catalogos.marcas
+    return [...marcas].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }))
+  }
 
   // Modelos disponibles para un tipo y marca dados
   const dispositivosPorTipoYMarca = (idTipo, idMarca) =>

@@ -71,7 +71,11 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
         setListaModelos(Array.isArray(resModelos) ? resModelos : (resModelos.data || []));
         setListaCategorias(Array.isArray(resCategorias) ? resCategorias : (resCategorias.data || []));
         setListaColores(Array.isArray(resColores) ? resColores : (resColores.data || []));
-        setListaMemorias(Array.isArray(resMemorias) ? resMemorias : (resMemorias.data || []));
+        // La API devuelve las capacidades alfabéticamente ("12gb" antes que "2gb"),
+        // así que se reordenan por el número que traen embebido.
+        const memorias = Array.isArray(resMemorias) ? resMemorias : (resMemorias.data || []);
+        const capacidadNum = (m) => parseInt(m.Capacidad ?? m.capacidad ?? '', 10) || 0;
+        setListaMemorias([...memorias].sort((a, b) => capacidadNum(a) - capacidadNum(b)));
         setListaBaterias(Array.isArray(resBaterias) ? resBaterias : (resBaterias.data || []));
         setListaSucursales(Array.isArray(resSucursales) ? resSucursales : (resSucursales.data || []));
         setListaProveedores(Array.isArray(resProveedores) ? resProveedores : (resProveedores.data || []));

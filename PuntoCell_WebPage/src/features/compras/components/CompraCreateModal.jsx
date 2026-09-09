@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography, IconButton,
   TextField, MenuItem, Grid, ToggleButton, ToggleButtonGroup, FormControlLabel, Switch,
@@ -151,7 +151,9 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
     if (clasificacion === 'no_serializado') {
       list = list.filter((c) => !CATEGORIAS_EXCLUIDAS_NO_SERIAL.test(c.Nombre ?? c.nombre ?? ''));
     }
-    return list.map((c) => ({ id: Number(c.Id ?? c.id), label: c.Nombre ?? c.nombre }));
+    return list
+      .map((c) => ({ id: Number(c.Id ?? c.id), label: c.Nombre ?? c.nombre }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' }));
   };
 
   const catModeloCat = (m) => Number(m.IdCategoriaArticulo ?? m.idTipo ?? m.IdCategoriaProducto);
@@ -164,7 +166,8 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
       .map(catModeloMarca));
     return cat.marcas
       .filter((mk) => idsMarca.has(Number(mk.id ?? mk.Id)))
-      .map((mk) => ({ id: Number(mk.id ?? mk.Id), label: mk.nombre ?? mk.Nombre }));
+      .map((mk) => ({ id: Number(mk.id ?? mk.Id), label: mk.nombre ?? mk.Nombre }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' }));
   };
 
   const modelosOpts = (l) => cat.modelos
@@ -173,7 +176,8 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
       if (l.idMarca && catModeloMarca(m) !== Number(l.idMarca)) return false;
       return true;
     })
-    .map((m) => ({ id: Number(m.Id ?? m.id), label: m.Nombre ?? m.nombre }));
+    .map((m) => ({ id: Number(m.Id ?? m.id), label: m.Nombre ?? m.nombre }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' }));
 
   // --- Nombre del Producto nuevo: se calcula solo, no se tipea ---
   // Modelo + Color + Memoria + Batería (se omite lo que no aplica al caso: no_serializado
@@ -314,7 +318,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
         {/* Cabecera */}
         <Box sx={{ bgcolor: 'pc.surfaceMuted', border: 1, borderColor: 'divider', p: 2, borderRadius: '9px', mb: 3 }}>
           <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 4 }}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Autocomplete
                 size="small"
                 options={cat.proveedores}
@@ -325,7 +329,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
                 renderInput={(params) => <TextField {...params} label="Proveedor *" />}
               />
             </Grid>
-            <Grid size={{ xs: 6, sm: 3 }}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth size="small" type="date" label="Fecha"
                 value={fecha}
@@ -335,12 +339,12 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
                 helperText="Se registra siempre con la fecha de hoy"
               />
             </Grid>
-            <Grid size={{ xs: 6, sm: 3 }}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField select fullWidth size="small" label="Sucursal destino *" value={idSucursal} onChange={(e) => setIdSucursal(e.target.value)}>
                 {cat.sucursales.map((s) => <MenuItem key={s.Id ?? s.id} value={s.Id ?? s.id}>{s.Nombre ?? s.nombre}</MenuItem>)}
               </TextField>
             </Grid>
-            <Grid size={{ xs: 12, sm: 2 }}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField fullWidth size="small" type="date" label="Garantía local" InputLabelProps={{ shrink: true }} value={garantiaLocal} onChange={(e) => setGarantiaLocal(e.target.value)} />
             </Grid>
           </Grid>
@@ -350,7 +354,6 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
         <Box sx={{ typography: 'eyebrow', color: 'text.disabled', mb: 1 }}>Ítems de la compra</Box>
         {lineas.map((l, i) => {
           const serial = esSerial(l);
-          const repuesto = esRepuesto(l);
           const mostrarColor = l.nuevo
             ? (l.clasificacion === 'serializado' || l.clasificacion === 'no_serializado')
             : (serial); // en modo "artículo existente" se conserva el comportamiento previo
@@ -414,21 +417,21 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
 
             {/* Cantidad / costo / specs */}
             <Grid container spacing={2} sx={{ mt: 0.5 }}>
-              <Grid size={{ xs: 4, sm: 2 }}>
+              <Grid size={{ xs: 6, sm: 3 }}>
                 <TextField fullWidth size="small" label="Cantidad" value={l.cantidad}
                   disabled={serial}
                   inputProps={{ inputMode: 'numeric' }}
                   onChange={(e) => setLinea(i, { cantidad: soloEnteroPositivo(e.target.value) })}
                   helperText={serial ? 'Serializado: 1' : ' '} />
               </Grid>
-              <Grid size={{ xs: 4, sm: 2 }}>
+              <Grid size={{ xs: 6, sm: 4 }}>
                 <NumberField fullWidth size="small" label="Costo Unit. (U$S)" value={l.costo}
                   onChange={(e) => setLinea(i, { costo: e.target.value })}
                   helperText={Number(l.costo) > 0 ? `≈ $ ${Math.round(Number(l.costo) * dolarGlobal).toLocaleString('es-AR')}` : ' '} />
               </Grid>
 
               {mostrarColor && (
-                <Grid size={{ xs: 4, sm: 2 }}>
+                <Grid size={{ xs: 6, sm: 3 }}>
                   <EntityAutocomplete label="Color" options={cat.colores}
                     value={l.idColor} onChange={(id) => setLinea(i, { idColor: id })} />
                 </Grid>
@@ -436,12 +439,12 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
 
               {serial && (
                 <>
-                  <Grid size={{ xs: 4, sm: 3 }}>
+                  <Grid size={{ xs: 6, sm: 3 }}>
                     <EntityAutocomplete label="Memoria" options={cat.memorias}
                       getLabel={(m) => m.Capacidad ?? m.capacidad ?? ''}
                       value={l.idMemoria} onChange={(id) => setLinea(i, { idMemoria: id })} />
                   </Grid>
-                  <Grid size={{ xs: 4, sm: 3 }}>
+                  <Grid size={{ xs: 6, sm: 3 }}>
                     <EntityAutocomplete label="Batería" options={cat.baterias}
                       getLabel={(b) => (b.Porcentaje ?? b.porcentaje) != null ? `${b.Porcentaje ?? b.porcentaje}%` : (b.Nombre ?? b.nombre ?? '')}
                       value={l.idBateria} onChange={(id) => setLinea(i, { idBateria: id })} />
