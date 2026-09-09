@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Button, Typography, IconButton,
-  Select, MenuItem, Box,
+  Select, MenuItem, Box, CircularProgress,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -76,6 +76,9 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
 
   // Canje: el equipo recibido se carga con el mismo formulario de "Nuevo Ingreso" de Inventario.
   const [modalIngresoCanjeOpen, setModalIngresoCanjeOpen] = useState(false);
+  // Bloquea el botón mientras la venta viaja: descuenta stock y cobra, así que un doble
+  // click generaba dos ventas y dos descuentos de inventario.
+  const [procesando, setProcesando] = useState(false);
   const [proveedorCanjeId, setProveedorCanjeId] = useState(null);
   const [equipoCanje, setEquipoCanje] = useState(null);
 
@@ -182,10 +185,13 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
   const eliminarPago = (index) => setPagos(pagos.filter((_, i) => i !== index));
 
   const procesarVenta = async () => {
+    if (procesando) return;
     if (!cliente?.id) return alert('⚠️ Seleccioná un cliente antes de cobrar.');
     if (restante > 0.01) return alert(`⚠️ Aún falta cubrir U$S ${restante.toFixed(2)}`);
     if (pagos.length === 0) return alert('No hay pagos registrados');
 
+    setProcesando(true);
+    try {
     // El cliente puede haber quedado cacheado (localStorage/estado del POS) apuntando a un
     // Id que ya no existe (ej. tras reinicializar la base). Antes revalidábamos solo al
     // montar el POS; ahora también acá, justo antes de facturar, para no mandar la venta
@@ -259,13 +265,20 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
       Cuotas: pagos.flatMap(p => p.cuotas || []),
     };
 
-    onConfirmar(ventaRequest);
+    // Se espera la promesa: ejecutarVentaFinal hace el POST de la venta, así que sin el
+    // await el botón se reactivaba antes de que la venta terminara de registrarse.
+    await onConfirmar(ventaRequest);
+    } finally {
+      setProcesando(false);
+    }
   };
 
   const cubierto = restante <= 0.01;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
+    // onClose se anula mientras procesa: ni el backdrop ni Escape cierran el modal con
+    // la venta a mitad de camino.
+    <Dialog open={open} onClose={procesando ? undefined : onClose} maxWidth="lg" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5 }}>
         <Box>
           Finalizar venta
@@ -566,9 +579,14 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
           {cubierto ? 'Los pagos cubren el total' : `Falta cubrir ${dolares(restante)}`}
         </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button onClick={onClose}>Cancelar</Button>
-          <Button variant="contained" onClick={procesarVenta} disabled={!cubierto}>
-            Confirmar venta
+          <Button onClick={onClose} disabled={procesando}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={procesarVenta}
+            disabled={!cubierto || procesando}
+            startIcon={procesando ? <CircularProgress size={14} color="inherit" /> : null}
+          >
+            {procesando ? 'Procesando…' : 'Confirmar venta'}
           </Button>
         </Box>
       </DialogActions>

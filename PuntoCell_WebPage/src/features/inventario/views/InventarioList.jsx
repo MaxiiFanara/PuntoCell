@@ -125,6 +125,13 @@ const InventarioList = () => {
     serializados: inventario.filter((i) => i.esSerializado).length,
   }), [inventario]);
 
+  // Mientras carga se omite el conteo: `inventario.length` es 0 porque todavía no llegó
+  // la respuesta, no porque la sucursal no tenga stock. Mismo criterio que el KpiCard de
+  // "Artículos", que ya se gatea con `cargando` unas líneas más abajo.
+  const metaCabecera = cargando
+    ? `Sucursal ${nombreSucursal(sucursalActual)}`
+    : `Sucursal ${nombreSucursal(sucursalActual)} · ${resumen.articulos} ${resumen.articulos === 1 ? 'artículo' : 'artículos'}`;
+
   const totalPaginas = Math.max(1, Math.ceil(inventarioFiltrado.length / FILAS_POR_PAGINA));
   const paginaSegura = Math.min(pagina, totalPaginas);
   const desdeFila = inventarioFiltrado.length ? (paginaSegura - 1) * FILAS_POR_PAGINA + 1 : 0;
@@ -186,7 +193,7 @@ const InventarioList = () => {
       <PageHeader
         eyebrow="Stock"
         title="Inventario"
-        meta={`Sucursal ${nombreSucursal(sucursalActual)} · ${resumen.articulos} ${resumen.articulos === 1 ? 'artículo' : 'artículos'}`}
+        meta={metaCabecera}
         action={
           <Button variant="outlined" startIcon={<PointOfSale sx={{ fontSize: '16px !important' }} />} onClick={() => navigate('/app/punto-venta')}>
             Ir a caja
