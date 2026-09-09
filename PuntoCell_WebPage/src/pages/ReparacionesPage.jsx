@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import {
   Snackbar, Alert, Dialog, DialogTitle,
   DialogContent, DialogContentText, DialogActions,
-  Button, Box,
+  Button, Box, CircularProgress,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
@@ -49,6 +49,8 @@ const ReparacionesPage = () => {
   const [modalBuscar,          setModalBuscar]          = useState(false)
   const [modalBuscarDispositivo, setModalBuscarDispositivo] = useState(false)
   const [confirmarAnular,  setConfirmarAnular]  = useState(false)
+  // Anular es irreversible: el botón se bloquea mientras viaja para no dispararlo dos veces.
+  const [anulando,         setAnulando]         = useState(false)
 
   const [showMetrics, setShowMetrics] = useState(true)
 
@@ -66,12 +68,14 @@ const ReparacionesPage = () => {
   const handleVerDetalle   = () => { if (ordenSeleccionada) setModalReparacion({ open: true, modoEdicion: false, modoSoloLectura: true  }) }
   const handleGuardado     = () => { recargar(); setOrdenSeleccionada(null); notify(modalReparacion.modoEdicion ? 'Orden actualizada.' : 'Reparación registrada.') }
   const handleAnularConfirm = async () => {
+    if (anulando) return
+    setAnulando(true)
     try {
       await handleAnular(ordenSeleccionada.NumOrden)
       notify(`Orden #${ordenSeleccionada.NumOrden} anulada.`)
       setOrdenSeleccionada(null)
     } catch { notify('Error al anular la orden.', 'error') }
-    finally { setConfirmarAnular(false) }
+    finally { setAnulando(false); setConfirmarAnular(false) }
   }
 
   return (
@@ -172,7 +176,7 @@ const ReparacionesPage = () => {
       />
 
       {/* Confirmar anular */}
-      <Dialog open={confirmarAnular} onClose={() => setConfirmarAnular(false)} PaperProps={{ sx: { maxWidth: 420 } }}>
+      <Dialog open={confirmarAnular} onClose={anulando ? undefined : () => setConfirmarAnular(false)} PaperProps={{ sx: { maxWidth: 420 } }}>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 1.5 }}>
           <Box sx={{
             width: 40, height: 40, borderRadius: '10px', bgcolor: 'error.light',
@@ -190,9 +194,15 @@ const ReparacionesPage = () => {
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmarAnular(false)}>Cancelar</Button>
-          <Button variant="contained" color="error" onClick={handleAnularConfirm}>
-            Sí, anular orden
+          <Button onClick={() => setConfirmarAnular(false)} disabled={anulando}>Cancelar</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleAnularConfirm}
+            disabled={anulando}
+            startIcon={anulando ? <CircularProgress size={14} color="inherit" /> : null}
+          >
+            {anulando ? 'Anulando…' : 'Sí, anular orden'}
           </Button>
         </DialogActions>
       </Dialog>

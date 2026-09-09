@@ -4,7 +4,7 @@ import {
   Box, Button, Dialog, DialogActions, DialogContent, DialogTitle,
   IconButton, MenuItem, Paper, Select, Switch, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup,
-  Tooltip, Typography,
+  Tooltip, Typography, CircularProgress,
 } from '@mui/material';
 import {
   Search, Visibility, LocalShipping, Lock, Store, Close, PointOfSale,
@@ -46,6 +46,8 @@ const InventarioList = () => {
   const [filtroTipo, setFiltroTipo] = useState('todos');
   const [openModal, setOpenModal] = useState(false);
   const [productoTransferir, setProductoTransferir] = useState(null);
+  // El traspaso mueve stock entre sucursales: se bloquea el botón para no duplicarlo.
+  const [traspasando, setTraspasando] = useState(false);
   const [inventario, setInventario] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [pagina, setPagina] = useState(1);
@@ -144,6 +146,8 @@ const InventarioList = () => {
   };
 
   const confirmarTraspaso = async () => {
+    if (traspasando) return;
+    setTraspasando(true);
     try {
       // Destino = mi propia sucursal (adonde quiero traer el stock), no una asumida a mano.
       // IdInventario = la fila puntual (ese IMEI). Es clave para serializados: puede haber
@@ -165,6 +169,8 @@ const InventarioList = () => {
       console.error("Error en traspaso:", error);
       // fetchApi arma error.message con el mensaje real del backend
       alert(`❌ No se pudo hacer el traspaso: ${error.message || 'Error desconocido'}`);
+    } finally {
+      setTraspasando(false);
     }
   };
 
@@ -436,8 +442,15 @@ const InventarioList = () => {
         </DialogContent>
 
         <DialogActions sx={{ justifyContent: 'flex-end', gap: 1 }}>
-          <Button onClick={() => setOpenModal(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={confirmarTraspaso}>Confirmar traspaso</Button>
+          <Button onClick={() => setOpenModal(false)} disabled={traspasando}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={confirmarTraspaso}
+            disabled={traspasando}
+            startIcon={traspasando ? <CircularProgress size={14} color="inherit" /> : null}
+          >
+            {traspasando ? 'Traspasando…' : 'Confirmar traspaso'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

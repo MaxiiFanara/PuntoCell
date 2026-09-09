@@ -3,7 +3,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
   Button, IconButton, Typography, Chip, Dialog, DialogTitle, DialogContent,
   DialogContentText, TextField, DialogActions, Box, Tooltip, Avatar, FormControl,
-  InputLabel, Select, MenuItem, Alert, Skeleton,
+  InputLabel, Select, MenuItem, Alert, Skeleton, CircularProgress,
 } from '@mui/material';
 import { Edit, Delete, PersonAdd, Email, WarningAmber } from '@mui/icons-material';
 import { usuariosService } from '../../../../services/usuariosServices';
@@ -35,6 +35,8 @@ const UsersScreen = () => {
 
   // --- ESTADOS: ALERT DE ELIMINAR ---
   const [openDeleteAlert, setOpenDeleteAlert] = useState(false);
+  // Bloquea el botón mientras la baja viaja, para no dispararla dos veces.
+  const [dandoBaja, setDandoBaja] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
 
   const cargarDatos = useCallback(async () => {
@@ -130,6 +132,8 @@ const UsersScreen = () => {
   };
 
   const confirmDelete = async () => {
+    if (dandoBaja) return;
+    setDandoBaja(true);
     try {
       await usuariosService.delete(userToDelete.Id);
       setOpenDeleteAlert(false);
@@ -138,6 +142,8 @@ const UsersScreen = () => {
     } catch (err) {
       setError(err.message || 'No se pudo dar de baja al usuario.');
       setOpenDeleteAlert(false);
+    } finally {
+      setDandoBaja(false);
     }
   };
 
@@ -368,8 +374,16 @@ const UsersScreen = () => {
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDeleteAlert(false)}>Cancelar</Button>
-          <Button onClick={confirmDelete} variant="contained" color="error">Sí, dar de baja</Button>
+          <Button onClick={() => setOpenDeleteAlert(false)} disabled={dandoBaja}>Cancelar</Button>
+          <Button
+            onClick={confirmDelete}
+            variant="contained"
+            color="error"
+            disabled={dandoBaja}
+            startIcon={dandoBaja ? <CircularProgress size={14} color="inherit" /> : null}
+          >
+            {dandoBaja ? 'Dando de baja…' : 'Sí, dar de baja'}
+          </Button>
         </DialogActions>
       </Dialog>
 
