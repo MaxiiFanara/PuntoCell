@@ -127,6 +127,43 @@ Peor: `InventarioForm.jsx` sigue en `dev` con esa misma sección de precios viej
 
 ---
 
+## 6. Abierto tras la pasada del 2026-09-09
+
+Lo que se hizo ese día está en los 4 commits de `fix/ajustes-frontend-yona`. Esto es lo que quedó sin hacer.
+
+### 6.1 Las alturas de los inputs no coinciden (pedido, no hecho)
+
+En una misma fila conviven tres controles de MUI que **no miden lo mismo con `size="small"`**: `Autocomplete` (agrega padding propio del wrapper), `Select` (renderiza un `div`) y el `input type="date"` nativo (que además dibuja el ícono de calendario del navegador). Se ve claro en el modal de registrar compra: "Proveedor" queda más alto que "Fecha", y "Sucursal destino" que "Garantía local". Las alturas dispares se comen el gap que debería haber entre campos.
+
+Se arregla en `src/theme/index.js` con overrides que igualen la altura de los tres, **no** parcheando cada formulario. Emparenta con el pendiente 1, que ya resolvió el mismo tipo de problema para `Select`.
+
+### 6.2 Acciones sin protección que quedaron fuera
+
+Ninguna, las cuatro se cubrieron. Se deja anotado el patrón por si aparecen nuevas: flag local, botón `disabled` con spinner y texto de progreso, "Cancelar" bloqueado, y `onClose` del diálogo anulado mientras la operación viaja. **Importante:** si el handler llama a una función asíncrona del padre, hay que `await`earla — si no, el flag se limpia antes de que termine el request y el botón se reactiva justo en la ventana peligrosa.
+
+### 6.3 Estados de carga que no se cubrieron
+
+- `AuthContext` devuelve `null` mientras valida la sesión, así que al arrancar la app se ve una pantalla en blanco sin siquiera el shell. Corresponde un splash mínimo, no un skeleton (todavía no se sabe qué ruta se va a mostrar).
+- Los desplegables de catálogo quedan vacíos mientras cargan (`InventarioForm`, filtros de Historial, `CuentasPorPagarModal`). Corresponde `disabled` + placeholder "Cargando…", no bloques grises.
+
+### 6.4 Para el equipo de backend
+
+Fuera de nuestro alcance, detectado al auditar:
+
+- **El módulo `caja/` tiene 8 archivos de 0 bytes** (controller/dao/dto/service de `turno-caja` y `movimiento-caja`) que nunca se montan en el router ni en el container. Los modelos sí están vivos y se usan como FK. Esto explica el `IdTurnoCaja: 1` hardcodeado en `ModalReparacion`, `ModalCobro` y `CompraCreateModal`.
+- **La fórmula de precios está escrita 4 veces** (`precios.util.js` dos veces, `precios-articulos.service.js`, y `precios.jsx` en el front con el `0.26` hardcodeado). Ya hay señales de deriva entre copias. Es lógica de dinero: unificar requiere verificar numéricamente que las cuatro dan lo mismo.
+- **`page`/`limit` es flexibilidad muerta** en ~30 services: el frontend nunca los manda (`usePaginacion.js` documenta que la paginación server-side está rota y por eso todas las tablas cortan en el front).
+
+### 6.5 Decisión pendiente del equipo
+
+`PuntoCell_WebPage/diseno nuevo/` es una copia completa y paralela del frontend: 106 archivos con su propio `package.json` y `src/`. No la referencia ningún import ni build, entró en el commit `555c7d9` y ya divergió del `src/` real. El riesgo concreto es que alguien edite la copia equivocada. **No se borró** a la espera de confirmar que no es trabajo en curso de nadie. Ojo: hoy es el único lugar de `dev` donde sobreviven `InventarioCreate/Edit` (ver pendiente 5).
+
+### 6.6 Deuda de lint
+
+`npm run lint` falla en `dev` con ~38 errores, casi todos `react-hooks/set-state-in-effect` (setState síncrono dentro de un `useEffect`) repartidos en `ModalReparacion`, `ModalCobro`, `HistorialVentas`, `Navbar`, `TicketVenta`, `VentaContext` y varios más. Son preexistentes, no los introdujo esta pasada. Ese tipo de error suele estar detrás de renders dobles y estados que se pisan.
+
+---
+
 ## Estado del rediseño
 
 Medido el 2026-08-27.
