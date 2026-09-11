@@ -1,128 +1,137 @@
-import { Box, Typography, Alert, IconButton, Tooltip } from '@mui/material'
-import RefreshIcon from '@mui/icons-material/Refresh'
-import PageHeader from '../components/ui/PageHeader'
-import KpiCard from '../components/ui/KpiCard'
-import RankingChartCard from '../components/dashboard/RankingChartCard'
-import FinanzasPanel from '../components/dashboard/FinanzasPanel'
-import { useEstadisticas } from '../hooks/useEstadisticas'
+import { useNavigate } from 'react-router-dom';
+import { Box, Typography, CardActionArea, Paper } from '@mui/material';
+import {
+  PointOfSale,
+  ShoppingCartCheckout,
+  Inventory2,
+  Build,
+  FactCheck,
+  AccountBalanceWallet
+} from '@mui/icons-material';
 
-const KPI_CONFIG = [
+import PageHeader from '../components/ui/PageHeader'; // Ajustá el path según donde esté tu DashboardPage
+
+const DASHBOARD_MODULES = [
   {
-    id: 'marca',
-    eyebrow: 'Marca más reparada',
-    tone: 'accent',
-    getNombre: (d) => d?.marcas?.[0]?.Marca,
-    getDato: (d) => d?.marcas?.[0]?.CantidadReparaciones,
-    datoSuffix: 'reparaciones',
+    id: 'ventas',
+    title: 'Módulo de Ventas',
+    desc: 'Evolución, Ticket promedio, Pareto y Proyecciones.',
+    path: '/app/dashboard/ventas',
+    icon: PointOfSale,
+    color: 'primary.main',
+    bgIcon: 'pc.accentSoft'
   },
   {
-    id: 'dispositivo',
-    eyebrow: 'Dispositivo más reparado',
-    tone: 'ok',
-    getNombre: (d) => d?.dispositivos?.[0]?.Dispositivo,
-    getDato: (d) => d?.dispositivos?.[0]?.CantidadReparaciones,
-    datoSuffix: 'reparaciones',
+    id: 'compras',
+    title: 'Módulo de Compras',
+    desc: 'Costos, Proveedores, Punto de reposición y EOQ.',
+    path: '/app/dashboard/compras',
+    icon: ShoppingCartCheckout,
+    color: 'warning.main', // Usamos los tonos de tu tema
+    bgIcon: 'warning.light'
   },
   {
-    id: 'repuesto',
-    eyebrow: 'Repuesto más usado',
-    tone: 'warn',
-    getNombre: (d) => d?.repuestos?.[0]?.Repuesto,
-    getDato: (d) => d?.repuestos?.[0]?.CantidadUsada,
-    datoSuffix: 'unidades',
+    id: 'inventario',
+    title: 'Módulo de Inventario',
+    desc: 'Productos sin movimiento y análisis de rotación.',
+    path: '/app/dashboard/inventario',
+    icon: Inventory2,
+    color: 'info.main',
+    bgIcon: 'info.light'
   },
   {
-    id: 'falla',
-    eyebrow: 'Falla más frecuente',
-    tone: 'mute',
-    getNombre: (d) => d?.fallas?.[0]?.Falla,
-    getDato: (d) => d?.fallas?.[0]?.CantidadReportada,
-    datoSuffix: 'veces',
+    id: 'reparaciones',
+    title: 'Módulo de Reparaciones',
+    desc: 'Rentabilidad, Tiempos de servicio, Fallas y Dispositivos.',
+    path: '/app/dashboard/reparaciones',
+    icon: Build,
+    color: 'secondary.main',
+    bgIcon: 'pc.surfaceMuted'
   },
-]
+  {
+    id: 'control',
+    title: 'Control / Auditoría',
+    desc: 'Matriz empleado por operación.',
+    path: '/app/dashboard/control',
+    icon: FactCheck,
+    color: 'error.main',
+    bgIcon: 'error.light'
+  },
+  {
+    id: 'financiero',
+    title: 'Financiero / Caja',
+    desc: 'Ingresos, Egresos y Márgenes por producto o marca.',
+    path: '/app/dashboard/financiero',
+    icon: AccountBalanceWallet,
+    color: 'success.main',
+    bgIcon: 'success.light'
+  }
+];
 
-const RANKINGS = [
-  { id: 'marca', titulo: 'Marcas más reparadas', dataKey: 'marcas', tone: 'accent', labelKey: 'Marca', valueKey: 'CantidadReparaciones' },
-  { id: 'dispositivo', titulo: 'Dispositivos más reparados', dataKey: 'dispositivos', tone: 'error', labelKey: 'Dispositivo', valueKey: 'CantidadReparaciones' },
-  { id: 'repuesto', titulo: 'Repuestos más usados', dataKey: 'repuestos', tone: 'warn', labelKey: 'Repuesto', valueKey: 'CantidadUsada' },
-  { id: 'falla', titulo: 'Fallas más frecuentes', dataKey: 'fallas', tone: 'mute', labelKey: 'Falla', valueKey: 'CantidadReportada' },
-]
-
-const SectionLabel = ({ children }) => (
-  <Typography sx={{ typography: 'eyebrow', color: 'text.disabled', mb: 1.25 }}>{children}</Typography>
-)
-
-const DashboardPage = () => {
-  const { data, loading, error, recargar } = useEstadisticas()
+export default function DashboardPage() {
+  const navigate = useNavigate();
 
   return (
-    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-
-      <PageHeader
-        eyebrow="Estadísticas"
-        title="Dashboard"
-        meta="Métricas del taller — solo órdenes entregadas"
-        action={
-          <Tooltip title="Actualizar datos">
-            <span>
-              <IconButton onClick={recargar} disabled={loading}>
-                <RefreshIcon
-                  sx={{
-                    transition: 'transform .4s',
-                    ...(loading && { animation: 'spin 1s linear infinite' }),
-                    '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } },
-                  }}
-                />
-              </IconButton>
-            </span>
-          </Tooltip>
-        }
+    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
+      <PageHeader 
+        eyebrow="Análisis" 
+        title="Dashboards" 
+        meta="Seleccioná el módulo que deseás analizar para ver sus métricas detalladas." 
       />
 
-      {error && <Alert severity="error">{error}</Alert>}
-
-      <Box>
-        <SectionLabel>Métricas principales</SectionLabel>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2,1fr)', lg: 'repeat(4,1fr)' }, gap: 1.5 }}>
-          {KPI_CONFIG.map(({ id, eyebrow, tone, getNombre, getDato, datoSuffix }) => {
-            const dato = getDato(data)
-            return (
-              <KpiCard
-                key={id}
-                eyebrow={eyebrow}
-                tone={tone}
-                loading={loading}
-                value={getNombre(data) ?? '–'}
-                sub={dato != null ? `${dato} ${datoSuffix}` : undefined}
-              />
-            )
-          })}
-        </Box>
+      <Box sx={{ 
+        display: 'grid', 
+        gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, 
+        gap: 2.5 
+      }}>
+        {DASHBOARD_MODULES.map((mod) => {
+          const Icon = mod.icon;
+          
+          return (
+            <Paper 
+              key={mod.id}
+              sx={{ 
+                overflow: 'hidden',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: (t) => t.vars.palette.pc.liftPop,
+                  borderColor: 'primary.main'
+                }
+              }}
+            >
+              <CardActionArea 
+                onClick={() => navigate(mod.path)}
+                sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start' }}
+              >
+                <Box 
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    width: 42, 
+                    height: 42, 
+                    borderRadius: '10px',
+                    bgcolor: mod.bgIcon,
+                    color: mod.color,
+                    mb: 2
+                  }}
+                >
+                  <Icon fontSize="small" />
+                </Box>
+                
+                <Typography sx={{ fontWeight: 600, fontSize: '.95rem', letterSpacing: '-.01em', mb: 0.5 }}>
+                  {mod.title}
+                </Typography>
+                
+                <Typography sx={{ color: 'text.secondary', fontSize: '.78rem', lineHeight: 1.45 }}>
+                  {mod.desc}
+                </Typography>
+              </CardActionArea>
+            </Paper>
+          );
+        })}
       </Box>
-
-      {(loading || data?.finanzas) && (
-        <FinanzasPanel finanzas={data?.finanzas ?? null} loading={loading} />
-      )}
-
-      <Box>
-        <SectionLabel>Rankings — Top 5</SectionLabel>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2,1fr)' }, gap: 1.5 }}>
-          {RANKINGS.map(({ id, titulo, dataKey, tone, labelKey, valueKey }) => (
-            <RankingChartCard
-              key={id}
-              titulo={titulo}
-              items={data?.[dataKey] ?? []}
-              tone={tone}
-              loading={loading}
-              labelKey={labelKey}
-              valueKey={valueKey}
-            />
-          ))}
-        </Box>
-      </Box>
-
     </Box>
-  )
+  );
 }
-
-export default DashboardPage
