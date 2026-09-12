@@ -35,6 +35,8 @@ import MovimientoStockController from './movimiento-stock/movimiento-stock.contr
 import TransferenciaDAO from './transferencia/transferencia.dao.js';
 import TransferenciaService from './transferencia/transferencia.service.js';
 import TransferenciaController from './transferencia/transferencia.controller.js';
+import InventarioDashboardService from '../dashboard/inventario/inventario-dashboard.service.js';
+import InventarioDashboardController from '../dashboard/inventario/inventario-dashboard.controller.js';
 
 export function createInventarioModule(bitacoraService = null) {
 	const bateriaDAO = new BateriaDAO(models.Bateria);
@@ -74,6 +76,9 @@ export function createInventarioModule(bitacoraService = null) {
 	const transferenciaDAO = new TransferenciaDAO(models.Transferencia);
 	const transferenciaService = new TransferenciaService(transferenciaDAO, bitacoraService);
 	const transferenciaController = new TransferenciaController(transferenciaService);
+	const inventarioDashboardService = new InventarioDashboardService(bitacoraService);
+	const inventarioDashboardController = new InventarioDashboardController(inventarioDashboardService);
+
 
 	return {
 		bateriaController
@@ -88,6 +93,7 @@ export function createInventarioModule(bitacoraService = null) {
 		, inventarioController: inventarioController
 		, movimientoStockController: movimientoStockController
 		, transferenciaController: transferenciaController
+		, inventarioDashboardController
 	};
 }
 

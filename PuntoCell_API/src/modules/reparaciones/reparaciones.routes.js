@@ -23,6 +23,7 @@ export default (container) => {
     pagoReparacionController,
     repuestoOrdenController
   } = container.reparaciones;
+  const { reparacionesDashboardController } = container.dashboard;
 
   // ÓRDENES DE REPARACIÓN
   router.get('/ordenes-reparacion', ordenReparacionController.getAll);
@@ -73,6 +74,15 @@ export default (container) => {
   router.get('/pagos-reparacion', pagoReparacionController.getAll);
   router.get('/pagos-reparacion/:id', pagoReparacionController.getById);
   router.post('/pagos-reparacion', validateFields(pagoReparacionSchema), pagoReparacionController.create);
+
+  // Analíticas / Dashboard - Reparaciones
+  router.get('/analitica/reparaciones-periodo', reparacionesDashboardController.reparacionesPorPeriodo);
+  router.get('/analitica/reparaciones-tipo', reparacionesDashboardController.reparacionesPorTipo);
+  router.get('/analitica/reparaciones-marca', reparacionesDashboardController.reparacionesPorMarca);
+  router.get('/analitica/heatmap-marca-falla', reparacionesDashboardController.heatmapMarcaFalla);
+  router.get('/analitica/pareto-fallas', reparacionesDashboardController.paretoFallas);
+  router.get('/analitica/tiempos-reparacion', reparacionesDashboardController.tiemposReparacion);
+  router.get('/analitica/rentabilidad-falla', reparacionesDashboardController.rentabilidadPorFalla);
   router.put('/pagos-reparacion/:id', validateFields(pagoReparacionUpdateSchema), pagoReparacionController.update);
   router.delete('/pagos-reparacion/:id', pagoReparacionController.delete);
 

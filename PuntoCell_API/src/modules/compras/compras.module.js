@@ -66,6 +66,7 @@ export function createComprasModule(bitacoraService = null) {
     devolucionCompraController,
     pagoCompraController,
     cuentaCorrienteProveedorController,
+    // compras dashboard moved to central dashboard module
     // Expuesto para que los flujos de Compra / PagoCompra asienten movimientos (integración pendiente).
     cuentaCorrienteProveedorService
   };

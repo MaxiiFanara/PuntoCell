@@ -21,6 +21,8 @@ export default (container) => {
     cuentaCorrienteProveedorController
   } = container.compras;
 
+  const { comprasDashboardController } = container.dashboard;
+
   // Proveedor
   router.get('/proveedores', proveedorController.getAll);
   router.get('/proveedores/:id', proveedorController.getById);
@@ -70,6 +72,17 @@ export default (container) => {
   router.get('/pagos-compra', pagoCompraController.getAll);
   router.get('/pagos-compra/:id', pagoCompraController.getById);
   router.post('/pagos-compra', validateFields(pagoCompraSchema), pagoCompraController.create);
+
+  // Analíticas / Dashboard - Compras
+  router.get('/analitica/evolucion-costo', comprasDashboardController.evolucionCostoCompras);
+  router.get('/analitica/por-proveedor', comprasDashboardController.comprasPorProveedor);
+  router.get('/analitica/ranking-proveedores', comprasDashboardController.rankingProveedores);
+  router.get('/analitica/evolucion-precio-producto', comprasDashboardController.evolucionPrecioProducto);
+  router.get('/analitica/variacion-precio-proveedor', comprasDashboardController.variacionPrecioProveedor);
+  router.get('/analitica/abc', comprasDashboardController.abcCompras);
+  router.get('/analitica/punto-reposicion', comprasDashboardController.puntoReposicion);
+  router.get('/analitica/stock-seguridad', comprasDashboardController.stockSeguridad);
+  router.get('/analitica/eoq', comprasDashboardController.eoq);
 
   return router;
 };
