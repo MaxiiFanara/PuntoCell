@@ -1,5 +1,12 @@
 import React from 'react'
-import { Box, Checkbox, FormControlLabel, TextField, Typography } from '@mui/material'
+import { Box, Checkbox, FormControlLabel, Typography } from '@mui/material'
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+import dayjs from 'dayjs'
+import 'dayjs/locale/es'
+
+dayjs.locale('es')
 
 export default function DashboardRangeFilter({ range, seeAll, onChangeFrom, onChangeTo, onToggleSeeAll }) {
   return (
@@ -27,30 +34,28 @@ export default function DashboardRangeFilter({ range, seeAll, onChangeFrom, onCh
         </Typography>
       </Box>
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5 }}>
-        <TextField
-          size="small"
-          type="date"
-          label="Desde"
-          value={range.from}
-          onChange={(event) => onChangeFrom(event.target.value)}
-          InputLabelProps={{ shrink: true }}
-          sx={{ minWidth: 160 }}
-        />
-        <TextField
-          size="small"
-          type="date"
-          label="Hasta"
-          value={range.to}
-          onChange={(event) => onChangeTo(event.target.value)}
-          InputLabelProps={{ shrink: true }}
-          sx={{ minWidth: 160 }}
-        />
-        <FormControlLabel
-          control={<Checkbox checked={seeAll} onChange={(event) => onToggleSeeAll(event.target.checked)} />}
-          label="Ver todo"
-        />
-      </Box>
+      <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5 }}>
+          <DatePicker
+            label="Desde"
+            value={range.from ? dayjs(range.from) : null}
+            onChange={(value) => onChangeFrom(value ? value.format('YYYY-MM-DD') : '')}
+            format="DD/MM/YYYY"
+            slotProps={{ textField: { size: 'small', sx: { minWidth: 160 } } }}
+          />
+          <DatePicker
+            label="Hasta"
+            value={range.to ? dayjs(range.to) : null}
+            onChange={(value) => onChangeTo(value ? value.format('YYYY-MM-DD') : '')}
+            format="DD/MM/YYYY"
+            slotProps={{ textField: { size: 'small', sx: { minWidth: 160 } } }}
+          />
+          <FormControlLabel
+            control={<Checkbox checked={seeAll} onChange={(event) => onToggleSeeAll(event.target.checked)} />}
+            label="Ver todo"
+          />
+        </Box>
+      </LocalizationProvider>
     </Box>
   )
 }
