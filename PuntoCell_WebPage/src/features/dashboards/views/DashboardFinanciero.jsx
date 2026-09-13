@@ -5,6 +5,8 @@ import { BarChart, ChartsGrid } from '@mui/x-charts';
 import PageHeader from '../../../components/ui/PageHeader';
 import KpiCard from '../../../components/ui/KpiCard';
 import { emptyFinancieroDashboard, loadFinancieroDashboard } from '../data/dashboardData';
+import DashboardRangeFilter from '../components/DashboardRangeFilter';
+import { useDashboardRange } from '../hooks/useDashboardRange';
 
 // ==========================================
 // 2. COMPONENTE WRAPPER
@@ -23,22 +25,30 @@ const DashboardCard = ({ title, children, height = 350 }) => (
 // ==========================================
 export default function DashboardFinanciero() {
   const [dashboard, setDashboard] = useState(emptyFinancieroDashboard);
+  const { range, seeAll, updateFrom, updateTo, toggleSeeAll } = useDashboardRange(180);
 
   useEffect(() => {
     let mounted = true;
-    loadFinancieroDashboard()
+    loadFinancieroDashboard(seeAll ? null : range)
       .then((data) => {
         if (mounted) setDashboard(data);
       })
       .catch(() => {});
     return () => { mounted = false; };
-  }, []);
+  }, [range, seeAll]);
 
   const { kpis, ingresosEgresos, margenProducto, margenCategoria, rentabilidadMarca } = dashboard;
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, width: '100%', pb: 10 }}>
       <PageHeader eyebrow="Dashboard" title="Módulo Financiero / Caja" meta="Flujo de caja, ingresos, egresos y análisis de márgenes." />
+      <DashboardRangeFilter
+        range={range}
+        seeAll={seeAll}
+        onChangeFrom={updateFrom}
+        onChangeTo={updateTo}
+        onToggleSeeAll={toggleSeeAll}
+      />
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, md: 3 } }}>
         

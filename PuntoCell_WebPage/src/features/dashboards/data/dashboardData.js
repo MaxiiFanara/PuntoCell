@@ -11,6 +11,17 @@ const buildRange = (days) => {
   return { from: from.toISOString(), to: to.toISOString() }
 }
 
+const normalizeUiRange = (range = null, fallbackDays = 30) => {
+  if (range?.from && range?.to) {
+    const from = new Date(range.from)
+    from.setHours(0, 0, 0, 0)
+    const to = new Date(range.to)
+    to.setHours(23, 59, 59, 999)
+    return { from: from.toISOString(), to: to.toISOString() }
+  }
+  return buildRange(fallbackDays)
+}
+
 const buildQuery = (params = {}) => new URLSearchParams(
   Object.entries(params).reduce((acc, [key, value]) => {
     if (value !== undefined && value !== null && value !== '') acc[key] = value
@@ -66,6 +77,42 @@ const buildControlTrend = async () => {
 
   const weekly = await Promise.all(
     weeks.map(async ({ from, to }) => {
+      const qs = buildQuery({ from: from.toISOString(), to: to.toISOString() })
+      const result = await fetchData(`/dashboard/control/empleado-operacion?${qs}`)
+      const { totals } = controlTotals(result)
+      return {
+        anulaciones: totals.Anulaciones,
+        descuentos: totals.Descuentos,
+      }
+    })
+  )
+
+  return {
+    xAxis: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'],
+    series: [
+      { data: weekly.map((item) => item.anulaciones), label: 'Anulaciones', color: '#a93b32' },
+      { data: weekly.map((item) => item.descuentos), label: 'Descuentos', color: '#dfa758' },
+    ],
+  }
+}
+
+const buildControlTrendFromRange = async (range = null) => {
+  const normalized = normalizeUiRange(range, 30)
+  const fromDate = new Date(normalized.from)
+  const toDate = new Date(normalized.to)
+  const diffDays = Math.max(1, Math.ceil((toDate - fromDate) / 86400000) + 1)
+  const bucketSize = Math.max(1, Math.ceil(diffDays / 4))
+  const buckets = []
+  for (let offset = 3; offset >= 0; offset -= 1) {
+    const bucketTo = new Date(toDate)
+    bucketTo.setDate(bucketTo.getDate() - (offset * bucketSize))
+    const bucketFrom = new Date(bucketTo)
+    bucketFrom.setDate(bucketFrom.getDate() - (bucketSize - 1))
+    buckets.push({ from: bucketFrom, to: bucketTo })
+  }
+
+  const weekly = await Promise.all(
+    buckets.map(async ({ from, to }) => {
       const qs = buildQuery({ from: from.toISOString(), to: to.toISOString() })
       const result = await fetchData(`/dashboard/control/empleado-operacion?${qs}`)
       const { totals } = controlTotals(result)
@@ -251,9 +298,9 @@ export const emptyFinancieroDashboard = {
   rentabilidadMarca: [],
 }
 
-export async function loadVentasDashboard() {
-  const range30 = buildRange(30)
-  const range60 = buildRange(60)
+export async function loadVentasDashboard(range = null) {
+  const range30 = normalizeUiRange(range, 30)
+  const range60 = normalizeUiRange(range, 60)
   const query30 = buildQuery(range30)
   const query60 = buildQuery(range60)
   const [summary, evolucion, formaPago, categoria, sucursal, pareto, elasticidad, empleados, historico, finanzas] = await Promise.all([
@@ -368,10 +415,10 @@ export async function loadVentasDashboard() {
   }
 }
 
-export async function loadComprasDashboard() {
-  const range30 = buildRange(30)
-  const range90 = buildRange(90)
-  const range180 = buildRange(180)
+export async function loadComprasDashboard(range = null) {
+  const range30 = normalizeUiRange(range, 30)
+  const range90 = normalizeUiRange(range, 90)
+  const range180 = normalizeUiRange(range, 180)
   const query30 = buildQuery(range30)
   const query90 = buildQuery(range90)
   const query180 = buildQuery(range180)
@@ -461,10 +508,10 @@ export async function loadComprasDashboard() {
   }
 }
 
-export async function loadInventarioDashboard() {
+export async function loadInventarioDashboard(range = null) {
   const [summary, bajaRotacion, inventarios, precios, listas] = await Promise.all([
     fetchData('/dashboard/summary'),
-    fetchData('/dashboard/inventario/baja-rotacion?days=90'),
+    fetchData(`/dashboard/inventario/baja-rotacion?${buildQuery(normalizeUiRange(range, 90))}`),
     fetchData('/inventario/inventarios').catch(() => []),
     preciosService.getPreciosArticulos().catch(() => []),
     preciosService.getListas().catch(() => []),
@@ -521,8 +568,8 @@ export async function loadInventarioDashboard() {
   }
 }
 
-export async function loadReparacionesDashboard() {
-  const range30 = buildRange(30)
+export async function loadReparacionesDashboard(range = null) {
+  const range30 = normalizeUiRange(range, 30)
   const query30 = buildQuery(range30)
   const [evolucion, tipo, marca, pareto, tiempos, rentabilidad, ordenes] = await Promise.all([
     fetchData(`/dashboard/reparaciones/evolucion?${query30}`),
@@ -588,10 +635,10 @@ export async function loadReparacionesDashboard() {
   }
 }
 
-export async function loadControlDashboard() {
-  const current = await fetchData('/dashboard/control/empleado-operacion').catch(() => null)
+export async function loadControlDashboard(range = null) {
+  const current = await fetchData(`/dashboard/control/empleado-operacion?${buildQuery(normalizeUiRange(range, 30))}`).catch(() => null)
   const { rows, totals } = controlTotals(current)
-  const trend = await buildControlTrend()
+  const trend = await buildControlTrendFromRange(range)
 
   return {
     kpis: {
@@ -607,8 +654,8 @@ export async function loadControlDashboard() {
   }
 }
 
-export async function loadFinancieroDashboard() {
-  const range180 = buildRange(180)
+export async function loadFinancieroDashboard(range = null) {
+  const range180 = normalizeUiRange(range, 30)
   const query180 = buildQuery(range180)
   const [flow, marginBruto, marginProd, marginCat, rentMarca] = await Promise.all([
     fetchData(`/dashboard/finanzas/ingresos-egresos?${query180}`),

@@ -17,6 +17,8 @@ import {
 import PageHeader from '../../../components/ui/PageHeader';
 import KpiCard from '../../../components/ui/KpiCard';
 import { emptyVentasDashboard, loadVentasDashboard } from '../data/dashboardData';
+import DashboardRangeFilter from '../components/DashboardRangeFilter';
+import { useDashboardRange } from '../hooks/useDashboardRange';
 
 // ==========================================
 // 2. COMPONENTE WRAPPER BLINDADO (100% WIDTH)
@@ -60,16 +62,17 @@ const DashboardCard = ({ title, children, height = 340 }) => (
 // ==========================================
 export default function DashboardVentas() {
   const [dashboard, setDashboard] = useState(emptyVentasDashboard);
+  const { range, seeAll, updateFrom, updateTo, toggleSeeAll } = useDashboardRange(30);
 
   useEffect(() => {
     let mounted = true;
-    loadVentasDashboard()
+    loadVentasDashboard(seeAll ? null : range)
       .then((data) => {
         if (mounted) setDashboard(data);
       })
       .catch(() => {});
     return () => { mounted = false; };
-  }, []);
+  }, [range, seeAll]);
 
   const { kpis, evolucion, formaPago, categorias, sucursales, empleados, pareto, elasticidad } = dashboard;
 
@@ -79,6 +82,14 @@ export default function DashboardVentas() {
         eyebrow="Dashboard" 
         title="Módulo de Ventas" 
         meta="Análisis de rendimiento comercial y proyecciones." 
+      />
+
+      <DashboardRangeFilter
+        range={range}
+        seeAll={seeAll}
+        onChangeFrom={updateFrom}
+        onChangeTo={updateTo}
+        onToggleSeeAll={toggleSeeAll}
       />
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, md: 3 } }}>
@@ -185,18 +196,32 @@ export default function DashboardVentas() {
         {/* FILA 5: Elasticidad */}
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: { xs: 2, md: 3 } }}>
           <DashboardCard title="Elasticidad Precio vs Demanda" height={380}>
-             <ScatterChart
-                xAxis={[{ label: 'Precio ($)', min: 50 }]}
-                yAxis={[{ label: 'Demanda (Unidades)' }]}
-                series={[
-                  {
-                      data: elasticidad,
-                    color: '#dfa758',
-                    markerSize: 8,
-                  },
-                ]}
-                margin={{ top: 20, bottom: 50, left: 60, right: 20 }}
-              />
+            <ScatterChart
+              xAxis={[{
+                min: 0,
+                max: Math.max(1, ...elasticidad.map((item) => Number(item.x) || 0)),
+                label: 'Precio ($)',
+              }]}
+              yAxis={[{
+                min: 0,
+                max: Math.max(1, ...elasticidad.map((item) => Number(item.y) || 0)),
+                label: 'Demanda (Unidades)',
+              }]}
+              series={[
+                {
+                  data: elasticidad
+                    .filter((item) => Number.isFinite(Number(item.x)) && Number.isFinite(Number(item.y)))
+                    .map((item) => ({
+                      x: Number(item.x),
+                      y: Number(item.y),
+                      id: item.id,
+                    })),
+                  color: '#dfa758',
+                  markerSize: 8,
+                },
+              ]}
+              margin={{ top: 20, bottom: 50, left: 60, right: 20 }}
+            />
           </DashboardCard>
         </Box>
 

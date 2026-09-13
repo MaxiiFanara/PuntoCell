@@ -10,6 +10,8 @@ import {
 import PageHeader from '../../../components/ui/PageHeader';
 import KpiCard from '../../../components/ui/KpiCard';
 import { emptyComprasDashboard, loadComprasDashboard } from '../data/dashboardData';
+import DashboardRangeFilter from '../components/DashboardRangeFilter';
+import { useDashboardRange } from '../hooks/useDashboardRange';
 
 // ==========================================
 // 2. COMPONENTE WRAPPER BLINDADO (100% WIDTH)
@@ -38,16 +40,17 @@ const DashboardCard = ({ title, children, height = 340 }) => (
 // ==========================================
 export default function DashboardCompras() {
   const [dashboard, setDashboard] = useState(emptyComprasDashboard);
+  const { range, seeAll, updateFrom, updateTo, toggleSeeAll } = useDashboardRange(30);
 
   useEffect(() => {
     let mounted = true;
-    loadComprasDashboard()
+    loadComprasDashboard(seeAll ? null : range)
       .then((data) => {
         if (mounted) setDashboard(data);
       })
       .catch(() => {});
     return () => { mounted = false; };
-  }, []);
+  }, [range, seeAll]);
 
   const { kpis, evolucionCosto, precioProducto, proveedores, dispersionPrecios, abc, inventario, eoq } = dashboard;
 
@@ -57,6 +60,14 @@ export default function DashboardCompras() {
         eyebrow="Dashboard" 
         title="Módulo de Compras" 
         meta="Análisis de costos, proveedores e inventario inteligente." 
+      />
+
+      <DashboardRangeFilter
+        range={range}
+        seeAll={seeAll}
+        onChangeFrom={updateFrom}
+        onChangeTo={updateTo}
+        onToggleSeeAll={toggleSeeAll}
       />
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, md: 3 } }}>

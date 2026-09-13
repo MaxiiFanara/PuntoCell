@@ -16,6 +16,8 @@ import {
 import PageHeader from '../../../components/ui/PageHeader';
 import KpiCard from '../../../components/ui/KpiCard';
 import { emptyReparacionesDashboard, loadReparacionesDashboard } from '../data/dashboardData';
+import DashboardRangeFilter from '../components/DashboardRangeFilter';
+import { useDashboardRange } from '../hooks/useDashboardRange';
 
 // ==========================================
 // 2. COMPONENTE WRAPPER BLINDADO
@@ -44,16 +46,17 @@ const DashboardCard = ({ title, children, height = 340 }) => (
 // ==========================================
 export default function DashboardReparaciones() {
   const [dashboard, setDashboard] = useState(emptyReparacionesDashboard);
+  const { range, seeAll, updateFrom, updateTo, toggleSeeAll } = useDashboardRange(30);
 
   useEffect(() => {
     let mounted = true;
-    loadReparacionesDashboard()
+    loadReparacionesDashboard(seeAll ? null : range)
       .then((data) => {
         if (mounted) setDashboard(data);
       })
       .catch(() => {});
     return () => { mounted = false; };
-  }, []);
+  }, [range, seeAll]);
 
   const { kpis, periodo, dispositivos, marcas, dispositivoFalla, pareto, distribucionTiempo, tecnicos, matriz } = dashboard;
   const periodoData = periodo.series?.[0]?.data ?? [];
@@ -70,6 +73,14 @@ export default function DashboardReparaciones() {
         eyebrow="Dashboard" 
         title="Módulo de Reparaciones" 
         meta="Análisis de fallas, tiempos técnicos y rentabilidad del servicio." 
+      />
+
+      <DashboardRangeFilter
+        range={range}
+        seeAll={seeAll}
+        onChangeFrom={updateFrom}
+        onChangeTo={updateTo}
+        onToggleSeeAll={toggleSeeAll}
       />
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, md: 3 } }}>

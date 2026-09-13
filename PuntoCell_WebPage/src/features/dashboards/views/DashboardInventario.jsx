@@ -8,6 +8,8 @@ import {
 import PageHeader from '../../../components/ui/PageHeader';
 import KpiCard from '../../../components/ui/KpiCard';
 import { emptyInventarioDashboard, loadInventarioDashboard } from '../data/dashboardData';
+import DashboardRangeFilter from '../components/DashboardRangeFilter';
+import { useDashboardRange } from '../hooks/useDashboardRange';
 
 // ==========================================
 // 2. COMPONENTE WRAPPER BLINDADO
@@ -36,16 +38,17 @@ const DashboardCard = ({ title, children, height = 360 }) => (
 // ==========================================
 export default function DashboardInventario() {
   const [dashboard, setDashboard] = useState(emptyInventarioDashboard);
+  const { range, seeAll, updateFrom, updateTo, toggleSeeAll } = useDashboardRange(30);
 
   useEffect(() => {
     let mounted = true;
-    loadInventarioDashboard()
+    loadInventarioDashboard(seeAll ? null : range)
       .then((data) => {
         if (mounted) setDashboard(data);
       })
       .catch(() => {});
     return () => { mounted = false; };
-  }, []);
+  }, [range, seeAll]);
 
   const { kpis, aging, valorizacion } = dashboard;
 
@@ -55,6 +58,14 @@ export default function DashboardInventario() {
         eyebrow="Dashboard" 
         title="Módulo de Inventario" 
         meta="Análisis de antigüedad (Aging) y rotación de productos." 
+      />
+
+      <DashboardRangeFilter
+        range={range}
+        seeAll={seeAll}
+        onChangeFrom={updateFrom}
+        onChangeTo={updateTo}
+        onToggleSeeAll={toggleSeeAll}
       />
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, md: 3 } }}>

@@ -5,6 +5,8 @@ import { LineChart } from '@mui/x-charts';
 import PageHeader from '../../../components/ui/PageHeader';
 import KpiCard from '../../../components/ui/KpiCard';
 import { emptyControlDashboard, loadControlDashboard } from '../data/dashboardData';
+import DashboardRangeFilter from '../components/DashboardRangeFilter';
+import { useDashboardRange } from '../hooks/useDashboardRange';
 
 // ==========================================
 // 2. COMPONENTES WRAPPER & HEATMAP CUSTOM
@@ -84,22 +86,30 @@ const MatrizAuditoria = ({ data }) => {
 
 export default function DashboardControl() {
   const [dashboard, setDashboard] = useState(emptyControlDashboard);
+  const { range, seeAll, updateFrom, updateTo, toggleSeeAll } = useDashboardRange(30);
 
   useEffect(() => {
     let mounted = true;
-    loadControlDashboard()
+    loadControlDashboard(seeAll ? null : range)
       .then((data) => {
         if (mounted) setDashboard(data);
       })
       .catch(() => {});
     return () => { mounted = false; };
-  }, []);
+  }, [range, seeAll]);
 
   const { kpis, heatmap, evolucionRiesgo } = dashboard;
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, width: '100%' }}>
       <PageHeader eyebrow="Dashboard" title="Módulo de Control y Auditoría" meta="Matriz de operaciones y detección de anomalías." />
+      <DashboardRangeFilter
+        range={range}
+        seeAll={seeAll}
+        onChangeFrom={updateFrom}
+        onChangeTo={updateTo}
+        onToggleSeeAll={toggleSeeAll}
+      />
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, md: 3 } }}>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: { xs: 2, md: 3 } }}>
           <KpiCard eyebrow="Operaciones Totales" value={String(kpis.operacionesTotales)} sub="Registradas en sistema" tone="mute" />
