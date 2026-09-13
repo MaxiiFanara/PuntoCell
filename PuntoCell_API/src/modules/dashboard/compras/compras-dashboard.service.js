@@ -18,11 +18,17 @@ function buildPeriodExpr(gran) {
 export default class ComprasDashboardService {
   constructor(bitacoraService = null) { this.bitacoraService = bitacoraService; }
 
+  _resolveRange(query = {}, defaultDays = 29) {
+    let from = query.from ? new Date(query.from) : null; let to = query.to ? new Date(query.to) : null;
+    if (!to) to = new Date();
+    if (!from) { const f = new Date(to); f.setDate(f.getDate() - defaultDays); from = f; }
+    return { from, to };
+  }
+
   // ... (content copied from original compras-dashboard.service)
   async getCostoEvolucion(query = {}, ctx = null) {
     const gran = VALID_GRAN.includes((query.granularity||'').toLowerCase()) ? query.granularity.toLowerCase() : 'day';
-    let from = query.from ? new Date(query.from) : null; let to = query.to ? new Date(query.to) : null;
-    if (!to) to = new Date(); if (!from) { const f = new Date(to); f.setDate(f.getDate()-29); from = f; }
+    const { from, to } = this._resolveRange(query, 29);
     const periodExpr = buildPeriodExpr(gran);
     const sql = `SELECT ${periodExpr} AS period, SUM(CONVERT(float, TotalCosto)) AS totalCosto FROM Compra WHERE Fecha >= :from AND Fecha <= :to GROUP BY ${periodExpr} ORDER BY period`;
     const replacements = { from: formatISO(from), to: formatISO(to) };
@@ -32,8 +38,7 @@ export default class ComprasDashboardService {
   }
 
   async getComprasPorProveedor(query = {}, ctx = null) {
-    let from = query.from ? new Date(query.from) : null; let to = query.to ? new Date(query.to) : null;
-    if (!to) to = new Date(); if (!from) { const f = new Date(to); f.setDate(f.getDate()-29); from = f; }
+    const { from, to } = this._resolveRange(query, 29);
     const sql = `SELECT p.Id AS IdProveedor, p.Nombre AS proveedor, SUM(CONVERT(float, c.TotalCosto)) AS totalComprado, COUNT(DISTINCT c.Id) AS comprasCount FROM Compra c INNER JOIN Proveedor p ON c.IdProveedor = p.Id WHERE c.Fecha >= :from AND c.Fecha <= :to GROUP BY p.Id, p.Nombre ORDER BY totalComprado DESC`;
     const replacements = { from: formatISO(from), to: formatISO(to) };
     const rows = await sequelize.query(sql, { replacements, type: QueryTypes.SELECT });
@@ -42,8 +47,7 @@ export default class ComprasDashboardService {
   }
 
   async getRankingProveedores(query = {}, ctx = null) {
-    let from = query.from ? new Date(query.from) : null; let to = query.to ? new Date(query.to) : null;
-    if (!to) to = new Date(); if (!from) { const f = new Date(to); f.setDate(f.getDate()-29); from = f; }
+    const { from, to } = this._resolveRange(query, 29);
     const order = query.order || 'monto';
     const sql = `SELECT p.Id AS IdProveedor, p.Nombre AS proveedor,
       SUM(CONVERT(float, c.TotalCosto)) AS monto,
@@ -84,8 +88,7 @@ export default class ComprasDashboardService {
   }
 
   async getVariacionPrecioProveedor(query = {}, ctx = null) {
-    let from = query.from ? new Date(query.from) : null; let to = query.to ? new Date(query.to) : null;
-    if (!to) to = new Date(); if (!from) { const f = new Date(to); f.setMonth(f.getMonth()-3); from = f; }
+    const { from, to } = this._resolveRange(query, 89);
     const whereProducto = query.productoId ? ' AND i.IdProducto = :productoId' : '';
     const sql = `SELECT p.Id AS IdProveedor, p.Nombre AS proveedor, dc.PrecioCostoUnitario AS precioUnitario FROM Compra c INNER JOIN DetalleCompra dc ON dc.IdCompra = c.Id INNER JOIN Inventario i ON dc.IdInventario = i.Id INNER JOIN Proveedor p ON c.IdProveedor = p.Id WHERE c.Fecha >= :from AND c.Fecha <= :to ${whereProducto}`;
     const replacements = { from: formatISO(from), to: formatISO(to) };
@@ -104,8 +107,7 @@ export default class ComprasDashboardService {
   }
 
   async getABCCompras(query = {}, ctx = null) {
-    let from = query.from ? new Date(query.from) : null; let to = query.to ? new Date(query.to) : null;
-    if (!to) to = new Date(); if (!from) { const f = new Date(to); f.setMonth(f.getMonth()-5); from = f; }
+    const { from, to } = this._resolveRange(query, 149);
     const sql = `SELECT p.Id AS IdProducto, p.Nombre AS producto, SUM(CONVERT(float, dc.Cantidad * dc.PrecioCostoUnitario)) AS total FROM Compra c INNER JOIN DetalleCompra dc ON dc.IdCompra = c.Id INNER JOIN Inventario i ON dc.IdInventario = i.Id INNER JOIN Producto p ON i.IdProducto = p.Id WHERE c.Fecha >= :from AND c.Fecha <= :to GROUP BY p.Id, p.Nombre ORDER BY total DESC`;
     const rows = await sequelize.query(sql, { replacements: { from: formatISO(from), to: formatISO(to) }, type: QueryTypes.SELECT });
     const totalSum = rows.reduce((s,r)=>s+Number(r.total||0),0);
@@ -122,8 +124,8 @@ export default class ComprasDashboardService {
 
   async getPuntoReposicion(query = {}, ctx = null) {
     if (!query.productoId) throw new Error('productoId is required');
-    const days = query.days || 90; const leadTime = Number(query.leadTimeDays) || 7;
-    const to = new Date(); const from = new Date(); from.setDate(to.getDate()-days);
+    const days = Number(query.days) || 90; const leadTime = Number(query.leadTimeDays) || 7;
+    const { from, to } = this._resolveRange(query, days);
     const sql = `SELECT SUM(CONVERT(float, dv.Cantidad)) AS qty FROM Venta v INNER JOIN DetalleVenta dv ON dv.IdVenta = v.Id INNER JOIN Inventario i ON dv.IdInventario = i.Id WHERE v.Fecha >= :from AND v.Fecha <= :to AND i.IdProducto = :productoId`;
     const repl = { from: formatISO(from), to: formatISO(to), productoId: query.productoId };
     const rows = await sequelize.query(sql, { replacements: repl, type: QueryTypes.SELECT });
@@ -136,10 +138,10 @@ export default class ComprasDashboardService {
 
   async getStockSeguridad(query = {}, ctx = null) {
     if (!query.productoId) throw new Error('productoId is required');
-    const days = query.days || 90; const leadTime = Number(query.leadTimeDays) || 7; const serviceLevel = Number(query.serviceLevel) || 0.95;
+    const days = Number(query.days) || 90; const leadTime = Number(query.leadTimeDays) || 7; const serviceLevel = Number(query.serviceLevel) || 0.95;
     const zMap = { '0.9':1.28, '0.95':1.65, '0.99':2.33 };
     const z = zMap[String(serviceLevel)] || 1.65;
-    const to = new Date(); const from = new Date(); from.setDate(to.getDate()-days);
+    const { from, to } = this._resolveRange(query, days);
     const sql = `SELECT CONVERT(char(10), v.Fecha, 23) as Fecha, SUM(CONVERT(float, dv.Cantidad)) AS qty FROM Venta v INNER JOIN DetalleVenta dv ON dv.IdVenta = v.Id INNER JOIN Inventario i ON dv.IdInventario = i.Id WHERE v.Fecha >= :from AND v.Fecha <= :to AND i.IdProducto = :productoId GROUP BY CONVERT(char(10), v.Fecha, 23)`;
     const repl = { from: formatISO(from), to: formatISO(to), productoId: query.productoId };
     const rows = await sequelize.query(sql, { replacements: repl, type: QueryTypes.SELECT });
@@ -155,8 +157,8 @@ export default class ComprasDashboardService {
 
   async getEOQ(query = {}, ctx = null) {
     if (!query.productoId) throw new Error('productoId is required');
-    const days = query.days || 365;
-    const to = new Date(); const from = new Date(); from.setDate(to.getDate()-days);
+    const days = Number(query.days) || 365;
+    const { from, to } = this._resolveRange(query, days);
     const sql = `SELECT SUM(CONVERT(float, dv.Cantidad)) AS qty FROM Venta v INNER JOIN DetalleVenta dv ON dv.IdVenta = v.Id INNER JOIN Inventario i ON dv.IdInventario = i.Id WHERE v.Fecha >= :from AND v.Fecha <= :to AND i.IdProducto = :productoId`;
     const repl = { from: formatISO(from), to: formatISO(to), productoId: query.productoId };
     const rows = await sequelize.query(sql, { replacements: repl, type: QueryTypes.SELECT });

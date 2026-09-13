@@ -9,10 +9,16 @@ function buildPeriodExpr(gran){ switch(gran){ case 'month': return "CONVERT(char
 export default class ReparacionesDashboardService {
   constructor(bitacoraService=null){ this.bitacoraService = bitacoraService; }
 
+  _resolveRange(query = {}, defaultDays = 29) {
+    let from = query.from ? new Date(query.from) : null; let to = query.to ? new Date(query.to) : null;
+    if (!to) to = new Date();
+    if (!from) { const f = new Date(to); f.setDate(f.getDate() - defaultDays); from = f; }
+    return { from, to };
+  }
+
   async getReparacionesEvolucion(query={}, ctx=null){
     const gran = VALID_GRAN.includes((query.granularity||'').toLowerCase())?query.granularity.toLowerCase():'day';
-    let from = query.from?new Date(query.from):null; let to = query.to?new Date(query.to):null;
-    if(!to) to=new Date(); if(!from){ const f=new Date(to); f.setDate(f.getDate()-29); from=f; }
+    const { from, to } = this._resolveRange(query, 29);
     const periodExpr = buildPeriodExpr(gran);
     const sql = `SELECT ${periodExpr} AS period, COUNT(*) AS repairs FROM OrdenReparacion WHERE FechaEmision >= :from AND FechaEmision <= :to GROUP BY ${periodExpr} ORDER BY period`;
     const rows = await sequelize.query(sql, { replacements: { from: formatISO(from), to: formatISO(to) }, type: QueryTypes.SELECT });
@@ -21,8 +27,7 @@ export default class ReparacionesDashboardService {
   }
 
   async getReparacionesPorTipo(query={}, ctx=null){
-    let from = query.from?new Date(query.from):null; let to = query.to?new Date(query.to):null;
-    if(!to) to=new Date(); if(!from){ const f=new Date(to); f.setDate(f.getDate()-29); from=f; }
+    const { from, to } = this._resolveRange(query, 29);
     const sql = `SELECT cat.Id AS IdCategoria, cat.Nombre AS categoria, COUNT(*) AS repairs FROM OrdenReparacion o INNER JOIN DispositivoCliente dc ON o.IdDispositivoCliente = dc.Id INNER JOIN ModeloProducto m ON dc.IdModeloProducto = m.Id INNER JOIN CategoriaProducto cat ON m.IdCategoriaProducto = cat.Id WHERE o.FechaEmision >= :from AND o.FechaEmision <= :to GROUP BY cat.Id, cat.Nombre ORDER BY repairs DESC`;
     const rows = await sequelize.query(sql, { replacements: { from: formatISO(from), to: formatISO(to) }, type: QueryTypes.SELECT });
     if(this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó reparaciones por tipo', `from=${from.toISOString()} to=${to.toISOString()}`);
@@ -30,8 +35,7 @@ export default class ReparacionesDashboardService {
   }
 
   async getReparacionesPorMarca(query={}, ctx=null){
-    let from = query.from?new Date(query.from):null; let to = query.to?new Date(query.to):null;
-    if(!to) to=new Date(); if(!from){ const f=new Date(to); f.setDate(f.getDate()-29); from=f; }
+    const { from, to } = this._resolveRange(query, 29);
     const sql = `SELECT ma.Id AS IdMarca, ma.Nombre AS marca, COUNT(*) AS repairs FROM OrdenReparacion o INNER JOIN DispositivoCliente dc ON o.IdDispositivoCliente = dc.Id INNER JOIN ModeloProducto m ON dc.IdModeloProducto = m.Id INNER JOIN MarcaProducto ma ON m.IdMarcaProducto = ma.Id WHERE o.FechaEmision >= :from AND o.FechaEmision <= :to GROUP BY ma.Id, ma.Nombre ORDER BY repairs DESC`;
     const rows = await sequelize.query(sql, { replacements: { from: formatISO(from), to: formatISO(to) }, type: QueryTypes.SELECT });
     if(this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó reparaciones por marca', `from=${from.toISOString()} to=${to.toISOString()}`);
@@ -40,6 +44,7 @@ export default class ReparacionesDashboardService {
 
   async getRepuestosUsados(query={}, ctx=null){
     const limit = Math.max(1, Math.min(Number(query.limit) || 5, 50));
+    const { from, to } = this._resolveRange(query, 29);
     const sql = `
       SELECT TOP (${limit})
         a.Id AS IdArticulo,
@@ -49,10 +54,13 @@ export default class ReparacionesDashboardService {
       INNER JOIN Inventario i ON ro.IdInventario = i.Id
       INNER JOIN Producto a ON i.IdProducto = a.Id
       WHERE a.EsRepuesto = 1
+      AND ro.IdOrdenReparacion IN (
+        SELECT Id FROM OrdenReparacion WHERE FechaEmision >= :from AND FechaEmision <= :to
+      )
       GROUP BY a.Id, a.Nombre
       ORDER BY CantidadUsada DESC, Repuesto ASC
     `;
-    const rows = await sequelize.query(sql, { type: QueryTypes.SELECT });
+    const rows = await sequelize.query(sql, { replacements: { from: formatISO(from), to: formatISO(to) }, type: QueryTypes.SELECT });
     if(this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó repuestos más usados', `limit=${limit}`);
     return { entries: rows.map(r => ({
       IdArticulo: r.IdArticulo,
@@ -62,8 +70,7 @@ export default class ReparacionesDashboardService {
   }
 
   async getHeatmapMarcaFalla(query={}, ctx=null){
-    let from = query.from?new Date(query.from):null; let to = query.to?new Date(query.to):null;
-    if(!to) to=new Date(); if(!from){ const f=new Date(to); f.setDate(f.getDate()-89); from=f; }
+    const { from, to } = this._resolveRange(query, 89);
     const sql = `SELECT ma.Nombre AS marca, f.Nombre AS falla, COUNT(*) AS count FROM OrdenReparacion o INNER JOIN OrdenFalla ofa ON ofa.IdOrdenReparacion = o.Id INNER JOIN Falla f ON ofa.IdFalla = f.Id INNER JOIN DispositivoCliente dc ON o.IdDispositivoCliente = dc.Id INNER JOIN ModeloProducto m ON dc.IdModeloProducto = m.Id INNER JOIN MarcaProducto ma ON m.IdMarcaProducto = ma.Id WHERE o.FechaEmision >= :from AND o.FechaEmision <= :to GROUP BY ma.Nombre, f.Nombre ORDER BY ma.Nombre, count DESC`;
     const rows = await sequelize.query(sql, { replacements: { from: formatISO(from), to: formatISO(to) }, type: QueryTypes.SELECT });
     const map = new Map(); const fallasSet = new Set(); const marcasSet = new Set();
@@ -75,8 +82,7 @@ export default class ReparacionesDashboardService {
   }
 
   async getParetoFallas(query={}, ctx=null){
-    let from = query.from?new Date(query.from):null; let to = query.to?new Date(query.to):null;
-    if(!to) to=new Date(); if(!from){ const f=new Date(to); f.setDate(f.getDate()-89); from=f; }
+    const { from, to } = this._resolveRange(query, 89);
     const sql = `SELECT f.Id AS IdFalla, f.Nombre AS falla, COUNT(*) AS cnt FROM OrdenReparacion o INNER JOIN OrdenFalla ofa ON ofa.IdOrdenReparacion = o.Id INNER JOIN Falla f ON ofa.IdFalla = f.Id WHERE o.FechaEmision >= :from AND o.FechaEmision <= :to GROUP BY f.Id, f.Nombre ORDER BY cnt DESC`;
     const rows = await sequelize.query(sql, { replacements: { from: formatISO(from), to: formatISO(to) }, type: QueryTypes.SELECT });
     const total = rows.reduce((s,r)=>s+Number(r.cnt||0),0);
@@ -86,8 +92,7 @@ export default class ReparacionesDashboardService {
   }
 
   async getTiemposReparacion(query={}, ctx=null){
-    let from = query.from?new Date(query.from):null; let to = query.to?new Date(query.to):null;
-    if(!to) to=new Date(); if(!from){ const f=new Date(to); f.setMonth(f.getMonth()-3); from=f; }
+    const { from, to } = this._resolveRange(query, 90);
     const sql = `SELECT
         COUNT(*) AS count,
         AVG(CONVERT(float, DATEDIFF(day, FechaEmision, FechaEntrega))) AS mean,
@@ -116,8 +121,7 @@ export default class ReparacionesDashboardService {
   }
 
   async getRentabilidadPorFalla(query={}, ctx=null){
-    let from = query.from?new Date(query.from):null; let to = query.to?new Date(query.to):null;
-    if(!to) to=new Date(); if(!from){ const f=new Date(to); f.setMonth(f.getMonth()-6); from=f; }
+    const { from, to } = this._resolveRange(query, 180);
     const sql = `SELECT f.Id AS IdFalla, f.Nombre AS falla, COUNT(*) AS repairs, SUM(CONVERT(float, o.TotalReparacion)) AS revenue, SUM(CONVERT(float, o.CostoRepuestos + o.PrecioManoObra)) AS cost FROM OrdenReparacion o INNER JOIN OrdenFalla ofa ON ofa.IdOrdenReparacion = o.Id INNER JOIN Falla f ON ofa.IdFalla = f.Id WHERE o.FechaEmision >= :from AND o.FechaEmision <= :to GROUP BY f.Id, f.Nombre ORDER BY repairs DESC`;
     const rows = await sequelize.query(sql, { replacements: { from: formatISO(from), to: formatISO(to) }, type: QueryTypes.SELECT });
     const mapped = rows.map(r=>{ const revenue = Number(r.revenue||0); const cost = Number(r.cost||0); const margin = revenue - cost; const marginPct = revenue>0? Number(((margin/revenue)*100).toFixed(2)):0; return { id: r.IdFalla, falla: r.falla, repairs: Number(r.repairs||0), revenue: Number(revenue.toFixed(2)), cost: Number(cost.toFixed(2)), margin: Number(margin.toFixed(2)), marginPct }; });

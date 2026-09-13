@@ -16,11 +16,11 @@ export const scatterQuerySchema = Joi.object({
 }).unknown(true);
 
 export const elasticityQuerySchema = Joi.object({
-  from: Joi.date().required(),
-  to: Joi.date().required()
+  from: Joi.date().optional(),
+  to: Joi.date().optional()
 }).unknown(true);
 
 export const projectionQuerySchema = Joi.object({
-  from: Joi.date().required(),
-  to: Joi.date().required()
+  from: Joi.date().optional(),
+  to: Joi.date().optional()
 }).unknown(true);

@@ -7,10 +7,16 @@ function formatISO(d){ if(!d) return null; const z=new Date(d); return z.toISOSt
 export default class FinanzasDashboardService {
   constructor(bitacoraService = null){ this.bitacoraService = bitacoraService; }
 
+  _resolveRange(query = {}, defaultMonths = 2) {
+    let from = query.from ? new Date(query.from) : null; let to = query.to ? new Date(query.to) : null;
+    if (!to) to = new Date();
+    if (!from) { const f = new Date(to); f.setMonth(f.getMonth() - defaultMonths); from = f; }
+    return { from, to };
+  }
+
   async getIngresosEgresos(query = {}, ctx = null){
     const gran = query.granularity || 'month';
-    let from = query.from? new Date(query.from): null; let to = query.to? new Date(query.to): null;
-    if(!to) to = new Date(); if(!from){ const f=new Date(to); f.setMonth(f.getMonth()-5); from=f; }
+    const { from, to } = this._resolveRange(query, 5);
     const periodExpr = gran === 'month' ? "CONVERT(char(7), Fecha, 120)" : "CONVERT(char(10), Fecha, 23)";
     const sql = `SELECT ${periodExpr} AS period, SUM(CASE WHEN TipoMovimiento = 1 THEN CONVERT(float, Monto) ELSE 0 END) AS ingresos, SUM(CASE WHEN TipoMovimiento = 0 THEN CONVERT(float, Monto) ELSE 0 END) AS egresos FROM MovimientoCaja WHERE Fecha >= :from AND Fecha <= :to GROUP BY ${periodExpr} ORDER BY period`;
     const rows = await sequelize.query(sql, { replacements: { from: formatISO(from), to: formatISO(to) }, type: QueryTypes.SELECT });
@@ -19,8 +25,7 @@ export default class FinanzasDashboardService {
   }
 
   async getMargenBruto(query = {}, ctx = null){
-    let from = query.from? new Date(query.from): null; let to = query.to? new Date(query.to): null;
-    if(!to) to = new Date(); if(!from){ const f=new Date(to); f.setMonth(f.getMonth()-2); from=f; }
+    const { from, to } = this._resolveRange(query, 2);
     const sql = `SELECT SUM(CONVERT(float, TotalVenta)) AS totalVentas, SUM(CONVERT(float, TotalCosto)) AS totalCostos FROM Venta WHERE Fecha >= :from AND Fecha <= :to`;
     const rows = await sequelize.query(sql, { replacements: { from: formatISO(from), to: formatISO(to) }, type: QueryTypes.SELECT });
     const totalVentas = Number(rows[0]?.totalVentas||0); const totalCostos = Number(rows[0]?.totalCostos||0); const margen = totalVentas - totalCostos; const margenPct = totalVentas>0? Number(((margen/totalVentas)*100).toFixed(2)) : 0;
@@ -29,8 +34,7 @@ export default class FinanzasDashboardService {
   }
 
   async getMargenPorProducto(query = {}, ctx = null){
-    let from = query.from? new Date(query.from): null; let to = query.to? new Date(query.to): null;
-    if(!to) to = new Date(); if(!from){ const f=new Date(to); f.setMonth(f.getMonth()-2); from=f; }
+    const { from, to } = this._resolveRange(query, 2);
     const sql = `WITH detalle_agg AS (
         SELECT dv.IdInventario,
           SUM(CONVERT(float, dv.Cantidad)) AS qty,
@@ -54,8 +58,7 @@ export default class FinanzasDashboardService {
   }
 
   async getMargenPorCategoria(query = {}, ctx = null){
-    let from = query.from? new Date(query.from): null; let to = query.to? new Date(query.to): null;
-    if(!to) to = new Date(); if(!from){ const f=new Date(to); f.setMonth(f.getMonth()-2); from=f; }
+    const { from, to } = this._resolveRange(query, 2);
     const sql = `WITH detalle_agg AS (
         SELECT dv.IdInventario,
           SUM(CONVERT(float, dv.Cantidad)) AS qty,
@@ -81,8 +84,7 @@ export default class FinanzasDashboardService {
   }
 
   async getRentabilidadPorMarca(query = {}, ctx = null){
-    let from = query.from? new Date(query.from): null; let to = query.to? new Date(query.to): null;
-    if(!to) to = new Date(); if(!from){ const f=new Date(to); f.setMonth(f.getMonth()-5); from=f; }
+    const { from, to } = this._resolveRange(query, 5);
     const sql = `WITH detalle_agg AS (
         SELECT dv.IdInventario,
           SUM(CONVERT(float, dv.Cantidad)) AS qty,

@@ -95,13 +95,11 @@ export default function DashboardInventario() {
                 cornerRadius: 4,
               }]}
               margin={{ top: 10, bottom: 70, left: 10, right: 10 }}
-              slotProps={{ 
-                legend: { 
-                  direction: 'row', 
+              slotProps={{
+                legend: {
+                  direction: 'row',
                   position: { vertical: 'bottom', horizontal: 'middle' },
-                  itemMarkWidth: 10,
-                  itemMarkHeight: 10,
-                } 
+                },
               }}
             />
           </DashboardCard>
