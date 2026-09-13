@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Typography, Paper } from '@mui/material';
 import { 
   BarChart, 
@@ -7,26 +7,7 @@ import {
 
 import PageHeader from '../../../components/ui/PageHeader';
 import KpiCard from '../../../components/ui/KpiCard';
-
-// ==========================================
-// 1. DATOS DE PRUEBA (MOCKS)
-// ==========================================
-
-// Aging Analysis (Productos sin movimiento)
-const mockAging = {
-  categorias: ['0-30 días', '31-60 días', '61-90 días', '91-180 días', '+180 días'],
-  cantidades: [500, 250, 120, 80, 40],
-};
-
-// Valorización económica del stock inmovilizado (Para el gráfico de Dono)
-// ¿Cuánto dinero está trabado en esos productos viejos?
-const mockValorizacion = [
-  { id: 0, value: 45000, label: '0-30 días', color: '#12684e' },   // Sano
-  { id: 1, value: 22500, label: '31-60 días', color: '#4cbf93' },  // Normal
-  { id: 2, value: 10800, label: '61-90 días', color: '#dfa758' },  // Prestar atención
-  { id: 3, value: 7200, label: '91-180 días', color: '#c08d42' },  // Riesgo (Warning oscuro)
-  { id: 4, value: 3600, label: '+180 días', color: '#a93b32' },    // Crítico (Error)
-];
+import { emptyInventarioDashboard, loadInventarioDashboard } from '../data/dashboardData';
 
 // ==========================================
 // 2. COMPONENTE WRAPPER BLINDADO
@@ -54,6 +35,20 @@ const DashboardCard = ({ title, children, height = 360 }) => (
 // 3. VISTA PRINCIPAL
 // ==========================================
 export default function DashboardInventario() {
+  const [dashboard, setDashboard] = useState(emptyInventarioDashboard);
+
+  useEffect(() => {
+    let mounted = true;
+    loadInventarioDashboard()
+      .then((data) => {
+        if (mounted) setDashboard(data);
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+
+  const { kpis, aging, valorizacion } = dashboard;
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, width: '100%' }}>
       <PageHeader 
@@ -66,10 +61,10 @@ export default function DashboardInventario() {
         
         {/* FILA 1: KPIs */}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: { xs: 2, md: 3 } }}>
-          <KpiCard eyebrow="Total Artículos" value="990" sub="Unidades físicas" tone="mute" />
-          <KpiCard eyebrow="Capital Inmovilizado" value="U$S 89,100" sub="Valorización a costo" tone="info" />
-          <KpiCard eyebrow="Riesgo de Obsolescencia" value="120" sub="Productos con +90 días" tone="error" />
-          <KpiCard eyebrow="Índice de Rotación" value="4.2" sub="Veces por año" tone="ok" />
+          <KpiCard eyebrow="Total Artículos" value={String(kpis.totalArticulos)} sub="Unidades físicas" tone="mute" />
+          <KpiCard eyebrow="Capital Inmovilizado" value={`U$S ${kpis.capitalInmovilizado.toLocaleString('es-AR')}`} sub="Valorización a costo" tone="info" />
+          <KpiCard eyebrow="Riesgo de Obsolescencia" value={String(kpis.riesgoObsolescencia)} sub="Productos con +90 días" tone="error" />
+          <KpiCard eyebrow="Índice de Rotación" value={String(kpis.indiceRotacion)} sub="Veces por año" tone="ok" />
         </Box>
 
         {/* FILA 2: Aging Analysis (Cantidades físicas vs Valorización Financiera) */}
@@ -77,10 +72,10 @@ export default function DashboardInventario() {
           
           <DashboardCard title="Productos sin movimiento (Cantidades)">
             <BarChart
-              xAxis={[{ scaleType: 'band', data: mockAging.categorias, label: 'Días sin registrar ventas' }]}
+              xAxis={[{ scaleType: 'band', data: aging.categorias, label: 'Días sin registrar ventas' }]}
               series={[
                 { 
-                  data: mockAging.cantidades, 
+                  data: aging.cantidades, 
                   label: 'Cantidad de Productos', 
                   // Usamos una función para pintar las barras de rojo a medida que son más viejas
                   color: '#12684e' 
@@ -93,7 +88,7 @@ export default function DashboardInventario() {
           <DashboardCard title="Valorización del Stock Estancado (U$S)">
             <PieChart
               series={[{
-                data: mockValorizacion,
+                data: valorizacion,
                 innerRadius: '45%',
                 outerRadius: '85%',
                 paddingAngle: 2,

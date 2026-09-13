@@ -38,6 +38,29 @@ export default class ReparacionesDashboardService {
     return { period: { from: from.toISOString(), to: to.toISOString() }, marcas: rows };
   }
 
+  async getRepuestosUsados(query={}, ctx=null){
+    const limit = Math.max(1, Math.min(Number(query.limit) || 5, 50));
+    const sql = `
+      SELECT TOP (${limit})
+        a.Id AS IdArticulo,
+        a.Nombre AS Repuesto,
+        SUM(CONVERT(float, ro.Cantidad)) AS CantidadUsada
+      FROM RepuestoOrden ro
+      INNER JOIN Inventario i ON ro.IdInventario = i.Id
+      INNER JOIN Producto a ON i.IdProducto = a.Id
+      WHERE a.EsRepuesto = 1
+      GROUP BY a.Id, a.Nombre
+      ORDER BY CantidadUsada DESC, Repuesto ASC
+    `;
+    const rows = await sequelize.query(sql, { type: QueryTypes.SELECT });
+    if(this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó repuestos más usados', `limit=${limit}`);
+    return { entries: rows.map(r => ({
+      IdArticulo: r.IdArticulo,
+      Repuesto: r.Repuesto,
+      CantidadUsada: Number(r.CantidadUsada || 0),
+    })) };
+  }
+
   async getHeatmapMarcaFalla(query={}, ctx=null){
     let from = query.from?new Date(query.from):null; let to = query.to?new Date(query.to):null;
     if(!to) to=new Date(); if(!from){ const f=new Date(to); f.setDate(f.getDate()-89); from=f; }

@@ -43,6 +43,7 @@ export default (container) => {
   router.get('/reparaciones/evolucion', requireAuth, reparacionesDashboardController.reparacionesPorPeriodo);
   router.get('/reparaciones/tipo', requireAuth, reparacionesDashboardController.reparacionesPorTipo);
   router.get('/reparaciones/marca', requireAuth, reparacionesDashboardController.reparacionesPorMarca);
+  router.get('/reparaciones/repuestos', requireAuth, reparacionesDashboardController.repuestosUsados);
   router.get('/reparaciones/heatmap', requireAuth, reparacionesDashboardController.heatmapMarcaFalla);
   router.get('/reparaciones/pareto-fallas', requireAuth, reparacionesDashboardController.paretoFallas);
   router.get('/reparaciones/tiempos', requireAuth, reparacionesDashboardController.tiemposReparacion);

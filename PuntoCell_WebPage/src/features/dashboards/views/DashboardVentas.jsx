@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Typography, Paper } from '@mui/material';
 import { 
   LineChart, 
@@ -16,17 +16,7 @@ import {
 
 import PageHeader from '../../../components/ui/PageHeader';
 import KpiCard from '../../../components/ui/KpiCard';
-
-// ==========================================
-// 1. DATOS DE PRUEBA (MOCKS)
-// ==========================================
-const mockEvolucion = { xAxis: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul'], series: [{ data: [12, 15, 14, 18, 22, 21, 25], label: 'Ventas (Millones $)' }] };
-const mockFormaPago = [{ id: 0, value: 40, label: 'Crédito', color: '#12684e' }, { id: 1, value: 30, label: 'Transf.', color: '#4cbf93' }, { id: 2, value: 20, label: 'Efectivo', color: '#dfa758' }, { id: 3, value: 10, label: 'Débito', color: '#a39d93' }];
-const mockCategorias = [{ label: 'iPhone', value: 25 }, { label: 'Accesorios', value: 18 }, { label: 'Consolas', value: 12 }, { label: 'Componentes', value: 8 }, { label: 'Periféricos', value: 6 }];
-const mockSucursales = [{ nombre: 'Centro', facturacion: 50, margen: 30 }, { nombre: 'Cerro', facturacion: 40, margen: 35 }, { nombre: 'Nva Cba', facturacion: 60, margen: 28 }];
-const mockEmpleados = [{ nombre: 'Juan P.', ventas: 120, ticket: 30 }, { nombre: 'Ana M.', ventas: 150, ticket: 35 }, { nombre: 'Pedro G.', ventas: 90, ticket: 28 }, { nombre: 'Sofía L.', ventas: 110, ticket: 32 }];
-const mockPareto = { productos: ['Prod A', 'Prod B', 'Prod C', 'Prod D', 'Prod E', 'Otros'], ventasAbsolutas: [1000, 600, 300, 100, 50, 20], porcentajeAcumulado: [48.3, 77.2, 91.7, 96.6, 99.0, 100.0] };
-const mockElasticidad = [{ x: 100, y: 500, id: 'p1' }, { x: 120, y: 420, id: 'p2' }, { x: 150, y: 300, id: 'p3' }, { x: 180, y: 210, id: 'p4' }, { x: 200, y: 150, id: 'p5' }, { x: 250, y: 80, id: 'p6' }];
+import { emptyVentasDashboard, loadVentasDashboard } from '../data/dashboardData';
 
 // ==========================================
 // 2. COMPONENTE WRAPPER BLINDADO (100% WIDTH)
@@ -69,6 +59,20 @@ const DashboardCard = ({ title, children, height = 340 }) => (
 // 3. VISTA PRINCIPAL (CON CSS GRID PURO)
 // ==========================================
 export default function DashboardVentas() {
+  const [dashboard, setDashboard] = useState(emptyVentasDashboard);
+
+  useEffect(() => {
+    let mounted = true;
+    loadVentasDashboard()
+      .then((data) => {
+        if (mounted) setDashboard(data);
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+
+  const { kpis, evolucion, formaPago, categorias, sucursales, empleados, pareto, elasticidad } = dashboard;
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, width: '100%' }}>
       <PageHeader 
@@ -81,19 +85,19 @@ export default function DashboardVentas() {
         
         {/* FILA 1: KPIs (Siempre ocupan 100% del ancho) */}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: { xs: 2, md: 3 } }}>
-          <KpiCard eyebrow="Facturación Total" value="U$S 127,000" sub="+14% vs mes anterior" tone="ok" />
-          <KpiCard eyebrow="Ticket Promedio" value="U$S 345" sub="Mediana: U$S 290" tone="accent" />
-          <KpiCard eyebrow="Operaciones" value="368" sub="Ventas cerradas" tone="mute" />
-          <KpiCard eyebrow="Margen Promedio" value="32.4%" sub="General" tone="warn" />
+          <KpiCard eyebrow="Facturación Total" value={`U$S ${kpis.facturacionTotal.toLocaleString('es-AR')}`} sub="+14% vs mes anterior" tone="ok" />
+          <KpiCard eyebrow="Ticket Promedio" value={`U$S ${kpis.ticketPromedio.toLocaleString('es-AR')}`} sub="Mediana: U$S 290" tone="accent" />
+          <KpiCard eyebrow="Operaciones" value={String(kpis.operaciones)} sub="Ventas cerradas" tone="mute" />
+          <KpiCard eyebrow="Margen Promedio" value={`${kpis.margenPromedio}%`} sub="General" tone="warn" />
         </Box>
 
         {/* FILA 2: Evolución y Forma de Pago (Proporción 65% - 35%) */}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' }, gap: { xs: 2, md: 3 } }}>
           <DashboardCard title="Evolución de Ventas">
             <LineChart
-              xAxis={[{ data: [1, 2, 3, 4, 5, 6, 7], valueFormatter: (v) => mockEvolucion.xAxis[v-1] }]}
+              xAxis={[{ data: evolucion.xAxis.length > 0 ? evolucion.xAxis.map((_, index) => index + 1) : [1, 2, 3, 4, 5, 6, 7], valueFormatter: (v) => evolucion.xAxis[v-1] || '' }]}
               series={[{ 
-                data: mockEvolucion.series[0].data,
+                data: evolucion.series[0].data,
                 area: true,
                 color: '#12684e',
                 showMark: true,
@@ -106,7 +110,7 @@ export default function DashboardVentas() {
           <DashboardCard title="Ventas por Forma de Pago">
             <PieChart
               series={[{
-                data: mockFormaPago,
+                data: formaPago,
                 innerRadius: '50%',
                 outerRadius: '90%',
                 paddingAngle: 3,
@@ -123,18 +127,18 @@ export default function DashboardVentas() {
           <DashboardCard title="Ventas por Categoría (Millones $)">
             <BarChart
               layout="horizontal"
-              yAxis={[{ scaleType: 'band', data: mockCategorias.map(c => c.label) }]}
-              series={[{ data: mockCategorias.map(c => c.value), color: '#12684e' }]}
+              yAxis={[{ scaleType: 'band', data: categorias.map(c => c.label) }]}
+              series={[{ data: categorias.map(c => c.value), color: '#12684e' }]}
               margin={{ top: 10, bottom: 25, left: 80, right: 20 }}
             />
           </DashboardCard>
           
           <DashboardCard title="Ventas vs Margen por Sucursal">
             <BarChart
-              xAxis={[{ scaleType: 'band', data: mockSucursales.map(s => s.nombre) }]}
+              xAxis={[{ scaleType: 'band', data: sucursales.map(s => s.nombre) }]}
               series={[
-                { data: mockSucursales.map(s => s.facturacion), label: 'Facturación', color: '#4cbf93' },
-                { data: mockSucursales.map(s => s.margen), label: 'Margen', color: '#dfa758' }
+                { data: sucursales.map(s => s.facturacion), label: 'Facturación', color: '#4cbf93' },
+                { data: sucursales.map(s => s.margen), label: 'Margen', color: '#dfa758' }
               ]}
               margin={{ top: 20, bottom: 25, left: 40, right: 20 }}
             />
@@ -146,10 +150,10 @@ export default function DashboardVentas() {
           <DashboardCard title="Pareto de Productos">
             <ChartsContainer
               series={[
-                { type: 'bar', data: mockPareto.ventasAbsolutas, yAxisKey: 'leftAxis', color: '#12684e', label: 'Volumen' },
-                { type: 'line', data: mockPareto.porcentajeAcumulado, yAxisKey: 'rightAxis', color: '#dfa758', label: '% Acum.' }
+                { type: 'bar', data: pareto.ventasAbsolutas, yAxisKey: 'leftAxis', color: '#12684e', label: 'Volumen' },
+                { type: 'line', data: pareto.porcentajeAcumulado, yAxisKey: 'rightAxis', color: '#dfa758', label: '% Acum.' }
               ]}
-              xAxis={[{ data: mockPareto.productos, scaleType: 'band', id: 'x-axis' }]}
+              xAxis={[{ data: pareto.productos, scaleType: 'band', id: 'x-axis' }]}
               yAxis={[
                 { id: 'leftAxis', scaleType: 'linear' },
                 { id: 'rightAxis', scaleType: 'linear', min: 0, max: 105 }
@@ -168,10 +172,10 @@ export default function DashboardVentas() {
           
           <DashboardCard title="Performance por Vendedor">
             <BarChart
-              xAxis={[{ scaleType: 'band', data: mockEmpleados.map(e => e.nombre) }]}
+              xAxis={[{ scaleType: 'band', data: empleados.map(e => e.nombre) }]}
               series={[
-                { data: mockEmpleados.map(e => e.ventas), label: 'Ventas (Cant)', color: '#12684e' },
-                { data: mockEmpleados.map(e => e.ticket), label: 'Ticket ($)', color: '#a39d93' }
+                { data: empleados.map(e => e.ventas), label: 'Ventas (Cant)', color: '#12684e' },
+                { data: empleados.map(e => e.ticket), label: 'Ticket ($)', color: '#a39d93' }
               ]}
               margin={{ top: 20, bottom: 25, left: 40, right: 20 }}
             />
@@ -186,7 +190,7 @@ export default function DashboardVentas() {
                 yAxis={[{ label: 'Demanda (Unidades)' }]}
                 series={[
                   {
-                    data: mockElasticidad,
+                      data: elasticidad,
                     color: '#dfa758',
                     markerSize: 8,
                   },

@@ -8,11 +8,18 @@ const __dirname = dirname(__filename);
 // Cargamos el .env desde la raíz del proyecto (eliminé el dotenv.config() duplicado)
 dotenv.config({ path: resolve(__dirname, '../../../..', '.env') });
 
+const defaultCorsOrigin = 'http://localhost:5173,http://localhost:5174,http://localhost:5175';
+const corsOriginValue = process.env.CORS_ORIGIN || defaultCorsOrigin;
+const corsOrigins = corsOriginValue
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 export const env = {
   APP: {
     PORT: process.env.PORT || 3000,
     NODE_ENV: process.env.NODE_ENV || 'development',
-    CORS_ORIGIN: process.env.CORS_ORIGIN || '*'
+    CORS_ORIGIN: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins
   },
   DB: {
     DIALECT: process.env.DB_DIALECT || 'mssql',

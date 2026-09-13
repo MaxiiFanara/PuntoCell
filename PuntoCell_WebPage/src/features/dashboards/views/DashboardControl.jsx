@@ -1,28 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Typography, Paper, Tooltip, useTheme } from '@mui/material';
 import { LineChart } from '@mui/x-charts';
 
 import PageHeader from '../../../components/ui/PageHeader';
 import KpiCard from '../../../components/ui/KpiCard';
-
-// ==========================================
-// 1. DATOS DE PRUEBA (MOCKS)
-// ==========================================
-const mockHeatmap = [
-  { empleado: 'Juan P.', Ventas: 120, Compras: 15, Anulaciones: 2, Descuentos: 10 },
-  { empleado: 'Ana M.', Ventas: 95, Compras: 30, Anulaciones: 18, Descuentos: 25 }, // Alerta: muchas anulaciones
-  { empleado: 'Carlos G.', Ventas: 45, Compras: 5, Anulaciones: 0, Descuentos: 2 },
-  { empleado: 'Lucía L.', Ventas: 150, Compras: 10, Anulaciones: 5, Descuentos: 12 },
-  { empleado: 'Admin', Ventas: 10, Compras: 80, Anulaciones: 20, Descuentos: 50 },
-];
-
-const mockEvolucionRiesgo = { 
-  xAxis: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'], 
-  series: [
-    { data: [5, 8, 4, 15], label: 'Anulaciones', color: '#a93b32' },
-    { data: [12, 14, 10, 22], label: 'Descuentos', color: '#dfa758' }
-  ] 
-};
+import { emptyControlDashboard, loadControlDashboard } from '../data/dashboardData';
 
 // ==========================================
 // 2. COMPONENTES WRAPPER & HEATMAP CUSTOM
@@ -101,26 +83,40 @@ const MatrizAuditoria = ({ data }) => {
 };
 
 export default function DashboardControl() {
+  const [dashboard, setDashboard] = useState(emptyControlDashboard);
+
+  useEffect(() => {
+    let mounted = true;
+    loadControlDashboard()
+      .then((data) => {
+        if (mounted) setDashboard(data);
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+
+  const { kpis, heatmap, evolucionRiesgo } = dashboard;
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, width: '100%' }}>
       <PageHeader eyebrow="Dashboard" title="Módulo de Control y Auditoría" meta="Matriz de operaciones y detección de anomalías." />
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, md: 3 } }}>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: { xs: 2, md: 3 } }}>
-          <KpiCard eyebrow="Operaciones Totales" value="1,420" sub="Registradas en sistema" tone="mute" />
-          <KpiCard eyebrow="Anulaciones" value="45" sub="4.1% del total" tone="error" />
-          <KpiCard eyebrow="Descuentos Aplicados" value="101" sub="U$S 1,250 cedidos" tone="warn" />
-          <KpiCard eyebrow="Usuarios Activos" value="5" sub="Operando en el período" tone="info" />
+          <KpiCard eyebrow="Operaciones Totales" value={String(kpis.operacionesTotales)} sub="Registradas en sistema" tone="mute" />
+          <KpiCard eyebrow="Anulaciones" value={String(kpis.anulaciones)} sub="4.1% del total" tone="error" />
+          <KpiCard eyebrow="Descuentos Aplicados" value={String(kpis.descuentosAplicados)} sub="U$S 1,250 cedidos" tone="warn" />
+          <KpiCard eyebrow="Usuarios Activos" value={String(kpis.usuariosActivos)} sub="Operando en el período" tone="info" />
         </Box>
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1.2fr 1fr' }, gap: { xs: 2, md: 3 } }}>
           <DashboardCard title="Matriz Empleado x Operación (Heatmap)" height={320}>
-            <MatrizAuditoria data={mockHeatmap} />
+            <MatrizAuditoria data={heatmap} />
           </DashboardCard>
           
           <DashboardCard title="Evolución de Operaciones de Riesgo" height={320}>
             <LineChart
-              xAxis={[{ scaleType: 'point', data: mockEvolucionRiesgo.xAxis }]}
-              series={mockEvolucionRiesgo.series.map(s => ({ data: s.data, label: s.label, color: s.color, showMark: true }))}
+              xAxis={[{ scaleType: 'point', data: evolucionRiesgo.xAxis }]}
+              series={evolucionRiesgo.series.map(s => ({ data: s.data, label: s.label, color: s.color, showMark: true }))}
               margin={{ top: 20, bottom: 25, left: 40, right: 20 }}
             />
           </DashboardCard>

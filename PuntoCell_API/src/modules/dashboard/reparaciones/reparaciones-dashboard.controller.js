@@ -9,6 +9,8 @@ export default class ReparacionesDashboardController {
 
   reparacionesPorMarca = async (req, res, next) => { try { const data = await this.service.getReparacionesPorMarca(req.query, ctxFromReq(req)); return res.status(200).json({ status:'success', data }); } catch(err){ next(err); } }
 
+  repuestosUsados = async (req, res, next) => { try { const data = await this.service.getRepuestosUsados(req.query, ctxFromReq(req)); return res.status(200).json({ status:'success', data }); } catch(err){ next(err); } }
+
   heatmapMarcaFalla = async (req, res, next) => { try { const data = await this.service.getHeatmapMarcaFalla(req.query, ctxFromReq(req)); return res.status(200).json({ status:'success', data }); } catch(err){ next(err); } }
 
   paretoFallas = async (req, res, next) => { try { const data = await this.service.getParetoFallas(req.query, ctxFromReq(req)); return res.status(200).json({ status:'success', data }); } catch(err){ next(err); } }
