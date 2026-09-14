@@ -1,424 +1,238 @@
-import { auditar } from '../../core/utils/audit.util.js';
-import { sequelize } from '../../models/index.js';
-import { QueryTypes } from 'sequelize';
+import { Op } from 'sequelize'
+import { auditar } from '../../core/utils/audit.util.js'
+import { models } from '../../models/index.js'
+import { getProductoMeta, includesForProducto, normalizeRange, periodKey, plainList, sortDesc, toNumber } from './dashboard.utils.js'
 
-const VALID_GRAN = ['day', 'week', 'month', 'year'];
+const VALID_GRAN = ['day', 'week', 'month', 'year']
 
-function formatISO(d) {
-  if (!d) return null;
-  const z = new Date(d);
-  return z.toISOString().slice(0, 19).replace('T', ' ');
-}
+const rangeToWhere = (field, from, to) => ({ [field]: { [Op.between]: [from, to] } })
+const sum = (rows, mapper) => rows.reduce((total, item) => total + toNumber(mapper(item)), 0)
 
-function buildPeriodExpr(gran) {
-  switch (gran) {
-    case 'month': return "CONVERT(char(7), Fecha, 120)";
-    case 'year': return "CAST(YEAR(Fecha) AS VARCHAR(4))";
-    case 'week': return "CONCAT(YEAR(Fecha), '-', RIGHT('00'+CAST(DATEPART(iso_week,Fecha) AS VARCHAR(2)),2))";
-    case 'day':
-    default: return "CONVERT(char(10), Fecha, 23)";
-  }
-}
+const buildVentaIncludes = () => ([
+  { model: models.TurnoCaja, as: 'turnoCaja', attributes: ['Id', 'IdSucursal'], required: false, include: [{ model: models.Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'], required: false }] },
+  { model: models.Usuario, as: 'cliente', attributes: ['Id', 'Nombre', 'Apellido', 'DNI'], required: false },
+  { model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido'], required: false },
+  { model: models.PagoVenta, as: 'pagos', attributes: ['Id', 'Monto', 'IdMetodoPago', 'FechaPago'], required: false, include: [{ model: models.MetodoPago, as: 'metodoPago', attributes: ['Id', 'Nombre'], required: false }] },
+  { model: models.DetalleVenta, as: 'detalles', attributes: ['Id', 'Cantidad', 'PrecioUnitario', 'IdArticulo'], required: false, include: [{ model: models.Inventario, as: 'inventario', attributes: ['Id', 'IdArticulo', 'IdSucursal', 'Stock'], required: false, include: [{ model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre', 'IdModeloArticulo'], required: false, include: [{ model: models.ModeloArticulo, as: 'modelo', attributes: ['Id', 'Nombre', 'IdMarcaArticulo', 'IdCategoriaArticulo'], required: false, include: [{ model: models.MarcaArticulo, as: 'marca', attributes: ['Id', 'Nombre'], required: false }, { model: models.CategoriaArticulo, as: 'categoria', attributes: ['Id', 'Nombre'], required: false }] }] }] }] },
+])
 
-function recentSalesCte(limit = 1000, whereClause = '') {
-  const filter = whereClause ? ` ${whereClause}` : '';
-  const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 100));
-  return `WITH ventas_base AS (
-      SELECT TOP (${safeLimit}) Id, Fecha, TotalVenta, TotalCosto, IdTurnoCaja
-      FROM Venta
-      ${filter}
-      ORDER BY Fecha DESC, Id DESC
-    )`;
-}
+const buildCompraIncludes = () => ([
+  { model: models.Proveedor, as: 'proveedor', attributes: ['Id', 'Nombre'], required: false },
+  { model: models.Sucursal, as: 'sucursalDestino', attributes: ['Id', 'Nombre'], required: false },
+  { model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido'], required: false },
+  { model: models.DetalleCompra, as: 'detalles', attributes: ['Id', 'Cantidad', 'CostoUnitario', 'IdArticulo'], required: false, include: [{ model: models.Inventario, as: 'inventario', attributes: ['Id', 'IdArticulo', 'IdSucursal', 'Stock'], required: false, include: [{ model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre', 'IdModeloArticulo'], required: false, include: [{ model: models.ModeloArticulo, as: 'modelo', attributes: ['Id', 'Nombre', 'IdMarcaArticulo', 'IdCategoriaArticulo'], required: false, include: [{ model: models.MarcaArticulo, as: 'marca', attributes: ['Id', 'Nombre'], required: false }, { model: models.CategoriaArticulo, as: 'categoria', attributes: ['Id', 'Nombre'], required: false }] }] }] }] },
+])
 
-function salesBranchJoin(alias = 'v') {
-  return `INNER JOIN TurnoCaja tc ON tc.Id = ${alias}.IdTurnoCaja`;
-}
+const buildRepairIncludes = () => ([
+  { model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido'], required: false },
+  { model: models.EstadoOrden, as: 'estado', attributes: ['Id', 'Nombre'], required: false },
+  { model: models.DispositivoCliente, as: 'dispositivo', attributes: ['Id', 'IdModeloArticulo', 'IdCliente'], required: false, include: [{ model: models.ModeloArticulo, as: 'modelo', attributes: ['Id', 'Nombre', 'IdMarcaArticulo', 'IdCategoriaArticulo'], required: false, include: [{ model: models.MarcaArticulo, as: 'marca', attributes: ['Id', 'Nombre'], required: false }, { model: models.CategoriaArticulo, as: 'categoria', attributes: ['Id', 'Nombre'], required: false }] }] },
+  { model: models.Falla, as: 'fallas', through: { attributes: [] }, attributes: ['Id', 'Nombre'], required: false },
+])
+
+const buildMovimientoIncludes = () => ([
+  { model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido'], required: false },
+  { model: models.Inventario, as: 'inventario', attributes: ['Id', 'IdArticulo', 'IdSucursal', 'Stock'], required: false, include: [{ model: models.Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'], required: false }, { model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre', 'IdModeloArticulo'], required: false, include: [{ model: models.ModeloArticulo, as: 'modelo', attributes: ['Id', 'Nombre', 'IdMarcaArticulo', 'IdCategoriaArticulo'], required: false, include: [{ model: models.MarcaArticulo, as: 'marca', attributes: ['Id', 'Nombre'], required: false }, { model: models.CategoriaArticulo, as: 'categoria', attributes: ['Id', 'Nombre'], required: false }] }] }] },
+])
+
+const buildPriceIncludes = () => ([
+  { model: models.Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'], required: false },
+  { model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre', 'IdModeloArticulo'], required: false, include: [{ model: models.ModeloArticulo, as: 'modelo', attributes: ['Id', 'Nombre', 'IdMarcaArticulo', 'IdCategoriaArticulo'], required: false, include: [{ model: models.MarcaArticulo, as: 'marca', attributes: ['Id', 'Nombre'], required: false }, { model: models.CategoriaArticulo, as: 'categoria', attributes: ['Id', 'Nombre'], required: false }] }] },
+  { model: models.PrecioArticulo, as: 'precios', attributes: ['Id', 'CostoReal', 'CostoBase', 'FechaDesde', 'FechaHasta'], required: false },
+])
 
 export default class DashboardService {
   constructor(dashboardDAO = null, bitacoraService = null) {
-    this.dashboardDAO = dashboardDAO;
-    this.bitacoraService = bitacoraService;
+    this.dashboardDAO = dashboardDAO
+    this.bitacoraService = bitacoraService
   }
 
   async getSummary(query = {}, ctx = null) {
-    const [salesRow] = await sequelize.query(
-      `SELECT COALESCE(SUM(row_count), 0) AS salesCount
-       FROM sys.dm_db_partition_stats
-       WHERE object_id = OBJECT_ID('dbo.Venta') AND index_id IN (0,1)`,
-      { type: QueryTypes.SELECT }
-    );
-    const [purchasesRow] = await sequelize.query(
-      `SELECT COALESCE(SUM(row_count), 0) AS purchasesCount
-       FROM sys.dm_db_partition_stats
-       WHERE object_id = OBJECT_ID('dbo.Compra') AND index_id IN (0,1)`,
-      { type: QueryTypes.SELECT }
-    );
-    const [repairsRow] = await sequelize.query(
-      `SELECT COALESCE(SUM(row_count), 0) AS repairsCount
-       FROM sys.dm_db_partition_stats
-       WHERE object_id = OBJECT_ID('dbo.OrdenReparacion') AND index_id IN (0,1)`,
-      { type: QueryTypes.SELECT }
-    );
-    const [inventoryRow] = await sequelize.query(
-      `SELECT COALESCE(SUM(row_count), 0) AS inventoryCount
-       FROM sys.dm_db_partition_stats
-       WHERE object_id = OBJECT_ID('dbo.Inventario') AND index_id IN (0,1)`,
-      { type: QueryTypes.SELECT }
-    );
+    const [ventas, compras, reparaciones, inventario] = await Promise.all([
+      models.Venta.count(),
+      models.Compra.count(),
+      models.OrdenReparacion.count(),
+      models.Inventario.count(),
+    ])
 
-    if (this.bitacoraService && ctx) {
-      await auditar(this.bitacoraService, ctx, 'Consultó resumen de dashboard', 'summary');
-    }
-
-    return {
-      ventas: {
-        count: Number(salesRow?.salesCount || 0),
-        total: null
-      },
-      compras: {
-        count: Number(purchasesRow?.purchasesCount || 0),
-        total: null
-      },
-      reparaciones: {
-        count: Number(repairsRow?.repairsCount || 0)
-      },
-      inventario: {
-        count: Number(inventoryRow?.inventoryCount || 0)
-      }
-    };
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó resumen de dashboard', 'summary')
+    return { ventas: { count: ventas, total: null }, compras: { count: compras, total: null }, reparaciones: { count: reparaciones }, inventario: { count: inventario } }
   }
 
   async getSalesEvolution(query = {}, ctx = null) {
-    let from = query.from ? new Date(query.from) : null;
-    let to = query.to ? new Date(query.to) : null;
-
-    if (!to) to = new Date();
-    if (!from) {
-      const f = new Date(to);
-      f.setDate(f.getDate() - 29);
-      from = f;
+    const { from, to } = normalizeRange(query, 29)
+    const gran = VALID_GRAN.includes(String(query.granularity || '').toLowerCase()) ? String(query.granularity).toLowerCase() : 'day'
+    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), attributes: ['Id', 'Fecha', 'TotalVenta'], order: [['Fecha', 'ASC']], limit: 1000 }))
+    const buckets = new Map()
+    for (const venta of rows) {
+      const key = periodKey(venta.Fecha, gran)
+      if (!buckets.has(key)) buckets.set(key, { period: key, total: 0 })
+      buckets.get(key).total += toNumber(venta.TotalVenta)
     }
-
-    const sql = `${recentSalesCte(1000, 'WHERE Fecha >= :from AND Fecha <= :to')}
-      SELECT CONVERT(char(10), Fecha, 23) AS period, SUM(CONVERT(float, TotalVenta)) AS total
-      FROM ventas_base
-      GROUP BY CONVERT(char(10), Fecha, 23)
-      ORDER BY period`;
-
-    const replacements = { from: formatISO(from), to: formatISO(to) };
-    const rows = await sequelize.query(sql, { replacements, type: QueryTypes.SELECT });
-
-    if (this.bitacoraService && ctx) {
-      await auditar(this.bitacoraService, ctx, 'Consultó evolución de ventas', `from=${from.toISOString()} to=${to.toISOString()}`);
-    }
-
-    return { period: { from: from.toISOString(), to: to.toISOString() }, series: rows };
+    const series = Array.from(buckets.values()).sort((a, b) => String(a.period).localeCompare(String(b.period)))
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó evolución de ventas', `from=${from.toISOString()} to=${to.toISOString()}`)
+    return { period: { from: from.toISOString(), to: to.toISOString(), granularity: gran }, series }
   }
 
-  // Ventas por categoría: suma Cantidad * PrecioUnitario agrupado por categoria
   async getSalesByCategory(query = {}, ctx = null) {
-    let from = query.from ? new Date(query.from) : null;
-    let to = query.to ? new Date(query.to) : null;
-    if (!to) to = new Date();
-    if (!from) {
-      const f = new Date(to);
-      f.setDate(f.getDate() - 29);
-      from = f;
+    const { from, to } = normalizeRange(query, 29)
+    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
+    const categoryMap = new Map()
+    for (const venta of rows) {
+      for (const detalle of venta.detalles ?? []) {
+        const meta = getProductoMeta(detalle.inventario)
+        const category = meta.categoria ?? 'Categoría'
+        const amount = toNumber(detalle.Cantidad) * toNumber(detalle.PrecioUnitario)
+        if (!categoryMap.has(category)) categoryMap.set(category, { category, total: 0 })
+        categoryMap.get(category).total += amount
+      }
     }
-
-    const baseSql = `${recentSalesCte(1000, 'WHERE Fecha >= :from AND Fecha <= :to')}
-      SELECT c.Nombre AS category, SUM(CONVERT(float, dv.Cantidad * dv.PrecioUnitario)) AS total
-      FROM ventas_base v
-      INNER JOIN DetalleVenta dv ON v.Id = dv.IdVenta
-      INNER JOIN Inventario i ON dv.IdInventario = i.Id
-      INNER JOIN Producto a ON i.IdProducto = a.Id
-      INNER JOIN ModeloProducto m ON a.IdModeloProducto = m.Id
-      INNER JOIN CategoriaProducto c ON m.IdCategoriaProducto = c.Id
-      WHERE v.Fecha >= :from AND v.Fecha <= :to
-      GROUP BY c.Nombre ORDER BY total DESC`;
-
-    const replacements = { from: formatISO(from), to: formatISO(to) };
-
-    const rows = await sequelize.query(baseSql, { replacements, type: QueryTypes.SELECT });
-
-    if (this.bitacoraService && ctx) {
-      await auditar(this.bitacoraService, ctx, 'Consultó ventas por categoría', `from=${from.toISOString()} to=${to.toISOString()}`);
-    }
-
-    return { period: { from: from.toISOString(), to: to.toISOString() }, categories: rows };
+    const categories = Array.from(categoryMap.values()).sort((a, b) => b.total - a.total)
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó ventas por categoría', `from=${from.toISOString()} to=${to.toISOString()}`)
+    return { period: { from: from.toISOString(), to: to.toISOString() }, categories }
   }
 
   async getParetoProducts(query = {}, ctx = null) {
-    let from = query.from ? new Date(query.from) : null;
-    let to = query.to ? new Date(query.to) : null;
-    if (!to) to = new Date();
-    if (!from) {
-      const f = new Date(to);
-      f.setDate(f.getDate() - 29);
-      from = f;
+    const { from, to } = normalizeRange(query, 29)
+    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
+    const products = new Map()
+    for (const venta of rows) {
+      for (const detalle of venta.detalles ?? []) {
+        const meta = getProductoMeta(detalle.inventario)
+        const amount = toNumber(detalle.Cantidad) * toNumber(detalle.PrecioUnitario)
+        const id = meta.id ?? detalle.IdArticulo
+        if (!products.has(id)) products.set(id, { id, product: meta.nombre, total: 0 })
+        products.get(id).total += amount
+      }
     }
-
-    const baseSql = `${recentSalesCte(1000, 'WHERE Fecha >= :from AND Fecha <= :to')}
-      SELECT a.Id AS IdProducto, a.Nombre AS product, SUM(CONVERT(float, dv.Cantidad * dv.PrecioUnitario)) AS total
-      FROM ventas_base v
-      INNER JOIN DetalleVenta dv ON v.Id = dv.IdVenta
-      INNER JOIN Inventario i ON dv.IdInventario = i.Id
-      INNER JOIN Producto a ON i.IdProducto = a.Id
-      WHERE v.Fecha >= :from AND v.Fecha <= :to
-      GROUP BY a.Id, a.Nombre ORDER BY total DESC`;
-
-    const replacements = { from: formatISO(from), to: formatISO(to) };
-
-    const products = await sequelize.query(baseSql, { replacements, type: QueryTypes.SELECT });
-
-    const totalSum = products.reduce((s, p) => s + (Number(p.total) || 0), 0);
-
-    let cumulative = 0;
-    const entries = [];
-    for (let i = 0; i < products.length; i++) {
-      const p = products[i];
-      const value = Number(p.total) || 0;
-      const pct = totalSum > 0 ? (value / totalSum) * 100 : 0;
-      cumulative += pct;
-      entries.push({
-        rank: i + 1,
-        id: p.IdProducto,
-        product: p.product,
-        total: value,
-        percentage: Number(pct.toFixed(2)),
-        cumulativePercentage: Number(cumulative.toFixed(2))
-      });
-    }
-
-    if (this.bitacoraService && ctx) {
-      await auditar(this.bitacoraService, ctx, 'Consultó Pareto de productos', `from=${from.toISOString()} to=${to.toISOString()}`);
-    }
-
-    return { period: { from: from.toISOString(), to: to.toISOString() }, totalRevenue: totalSum, entries };
+    const ranked = Array.from(products.values()).sort((a, b) => b.total - a.total)
+    const totalRevenue = sum(ranked, (row) => row.total)
+    let cumulative = 0
+    const entries = ranked.map((row, index) => {
+      const percentage = totalRevenue > 0 ? (row.total / totalRevenue) * 100 : 0
+      cumulative += percentage
+      return { rank: index + 1, id: row.id, product: row.product, total: row.total, percentage: Number(percentage.toFixed(2)), cumulativePercentage: Number(cumulative.toFixed(2)) }
+    })
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó Pareto de productos', `from=${from.toISOString()} to=${to.toISOString()}`)
+    return { period: { from: from.toISOString(), to: to.toISOString() }, totalRevenue, entries }
   }
 
-  // Scatter: precio promedio vs cantidad vendida por producto
   async getPriceQuantityScatter(query = {}, ctx = null) {
-    let from = query.from ? new Date(query.from) : null;
-    let to = query.to ? new Date(query.to) : null;
-    if (!to) to = new Date();
-    if (!from) {
-      const f = new Date(to);
-      f.setDate(f.getDate() - 29);
-      from = f;
+    const { from, to } = normalizeRange(query, 29)
+    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
+    const products = new Map()
+    for (const venta of rows) {
+      for (const detalle of venta.detalles ?? []) {
+        const meta = getProductoMeta(detalle.inventario)
+        const id = meta.id ?? detalle.IdArticulo
+        if (!products.has(id)) products.set(id, { id, product: meta.nombre, quantity: 0, revenue: 0 })
+        products.get(id).quantity += toNumber(detalle.Cantidad)
+        products.get(id).revenue += toNumber(detalle.Cantidad) * toNumber(detalle.PrecioUnitario)
+      }
     }
-
-    const replacements = { from: formatISO(from), to: formatISO(to) };
-
-    const sql = `${recentSalesCte(1000, 'WHERE Fecha >= :from AND Fecha <= :to')}
-      SELECT a.Id AS IdProducto, a.Nombre AS product,
-      SUM(CONVERT(float, dv.Cantidad)) AS quantity,
-      SUM(CONVERT(float, dv.Cantidad * dv.PrecioUnitario)) AS revenue,
-      CASE WHEN SUM(dv.Cantidad) > 0 THEN SUM(CONVERT(float, dv.Cantidad * dv.PrecioUnitario))/SUM(CONVERT(float, dv.Cantidad)) ELSE 0 END AS avgPrice
-      FROM ventas_base v
-      INNER JOIN DetalleVenta dv ON v.Id = dv.IdVenta
-      INNER JOIN Inventario i ON dv.IdInventario = i.Id
-      INNER JOIN Producto a ON i.IdProducto = a.Id
-      WHERE v.Fecha >= :from AND v.Fecha <= :to
-      GROUP BY a.Id, a.Nombre
-      ORDER BY revenue DESC`;
-
-    const products = await sequelize.query(sql, { replacements, type: QueryTypes.SELECT });
-
-    const filtered = products.map((p) => ({
-      id: p.IdProducto,
-      product: p.product,
-      avgPrice: Number(Number(p.avgPrice || 0).toFixed(2)),
-      quantity: Number(p.quantity || 0),
-      revenue: Number(Number(p.revenue || 0).toFixed(2))
-    }));
-
-    if (this.bitacoraService && ctx) {
-      await auditar(this.bitacoraService, ctx, 'Consultó dispersión precio-cantidad', `from=${from.toISOString()} to=${to.toISOString()}`);
-    }
-
-    return { period: { from: from.toISOString(), to: to.toISOString() }, points: filtered };
+    const points = Array.from(products.values()).map((row) => ({ id: row.id, product: row.product, quantity: row.quantity, revenue: Number(row.revenue.toFixed(2)), avgPrice: row.quantity > 0 ? Number((row.revenue / row.quantity).toFixed(2)) : 0 })).sort((a, b) => b.revenue - a.revenue)
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó dispersión precio-cantidad', `from=${from.toISOString()} to=${to.toISOString()}`)
+    return { period: { from: from.toISOString(), to: to.toISOString() }, points }
   }
 
   async getPriceElasticity(query = {}, ctx = null) {
-    let from = query.from ? new Date(query.from) : null;
-    let to = query.to ? new Date(query.to) : null;
-    if (!from || !to) throw new Error('from and to are required for elasticity analysis');
+    const { from, to } = normalizeRange(query, 29)
+    const compFrom = new Date(from)
+    const compTo = new Date(to)
+    compFrom.setMonth(compFrom.getMonth() - 1)
+    compTo.setMonth(compTo.getMonth() - 1)
 
-    const compFrom = new Date(from); compFrom.setMonth(compFrom.getMonth() - 1);
-    const compTo = new Date(to); compTo.setMonth(compTo.getMonth() - 1);
+    const baseRows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
+    const compRows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', compFrom, compTo), include: buildVentaIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
 
-    const baseRepl = { from: formatISO(from), to: formatISO(to) };
-    const compRepl = { from: formatISO(compFrom), to: formatISO(compTo) };
-
-    const sql = `${recentSalesCte(1000, 'WHERE Fecha >= :from AND Fecha <= :to')}
-      SELECT a.Id AS IdProducto, a.Nombre AS product,
-      SUM(CONVERT(float, dv.Cantidad)) AS quantity,
-      CASE WHEN SUM(dv.Cantidad) > 0 THEN SUM(CONVERT(float, dv.Cantidad * dv.PrecioUnitario))/SUM(CONVERT(float, dv.Cantidad)) ELSE 0 END AS avgPrice
-      FROM ventas_base v
-      INNER JOIN DetalleVenta dv ON v.Id = dv.IdVenta
-      INNER JOIN Inventario i ON dv.IdInventario = i.Id
-      INNER JOIN Producto a ON i.IdProducto = a.Id
-      WHERE v.Fecha >= :from AND v.Fecha <= :to
-      GROUP BY a.Id, a.Nombre
-      ORDER BY quantity DESC`;
-
-    const baseRows = await sequelize.query(sql, { replacements: baseRepl, type: QueryTypes.SELECT });
-    const compRows = await sequelize.query(sql, { replacements: compRepl, type: QueryTypes.SELECT });
-
-    const mapById = (arr) => {
-      const m = new Map();
-      for (const r of arr) {
-        m.set(String(r.IdProducto), { id: r.IdProducto, product: r.product, quantity: Number(r.quantity||0), avgPrice: Number(r.avgPrice||0) });
+    const aggregate = (rows) => {
+      const map = new Map()
+      for (const venta of rows) {
+        for (const detalle of venta.detalles ?? []) {
+          const meta = getProductoMeta(detalle.inventario)
+          const id = meta.id ?? detalle.IdArticulo
+          if (!map.has(id)) map.set(id, { id, product: meta.nombre, quantity: 0, revenue: 0 })
+          map.get(id).quantity += toNumber(detalle.Cantidad)
+          map.get(id).revenue += toNumber(detalle.Cantidad) * toNumber(detalle.PrecioUnitario)
+        }
       }
-      return m;
-    };
-
-    const baseMap = mapById(baseRows);
-    const compMap = mapById(compRows);
-
-    const keys = new Set([...baseMap.keys(), ...compMap.keys()]);
-    const entries = [];
-    for (const k of keys) {
-      const b = baseMap.get(k) || { quantity: 0, avgPrice: 0, product: compMap.get(k)?.product || 'N/A' };
-      const c = compMap.get(k) || { quantity: 0, avgPrice: 0, product: b.product || 'N/A' };
-
-      const pctPrice = b.avgPrice === 0 ? null : ((c.avgPrice - b.avgPrice) / b.avgPrice) * 100;
-      const pctQty = b.quantity === 0 ? null : ((c.quantity - b.quantity) / b.quantity) * 100;
-      const elasticity = (pctPrice === null || pctQty === null || pctPrice === 0) ? null : Number((pctQty / pctPrice).toFixed(4));
-
-      entries.push({ id: b.id || c.id, product: b.product || c.product, baseAvgPrice: b.avgPrice, compareAvgPrice: c.avgPrice, baseQty: b.quantity, compareQty: c.quantity, pctPriceChange: pctPrice === null ? null : Number(pctPrice.toFixed(2)), pctQtyChange: pctQty === null ? null : Number(pctQty.toFixed(2)), elasticity });
+      return map
     }
 
-    if (this.bitacoraService && ctx) {
-      await auditar(this.bitacoraService, ctx, 'Consultó elasticidad precio-demanda', `base:${from.toISOString()}-${to.toISOString()} vs comp:${compFrom.toISOString()}-${compTo.toISOString()}`);
+    const baseMap = aggregate(baseRows)
+    const compMap = aggregate(compRows)
+    const keys = new Set([...baseMap.keys(), ...compMap.keys()])
+    const entries = []
+    for (const key of keys) {
+      const base = baseMap.get(key) || { id: key, product: compMap.get(key)?.product || 'N/A', quantity: 0, revenue: 0 }
+      const comp = compMap.get(key) || { id: key, product: base.product || 'N/A', quantity: 0, revenue: 0 }
+      const baseAvgPrice = base.quantity > 0 ? base.revenue / base.quantity : 0
+      const compareAvgPrice = comp.quantity > 0 ? comp.revenue / comp.quantity : 0
+      const pctPrice = baseAvgPrice === 0 ? null : ((compareAvgPrice - baseAvgPrice) / baseAvgPrice) * 100
+      const pctQty = base.quantity === 0 ? null : ((comp.quantity - base.quantity) / base.quantity) * 100
+      const elasticity = (pctPrice === null || pctQty === null || pctPrice === 0) ? null : Number((pctQty / pctPrice).toFixed(4))
+      entries.push({ id: base.id ?? comp.id, product: base.product ?? comp.product, baseAvgPrice: Number(baseAvgPrice.toFixed(2)), compareAvgPrice: Number(compareAvgPrice.toFixed(2)), baseQty: base.quantity, compareQty: comp.quantity, pctPriceChange: pctPrice === null ? null : Number(pctPrice.toFixed(2)), pctQtyChange: pctQty === null ? null : Number(pctQty.toFixed(2)), elasticity })
     }
-
-    return { basePeriod: { from: from.toISOString(), to: to.toISOString() }, comparePeriod: { from: compFrom.toISOString(), to: compTo.toISOString() }, entries };
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó elasticidad precio-demanda', `base:${from.toISOString()}-${to.toISOString()} vs comp:${compFrom.toISOString()}-${compTo.toISOString()}`)
+    return { basePeriod: { from: from.toISOString(), to: to.toISOString() }, comparePeriod: { from: compFrom.toISOString(), to: compTo.toISOString() }, entries }
   }
 
   async getSalesByPaymentMethod(query = {}, ctx = null) {
-    let from = query.from ? new Date(query.from) : null;
-    let to = query.to ? new Date(query.to) : null;
-    if (!to) to = new Date();
-    if (!from) {
-      const f = new Date(to);
-      f.setDate(f.getDate() - 29);
-      from = f;
+    const { from, to } = normalizeRange(query, 29)
+    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
+    const map = new Map()
+    for (const venta of rows) {
+      for (const pago of venta.pagos ?? []) {
+        const method = pago.metodoPago?.Nombre ?? `Método ${pago.IdMetodoPago}`
+        if (!map.has(method)) map.set(method, { method, total: 0, payments: 0 })
+        map.get(method).total += toNumber(pago.Monto)
+        map.get(method).payments += 1
+      }
     }
-
-    const sqlFinal = `${recentSalesCte(1000, 'WHERE Fecha >= :from AND Fecha <= :to')}
-      SELECT m.Nombre AS method, SUM(CONVERT(float, pv.Monto)) AS total, COUNT(*) AS payments
-      FROM PagoVenta pv
-      INNER JOIN MetodoPago m ON pv.IdMetodoPago = m.Id
-      INNER JOIN ventas_base v ON pv.IdVenta = v.Id
-      WHERE pv.FechaPago >= :from AND pv.FechaPago <= :to
-      GROUP BY m.Nombre
-      ORDER BY total DESC`;
-
-    const replacements = { from: formatISO(from), to: formatISO(to) };
-
-    const rows = await sequelize.query(sqlFinal, { replacements, type: QueryTypes.SELECT });
-
-    if (this.bitacoraService && ctx) {
-      await auditar(this.bitacoraService, ctx, 'Consultó ventas por forma de pago', `from=${from.toISOString()} to=${to.toISOString()}`);
-    }
-
-    return { period: { from: from.toISOString(), to: to.toISOString() }, methods: rows };
+    const methods = Array.from(map.values()).sort((a, b) => b.total - a.total)
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó ventas por forma de pago', `from=${from.toISOString()} to=${to.toISOString()}`)
+    return { period: { from: from.toISOString(), to: to.toISOString() }, methods }
   }
 
   async getSalesByBranch(query = {}, ctx = null) {
-    let from = query.from ? new Date(query.from) : null;
-    let to = query.to ? new Date(query.to) : null;
-    if (!to) to = new Date();
-    if (!from) {
-      const f = new Date(to);
-      f.setDate(f.getDate() - 29);
-      from = f;
+    const { from, to } = normalizeRange(query, 29)
+    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
+    const map = new Map()
+    for (const venta of rows) {
+      const branchId = venta.turnoCaja?.IdSucursal ?? null
+      const branchName = venta.turnoCaja?.sucursal?.Nombre ?? `Sucursal ${branchId ?? 'N/A'}`
+      const totalVenta = toNumber(venta.TotalVenta)
+      const totalCosto = toNumber(venta.TotalCosto)
+      const units = sum(venta.detalles ?? [], (detalle) => detalle.Cantidad)
+      if (!map.has(branchId)) map.set(branchId, { id: branchId, sucursal: branchName, salesCount: 0, revenue: 0, cost: 0, units: 0 })
+      const bucket = map.get(branchId)
+      bucket.salesCount += 1
+      bucket.revenue += totalVenta
+      bucket.cost += totalCosto
+      bucket.units += units
     }
-
-    const sqlFinal = `${recentSalesCte(1000, 'WHERE Fecha >= :from AND Fecha <= :to')}
-      , detalle_agg AS (
-        SELECT IdVenta, SUM(CONVERT(float, Cantidad)) AS units
-        FROM DetalleVenta
-        GROUP BY IdVenta
-      ), ventas_sucursal AS (
-        SELECT v.Id, tc.IdSucursal
-        FROM ventas_base v
-        INNER JOIN TurnoCaja tc ON tc.Id = v.IdTurnoCaja
-      )
-      SELECT vs.IdSucursal AS IdSucursal, s.Nombre AS sucursal,
-        COUNT(DISTINCT v.Id) AS salesCount,
-        SUM(CONVERT(float, v.TotalVenta)) AS revenue,
-        SUM(CONVERT(float, v.TotalCosto)) AS cost,
-        SUM(COALESCE(da.units, 0)) AS units,
-        CASE WHEN COUNT(DISTINCT v.Id) > 0 THEN SUM(CONVERT(float, v.TotalVenta))/COUNT(DISTINCT v.Id) ELSE 0 END AS avgTicket
-      FROM ventas_base v
-      INNER JOIN ventas_sucursal vs ON vs.Id = v.Id
-      LEFT JOIN detalle_agg da ON da.IdVenta = v.Id
-      LEFT JOIN Sucursal s ON s.Id = vs.IdSucursal
-      GROUP BY vs.IdSucursal, s.Nombre
-      ORDER BY revenue DESC`;
-
-    const replacements = { from: formatISO(from), to: formatISO(to) };
-    const rows = await sequelize.query(sqlFinal, { replacements, type: QueryTypes.SELECT });
-
-    // compute margin percentage
-    const mapped = rows.map(r => {
-      const revenue = Number(r.revenue || 0);
-      const cost = Number(r.cost || 0);
-      const margin = revenue - cost;
-      const marginPct = revenue > 0 ? Number(((margin / revenue) * 100).toFixed(2)) : 0;
-      return { id: r.IdSucursal, sucursal: r.sucursal, salesCount: Number(r.salesCount||0), revenue, cost, units: Number(r.units||0), avgTicket: Number(Number(r.avgTicket||0).toFixed(2)), margin: Number(margin.toFixed(2)), marginPct };
-    });
-
-    if (this.bitacoraService && ctx) {
-      await auditar(this.bitacoraService, ctx, 'Consultó ventas por sucursal', `from=${from.toISOString()} to=${to.toISOString()}`);
-    }
-
-    return { period: { from: from.toISOString(), to: to.toISOString() }, branches: mapped };
+    const branches = Array.from(map.values()).map((row) => {
+      const margin = row.revenue - row.cost
+      const marginPct = row.revenue > 0 ? Number(((margin / row.revenue) * 100).toFixed(2)) : 0
+      return { ...row, avgTicket: row.salesCount > 0 ? Number((row.revenue / row.salesCount).toFixed(2)) : 0, margin: Number(margin.toFixed(2)), marginPct }
+    }).sort((a, b) => b.revenue - a.revenue)
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó ventas por sucursal', `from=${from.toISOString()} to=${to.toISOString()}`)
+    return { period: { from: from.toISOString(), to: to.toISOString() }, branches }
   }
 
   async getDemandProjection(query = {}, ctx = null) {
-    // Use existing elasticity calculation to get base quantities and elasticity per product
-    const elasticityResult = await this.getPriceElasticity(query, ctx);
-    const basePeriod = elasticityResult.basePeriod;
-    const comparePeriod = elasticityResult.comparePeriod;
-    let entries = elasticityResult.entries || [];
-
-    const minQ = 0;
-    const priceChangePercent = 10;
-
-    const projected = [];
-    for (const e of entries) {
-      if ((e.baseQty || 0) < minQ) continue;
-
-      const basePrice = e.baseAvgPrice || 0;
-      const baseQty = e.baseQty || 0;
-      const elasticity = e.elasticity; // may be null
-
-      // Determine percent price change
-      let pctPrice = null;
-      let newPrice = null;
-      pctPrice = priceChangePercent;
-      newPrice = basePrice * (1 + pctPrice / 100);
-
-      // If elasticity missing, projection is not possible per product
-      let pctQty = null;
-      let projectedQty = null;
-      if (elasticity !== null && pctPrice !== null) {
-        pctQty = elasticity * pctPrice; // elasticity = %ΔQ / %ΔP
-        projectedQty = baseQty * (1 + pctQty / 100);
-      }
-
-      projected.push({ id: e.id, product: e.product, basePrice, baseQty, elasticity, pctPrice: pctPrice === null ? null : Number(pctPrice.toFixed(4)), pctQty: pctQty === null ? null : Number(pctQty.toFixed(4)), newPrice: newPrice === null ? null : Number(Number(newPrice).toFixed(2)), projectedQty: projectedQty === null ? null : Number(projectedQty.toFixed(2)) });
+    const elasticityResult = await this.getPriceElasticity(query, ctx)
+    const priceChangePercent = Number(query.priceChangePercent || 10)
+    const projected = []
+    for (const entry of elasticityResult.entries || []) {
+      const basePrice = entry.baseAvgPrice || 0
+      const baseQty = entry.baseQty || 0
+      const elasticity = entry.elasticity
+      const newPrice = basePrice * (1 + priceChangePercent / 100)
+      const projectedQty = elasticity !== null ? baseQty * (1 + ((elasticity * priceChangePercent) / 100)) : null
+      projected.push({ id: entry.id, product: entry.product, basePrice, baseQty, elasticity, pctPrice: Number(priceChangePercent.toFixed(2)), newPrice: Number(newPrice.toFixed(2)), projectedQty: projectedQty === null ? null : Number(projectedQty.toFixed(2)) })
     }
-
-    if (this.bitacoraService && ctx) {
-      await auditar(this.bitacoraService, ctx, 'Consultó proyección de demanda', `from=${basePeriod.from} to=${basePeriod.to}`);
-    }
-
-    return { basePeriod, comparePeriod, projection: projected };
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó proyección de demanda', `from=${elasticityResult.basePeriod.from} to=${elasticityResult.basePeriod.to}`)
+    return { basePeriod: elasticityResult.basePeriod, comparePeriod: elasticityResult.comparePeriod, projection: projected }
   }
 }

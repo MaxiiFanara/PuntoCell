@@ -1,176 +1,216 @@
-import { auditar } from '../../../core/utils/audit.util.js';
-import { sequelize } from '../../../models/index.js';
-import { QueryTypes } from 'sequelize';
+import { Op } from 'sequelize'
+import { auditar } from '../../../core/utils/audit.util.js'
+import { models } from '../../../models/index.js'
+import { normalizeRange, periodKey, plainList, toNumber } from '../dashboard.utils.js'
 
-const VALID_GRAN = ['day','week','month','year'];
+const VALID_GRAN = ['day', 'week', 'month', 'year']
+const rangeToWhere = (field, from, to) => ({ [field]: { [Op.between]: [from, to] } })
+const compraAttributes = ['Id', 'Fecha', 'TotalCosto', 'IdProveedor', 'IdSucursalDestino', 'IdEmpleado']
 
-function formatISO(d) { if (!d) return null; const z = new Date(d); return z.toISOString().slice(0,19).replace('T',' '); }
-function buildPeriodExpr(gran) {
-  switch (gran) {
-    case 'month': return "CONVERT(char(7), Fecha, 120)";
-    case 'year': return "CAST(YEAR(Fecha) AS VARCHAR(4))";
-    case 'week': return "CONCAT(YEAR(Fecha), '-', RIGHT('00'+CAST(DATEPART(iso_week,Fecha) AS VARCHAR(2)),2))";
-    case 'day':
-    default: return "CONVERT(char(10), Fecha, 23)";
-  }
-}
+const buildCompraIncludes = () => ([
+  { model: models.Proveedor, as: 'proveedor', attributes: ['Id', 'Nombre'], required: false },
+  { model: models.DetalleCompra, as: 'detalles', attributes: ['Id', 'Cantidad', 'PrecioCostoUnitario', 'IdArticulo'], required: false, include: [{ model: models.Inventario, as: 'inventario', attributes: ['Id', 'IdArticulo', 'IdSucursal', 'Stock'], required: false }] },
+])
+
+const buildVentaDetalleIncludes = () => ([
+  { model: models.DetalleVenta, as: 'detalles', attributes: ['Id', 'Cantidad', 'PrecioUnitario', 'IdArticulo'], required: false, include: [{ model: models.Inventario, as: 'inventario', attributes: ['Id', 'IdArticulo', 'IdSucursal', 'Stock'], required: false, include: [{ model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre', 'IdModeloArticulo'], required: false, include: [{ model: models.ModeloArticulo, as: 'modelo', attributes: ['Id', 'Nombre', 'IdMarcaArticulo', 'IdCategoriaArticulo'], required: false, include: [{ model: models.MarcaArticulo, as: 'marca', attributes: ['Id', 'Nombre'], required: false }, { model: models.CategoriaArticulo, as: 'categoria', attributes: ['Id', 'Nombre'], required: false }] }] }] }] },
+])
 
 export default class ComprasDashboardService {
-  constructor(bitacoraService = null) { this.bitacoraService = bitacoraService; }
+  constructor(bitacoraService = null) { this.bitacoraService = bitacoraService }
 
-  _resolveRange(query = {}, defaultDays = 29) {
-    let from = query.from ? new Date(query.from) : null; let to = query.to ? new Date(query.to) : null;
-    if (!to) to = new Date();
-    if (!from) { const f = new Date(to); f.setDate(f.getDate() - defaultDays); from = f; }
-    return { from, to };
-  }
+  _resolveRange(query = {}, defaultDays = 29) { return normalizeRange(query, defaultDays) }
 
-  // ... (content copied from original compras-dashboard.service)
   async getCostoEvolucion(query = {}, ctx = null) {
-    const gran = VALID_GRAN.includes((query.granularity||'').toLowerCase()) ? query.granularity.toLowerCase() : 'day';
-    const { from, to } = this._resolveRange(query, 29);
-    const periodExpr = buildPeriodExpr(gran);
-    const sql = `SELECT ${periodExpr} AS period, SUM(CONVERT(float, TotalCosto)) AS totalCosto FROM Compra WHERE Fecha >= :from AND Fecha <= :to GROUP BY ${periodExpr} ORDER BY period`;
-    const replacements = { from: formatISO(from), to: formatISO(to) };
-    const rows = await sequelize.query(sql, { replacements, type: QueryTypes.SELECT });
-    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó evolución costo de compras', `gran=${gran}`);
-    return { period: { from: from.toISOString(), to: to.toISOString(), granularity: gran }, series: rows };
+    const gran = VALID_GRAN.includes(String(query.granularity || '').toLowerCase()) ? String(query.granularity).toLowerCase() : 'day'
+    const { from, to } = this._resolveRange(query, 29)
+    const rows = plainList(await models.Compra.findAll({ where: rangeToWhere('Fecha', from, to), attributes: ['Id', 'Fecha', 'TotalCosto'], order: [['Fecha', 'ASC']], limit: 1000 }))
+    const buckets = new Map()
+    for (const compra of rows) {
+      const key = periodKey(compra.Fecha, gran)
+      if (!buckets.has(key)) buckets.set(key, { period: key, totalCosto: 0 })
+      buckets.get(key).totalCosto += toNumber(compra.TotalCosto)
+    }
+    const series = Array.from(buckets.values()).sort((a, b) => String(a.period).localeCompare(String(b.period)))
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó evolución costo de compras', `gran=${gran}`)
+    return { period: { from: from.toISOString(), to: to.toISOString(), granularity: gran }, series }
   }
 
   async getComprasPorProveedor(query = {}, ctx = null) {
-    const { from, to } = this._resolveRange(query, 29);
-    const sql = `SELECT p.Id AS IdProveedor, p.Nombre AS proveedor, SUM(CONVERT(float, c.TotalCosto)) AS totalComprado, COUNT(DISTINCT c.Id) AS comprasCount FROM Compra c INNER JOIN Proveedor p ON c.IdProveedor = p.Id WHERE c.Fecha >= :from AND c.Fecha <= :to GROUP BY p.Id, p.Nombre ORDER BY totalComprado DESC`;
-    const replacements = { from: formatISO(from), to: formatISO(to) };
-    const rows = await sequelize.query(sql, { replacements, type: QueryTypes.SELECT });
-    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó compras por proveedor', `from=${from.toISOString()} to=${to.toISOString()}`);
-    return { period: { from: from.toISOString(), to: to.toISOString() }, proveedores: rows };
+    const { from, to } = this._resolveRange(query, 29)
+    const rows = plainList(await models.Compra.findAll({ where: rangeToWhere('Fecha', from, to), attributes: compraAttributes, include: buildCompraIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
+    const map = new Map()
+    for (const compra of rows) {
+      const id = compra.IdProveedor
+      const proveedor = compra.proveedor?.Nombre ?? `Proveedor ${id}`
+      if (!map.has(id)) map.set(id, { IdProveedor: id, proveedor, totalComprado: 0, comprasCount: 0 })
+      const bucket = map.get(id)
+      bucket.totalComprado += toNumber(compra.TotalCosto)
+      bucket.comprasCount += 1
+    }
+    const proveedores = Array.from(map.values()).sort((a, b) => b.totalComprado - a.totalComprado)
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó compras por proveedor', `from=${from.toISOString()} to=${to.toISOString()}`)
+    return { period: { from: from.toISOString(), to: to.toISOString() }, proveedores }
   }
 
   async getRankingProveedores(query = {}, ctx = null) {
-    const { from, to } = this._resolveRange(query, 29);
-    const order = query.order || 'monto';
-    const sql = `SELECT p.Id AS IdProveedor, p.Nombre AS proveedor,
-      SUM(CONVERT(float, c.TotalCosto)) AS monto,
-      SUM(CONVERT(float, dc.Cantidad)) AS cantidadProductos,
-      COUNT(DISTINCT c.Id) AS frecuencia,
-      CASE WHEN SUM(dc.Cantidad) > 0 THEN SUM(CONVERT(float, dc.Cantidad * dc.PrecioCostoUnitario))/SUM(CONVERT(float, dc.Cantidad)) ELSE 0 END AS precioPromedio
-      FROM Compra c
-      LEFT JOIN DetalleCompra dc ON dc.IdCompra = c.Id
-      LEFT JOIN Proveedor p ON c.IdProveedor = p.Id
-      WHERE c.Fecha >= :from AND c.Fecha <= :to
-      GROUP BY p.Id, p.Nombre`;
-
-    const rows = await sequelize.query(sql, { replacements: { from: formatISO(from), to: formatISO(to) }, type: QueryTypes.SELECT });
-    const sorted = rows.sort((a,b)=>{
-      switch(order){
-        case 'cantidad': return (Number(b.cantidadProductos||0)-Number(a.cantidadProductos||0));
-        case 'frecuencia': return (Number(b.frecuencia||0)-Number(a.frecuencia||0));
-        case 'precio': return (Number(b.precioPromedio||0)-Number(a.precioPromedio||0));
+    const { from, to } = this._resolveRange(query, 29)
+    const order = String(query.order || 'monto').toLowerCase()
+    const rows = plainList(await models.Compra.findAll({ where: rangeToWhere('Fecha', from, to), attributes: compraAttributes, include: buildCompraIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
+    const map = new Map()
+    for (const compra of rows) {
+      const id = compra.IdProveedor
+      const proveedor = compra.proveedor?.Nombre ?? `Proveedor ${id}`
+      if (!map.has(id)) map.set(id, { IdProveedor: id, proveedor, monto: 0, cantidadProductos: 0, frecuencia: 0, precioPromedio: 0 })
+      const bucket = map.get(id)
+      bucket.monto += toNumber(compra.TotalCosto)
+      bucket.frecuencia += 1
+      for (const detalle of compra.detalles ?? []) bucket.cantidadProductos += toNumber(detalle.Cantidad)
+    }
+    const entries = Array.from(map.values()).map((row) => ({ ...row, precioPromedio: row.cantidadProductos > 0 ? Number((row.monto / row.cantidadProductos).toFixed(2)) : 0 }))
+    entries.sort((a, b) => {
+      switch (order) {
+        case 'cantidad': return b.cantidadProductos - a.cantidadProductos
+        case 'frecuencia': return b.frecuencia - a.frecuencia
+        case 'precio': return b.precioPromedio - a.precioPromedio
         case 'monto':
-        default: return (Number(b.monto||0)-Number(a.monto||0));
+        default: return b.monto - a.monto
       }
-    });
-    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, `Consultó ranking proveedores orden=${order}`, `from=${from.toISOString()} to=${to.toISOString()}`);
-    return { period: { from: from.toISOString(), to: to.toISOString() }, entries: sorted };
+    })
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, `Consultó ranking proveedores orden=${order}`, `from=${from.toISOString()} to=${to.toISOString()}`)
+    return { period: { from: from.toISOString(), to: to.toISOString() }, entries }
   }
 
   async getEvolucionPrecioProducto(query = {}, ctx = null) {
-    if (!query.productoId) throw new Error('productoId is required');
-    const gran = VALID_GRAN.includes((query.granularity||'').toLowerCase()) ? query.granularity.toLowerCase() : 'month';
-    let from = query.from ? new Date(query.from) : null; let to = query.to ? new Date(query.to) : null;
-    if (!to) to = new Date(); if (!from) { const f = new Date(to); f.setMonth(f.getMonth()-5); from = f; }
-    const periodExpr = buildPeriodExpr(gran);
-    const sql = `SELECT ${periodExpr} AS period, AVG(CONVERT(float, dc.PrecioCostoUnitario)) AS avgPrecio FROM Compra c INNER JOIN DetalleCompra dc ON dc.IdCompra = c.Id INNER JOIN Inventario i ON dc.IdInventario = i.Id WHERE c.Fecha >= :from AND c.Fecha <= :to AND i.IdProducto = :productoId GROUP BY ${periodExpr} ORDER BY period`;
-    const replacements = { from: formatISO(from), to: formatISO(to), productoId: query.productoId };
-    const rows = await sequelize.query(sql, { replacements, type: QueryTypes.SELECT });
-    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó evolución precio de compra', `producto=${query.productoId}`);
-    return { period: { from: from.toISOString(), to: to.toISOString(), granularity: gran }, series: rows };
+    if (!query.productoId) throw new Error('productoId is required')
+    const gran = VALID_GRAN.includes(String(query.granularity || '').toLowerCase()) ? String(query.granularity).toLowerCase() : 'month'
+    const { from, to } = this._resolveRange(query, 150)
+    const rows = plainList(await models.Compra.findAll({ where: rangeToWhere('Fecha', from, to), attributes: compraAttributes, include: buildCompraIncludes(), order: [['Fecha', 'ASC']], limit: 1000 }))
+    const map = new Map()
+    for (const compra of rows) {
+      const key = periodKey(compra.Fecha, gran)
+      for (const detalle of compra.detalles ?? []) {
+        const productId = detalle.inventario?.IdArticulo ?? detalle.IdArticulo
+        if (Number(productId) !== Number(query.productoId)) continue
+        if (!map.has(key)) map.set(key, { period: key, total: 0, count: 0 })
+        const bucket = map.get(key)
+        bucket.total += toNumber(detalle.PrecioCostoUnitario)
+        bucket.count += 1
+      }
+    }
+    const series = Array.from(map.values()).map((row) => ({ period: row.period, avgPrecio: row.count > 0 ? Number((row.total / row.count).toFixed(2)) : 0 })).sort((a, b) => String(a.period).localeCompare(String(b.period)))
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó evolución precio de compra', `producto=${query.productoId}`)
+    return { period: { from: from.toISOString(), to: to.toISOString(), granularity: gran }, series }
   }
 
   async getVariacionPrecioProveedor(query = {}, ctx = null) {
-    const { from, to } = this._resolveRange(query, 89);
-    const whereProducto = query.productoId ? ' AND i.IdProducto = :productoId' : '';
-    const sql = `SELECT p.Id AS IdProveedor, p.Nombre AS proveedor, dc.PrecioCostoUnitario AS precioUnitario FROM Compra c INNER JOIN DetalleCompra dc ON dc.IdCompra = c.Id INNER JOIN Inventario i ON dc.IdInventario = i.Id INNER JOIN Proveedor p ON c.IdProveedor = p.Id WHERE c.Fecha >= :from AND c.Fecha <= :to ${whereProducto}`;
-    const replacements = { from: formatISO(from), to: formatISO(to) };
-    if (query.productoId) replacements.productoId = query.productoId;
-    const rows = await sequelize.query(sql, { replacements, type: QueryTypes.SELECT });
-    const map = new Map();
-    for (const r of rows) {
-      const id = String(r.IdProveedor);
-      if (!map.has(id)) map.set(id, { proveedor: r.proveedor, prices: [] });
-      map.get(id).prices.push(Number(r.precioUnitario||0));
+    const { from, to } = this._resolveRange(query, 89)
+    const rows = plainList(await models.Compra.findAll({ where: rangeToWhere('Fecha', from, to), attributes: compraAttributes, include: buildCompraIncludes(), order: [['Fecha', 'ASC']], limit: 1000 }))
+    const map = new Map()
+    for (const compra of rows) {
+      for (const detalle of compra.detalles ?? []) {
+        const productId = detalle.inventario?.IdArticulo ?? detalle.IdArticulo
+        if (query.productoId && Number(productId) !== Number(query.productoId)) continue
+        const id = compra.IdProveedor
+        if (!map.has(id)) map.set(id, { id, proveedor: compra.proveedor?.Nombre ?? `Proveedor ${id}`, prices: [] })
+        map.get(id).prices.push(toNumber(detalle.PrecioCostoUnitario))
+      }
     }
-    const result = [];
-    for (const [id, v] of map.entries()) result.push({ id: Number(id), proveedor: v.proveedor, prices: v.prices });
-    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó variación precio por proveedor', `from=${from.toISOString()} to=${to.toISOString()}`);
-    return { period: { from: from.toISOString(), to: to.toISOString() }, data: result };
+    const data = Array.from(map.values())
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó variación precio por proveedor', `from=${from.toISOString()} to=${to.toISOString()}`)
+    return { period: { from: from.toISOString(), to: to.toISOString() }, data }
   }
 
   async getABCCompras(query = {}, ctx = null) {
-    const { from, to } = this._resolveRange(query, 149);
-    const sql = `SELECT p.Id AS IdProducto, p.Nombre AS producto, SUM(CONVERT(float, dc.Cantidad * dc.PrecioCostoUnitario)) AS total FROM Compra c INNER JOIN DetalleCompra dc ON dc.IdCompra = c.Id INNER JOIN Inventario i ON dc.IdInventario = i.Id INNER JOIN Producto p ON i.IdProducto = p.Id WHERE c.Fecha >= :from AND c.Fecha <= :to GROUP BY p.Id, p.Nombre ORDER BY total DESC`;
-    const rows = await sequelize.query(sql, { replacements: { from: formatISO(from), to: formatISO(to) }, type: QueryTypes.SELECT });
-    const totalSum = rows.reduce((s,r)=>s+Number(r.total||0),0);
-    let cumulative = 0; const entries = [];
-    for (const r of rows) {
-      const pct = totalSum>0? (Number(r.total||0)/totalSum)*100:0;
-      cumulative += pct;
-      let cls = 'C'; if (cumulative <= 80) cls='A'; else if (cumulative <= 95) cls='B';
-      entries.push({ id: r.IdProducto, producto: r.producto, total: Number(r.total||0), percentage: Number(pct.toFixed(2)), cumulative: Number(cumulative.toFixed(2)), class: cls });
+    const { from, to } = this._resolveRange(query, 149)
+    const rows = plainList(await models.Compra.findAll({ where: rangeToWhere('Fecha', from, to), attributes: compraAttributes, include: buildCompraIncludes(), order: [['Fecha', 'ASC']], limit: 1000 }))
+    const map = new Map()
+    for (const compra of rows) {
+      for (const detalle of compra.detalles ?? []) {
+        const id = detalle.inventario?.IdArticulo ?? detalle.IdArticulo
+        if (!map.has(id)) map.set(id, { id, producto: `Producto ${id}`, total: 0 })
+        map.get(id).total += toNumber(detalle.Cantidad) * toNumber(detalle.PrecioCostoUnitario)
+      }
     }
-    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó ABC de compras', `from=${from.toISOString()} to=${to.toISOString()}`);
-    return { period: { from: from.toISOString(), to: to.toISOString() }, total: totalSum, entries };
+    const rowsSorted = Array.from(map.values()).sort((a, b) => b.total - a.total)
+    const totalSum = rowsSorted.reduce((s, r) => s + r.total, 0)
+    let cumulative = 0
+    const entries = rowsSorted.map((row) => {
+      const pct = totalSum > 0 ? (row.total / totalSum) * 100 : 0
+      cumulative += pct
+      let cls = 'C'
+      if (cumulative <= 80) cls = 'A'
+      else if (cumulative <= 95) cls = 'B'
+      return { id: row.id, producto: row.producto, total: Number(row.total.toFixed(2)), percentage: Number(pct.toFixed(2)), cumulative: Number(cumulative.toFixed(2)), class: cls }
+    })
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó ABC de compras', `from=${from.toISOString()} to=${to.toISOString()}`)
+    return { period: { from: from.toISOString(), to: to.toISOString() }, total: totalSum, entries }
   }
 
   async getPuntoReposicion(query = {}, ctx = null) {
-    if (!query.productoId) throw new Error('productoId is required');
-    const days = Number(query.days) || 90; const leadTime = Number(query.leadTimeDays) || 7;
-    const { from, to } = this._resolveRange(query, days);
-    const sql = `SELECT SUM(CONVERT(float, dv.Cantidad)) AS qty FROM Venta v INNER JOIN DetalleVenta dv ON dv.IdVenta = v.Id INNER JOIN Inventario i ON dv.IdInventario = i.Id WHERE v.Fecha >= :from AND v.Fecha <= :to AND i.IdProducto = :productoId`;
-    const repl = { from: formatISO(from), to: formatISO(to), productoId: query.productoId };
-    const rows = await sequelize.query(sql, { replacements: repl, type: QueryTypes.SELECT });
-    const totalQty = Number(rows[0]?.qty||0);
-    const avgDaily = totalQty / days;
-    const reorderPoint = avgDaily * leadTime;
-    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó punto de reposición', `producto=${query.productoId}`);
-    return { productoId: query.productoId, periodDays: days, avgDailyDemand: Number(avgDaily.toFixed(4)), leadTimeDays: leadTime, reorderPoint: Number(reorderPoint.toFixed(4)) };
+    if (!query.productoId) throw new Error('productoId is required')
+    const days = Number(query.days) || 90
+    const leadTime = Number(query.leadTimeDays) || 7
+    const { from, to } = this._resolveRange(query, days)
+    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaDetalleIncludes(), order: [['Fecha', 'ASC']], limit: 1000 }))
+    let totalQty = 0
+    for (const venta of rows) {
+      for (const detalle of venta.detalles ?? []) {
+        const id = detalle.inventario?.IdProducto ?? detalle.inventario?.IdArticulo
+        if (Number(id) === Number(query.productoId)) totalQty += toNumber(detalle.Cantidad)
+      }
+    }
+    const avgDaily = totalQty / days
+    const reorderPoint = avgDaily * leadTime
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó punto de reposición', `producto=${query.productoId}`)
+    return { productoId: query.productoId, periodDays: days, avgDailyDemand: Number(avgDaily.toFixed(4)), leadTimeDays: leadTime, reorderPoint: Number(reorderPoint.toFixed(4)) }
   }
 
   async getStockSeguridad(query = {}, ctx = null) {
-    if (!query.productoId) throw new Error('productoId is required');
-    const days = Number(query.days) || 90; const leadTime = Number(query.leadTimeDays) || 7; const serviceLevel = Number(query.serviceLevel) || 0.95;
-    const zMap = { '0.9':1.28, '0.95':1.65, '0.99':2.33 };
-    const z = zMap[String(serviceLevel)] || 1.65;
-    const { from, to } = this._resolveRange(query, days);
-    const sql = `SELECT CONVERT(char(10), v.Fecha, 23) as Fecha, SUM(CONVERT(float, dv.Cantidad)) AS qty FROM Venta v INNER JOIN DetalleVenta dv ON dv.IdVenta = v.Id INNER JOIN Inventario i ON dv.IdInventario = i.Id WHERE v.Fecha >= :from AND v.Fecha <= :to AND i.IdProducto = :productoId GROUP BY CONVERT(char(10), v.Fecha, 23)`;
-    const repl = { from: formatISO(from), to: formatISO(to), productoId: query.productoId };
-    const rows = await sequelize.query(sql, { replacements: repl, type: QueryTypes.SELECT });
-    const dailyQtys = rows.map(r=>Number(r.qty||0));
-    const mean = dailyQtys.reduce((s,x)=>s+x,0)/Math.max(1,dailyQtys.length);
-    const variance = dailyQtys.reduce((s,x)=>s+Math.pow(x-mean,2),0)/Math.max(1,dailyQtys.length);
-    const sd = Math.sqrt(variance);
-    const sigmaLT = sd * Math.sqrt(leadTime);
-    const safetyStock = z * sigmaLT;
-    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó stock de seguridad', `producto=${query.productoId}`);
-    return { productoId: query.productoId, meanDaily: Number(mean.toFixed(4)), sdDaily: Number(sd.toFixed(4)), leadTimeDays: leadTime, serviceLevel, z, safetyStock: Number(safetyStock.toFixed(4)) };
+    if (!query.productoId) throw new Error('productoId is required')
+    const days = Number(query.days) || 90
+    const leadTime = Number(query.leadTimeDays) || 7
+    const serviceLevel = Number(query.serviceLevel) || 0.95
+    const zMap = { '0.9': 1.28, '0.95': 1.65, '0.99': 2.33 }
+    const z = zMap[String(serviceLevel)] || 1.65
+    const { from, to } = this._resolveRange(query, days)
+    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaDetalleIncludes(), order: [['Fecha', 'ASC']], limit: 1000 }))
+    const daily = new Map()
+    for (const venta of rows) {
+      const key = String(venta.Fecha).slice(0, 10)
+      if (!daily.has(key)) daily.set(key, 0)
+      for (const detalle of venta.detalles ?? []) {
+        const id = detalle.inventario?.IdProducto ?? detalle.inventario?.IdArticulo
+        if (Number(id) === Number(query.productoId)) daily.set(key, daily.get(key) + toNumber(detalle.Cantidad))
+      }
+    }
+    const values = Array.from(daily.values())
+    const mean = values.reduce((s, x) => s + x, 0) / Math.max(1, values.length)
+    const variance = values.reduce((s, x) => s + Math.pow(x - mean, 2), 0) / Math.max(1, values.length)
+    const sd = Math.sqrt(variance)
+    const safetyStock = z * (sd * Math.sqrt(leadTime))
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó stock de seguridad', `producto=${query.productoId}`)
+    return { productoId: query.productoId, meanDaily: Number(mean.toFixed(4)), sdDaily: Number(sd.toFixed(4)), leadTimeDays: leadTime, serviceLevel, z, safetyStock: Number(safetyStock.toFixed(4)) }
   }
 
   async getEOQ(query = {}, ctx = null) {
-    if (!query.productoId) throw new Error('productoId is required');
-    const days = Number(query.days) || 365;
-    const { from, to } = this._resolveRange(query, days);
-    const sql = `SELECT SUM(CONVERT(float, dv.Cantidad)) AS qty FROM Venta v INNER JOIN DetalleVenta dv ON dv.IdVenta = v.Id INNER JOIN Inventario i ON dv.IdInventario = i.Id WHERE v.Fecha >= :from AND v.Fecha <= :to AND i.IdProducto = :productoId`;
-    const repl = { from: formatISO(from), to: formatISO(to), productoId: query.productoId };
-    const rows = await sequelize.query(sql, { replacements: repl, type: QueryTypes.SELECT });
-    const annualDemand = (Number(rows[0]?.qty||0) / Math.max(1, days)) * 365;
-    const orderingCost = Number(query.orderingCost || query.S || 50);
-    let holdingCost = Number(query.holdingCost || 0);
-    if (!holdingCost) {
-      if (query.holdingCostPercent && query.unitCost) holdingCost = Number(query.holdingCostPercent) * Number(query.unitCost);
-      else holdingCost = 1;
+    if (!query.productoId) throw new Error('productoId is required')
+    const days = Number(query.days) || 365
+    const { from, to } = this._resolveRange(query, days)
+    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaDetalleIncludes(), order: [['Fecha', 'ASC']], limit: 1000 }))
+    let qty = 0
+    for (const venta of rows) {
+      for (const detalle of venta.detalles ?? []) {
+        const id = detalle.inventario?.IdProducto ?? detalle.inventario?.IdArticulo
+        if (Number(id) === Number(query.productoId)) qty += toNumber(detalle.Cantidad)
+      }
     }
-    const eoq = Math.sqrt((2 * annualDemand * orderingCost) / holdingCost);
-    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó EOQ', `producto=${query.productoId}`);
-    return { productoId: query.productoId, annualDemand: Number(annualDemand.toFixed(2)), orderingCost, holdingCost: Number(holdingCost.toFixed(4)), eoq: Number(eoq.toFixed(2)) };
+    const annualDemand = (qty / Math.max(1, days)) * 365
+    const orderingCost = Number(query.orderingCost || query.S || 50)
+    let holdingCost = Number(query.holdingCost || 0)
+    if (!holdingCost) holdingCost = query.holdingCostPercent && query.unitCost ? Number(query.holdingCostPercent) * Number(query.unitCost) : 1
+    const eoq = Math.sqrt((2 * annualDemand * orderingCost) / holdingCost)
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó EOQ', `producto=${query.productoId}`)
+    return { productoId: query.productoId, annualDemand: Number(annualDemand.toFixed(2)), orderingCost, holdingCost: Number(holdingCost.toFixed(4)), eoq: Number(eoq.toFixed(2)) }
   }
 }

@@ -1,26 +1,58 @@
-import { auditar } from '../../../core/utils/audit.util.js';
-import { sequelize } from '../../../models/index.js';
-import { QueryTypes } from 'sequelize';
+import { Op } from 'sequelize'
+import { auditar } from '../../../core/utils/audit.util.js'
+import { models } from '../../../models/index.js'
+import { includesForProducto, normalizeRange, plainList, toNumber } from '../dashboard.utils.js'
 
-function formatISO(d){ if(!d) return null; const z=new Date(d); return z.toISOString().slice(0,19).replace('T',' '); }
+const rangeToWhere = (field, from, to) => ({ [field]: { [Op.between]: [from, to] } })
 
 export default class InventarioDashboardService {
-  constructor(bitacoraService = null){ this.bitacoraService = bitacoraService; }
+  constructor(bitacoraService = null) { this.bitacoraService = bitacoraService }
 
   _resolveRange(query = {}, defaultDays = 90) {
-    let from = query.from ? new Date(query.from) : null; let to = query.to ? new Date(query.to) : null;
-    if (!to) to = new Date();
-    if (!from) { const f = new Date(to); f.setDate(f.getDate() - defaultDays); from = f; }
-    return { from, to };
+    return normalizeRange(query, defaultDays)
   }
 
-  async getProductosBajaRotacion(query = {}, ctx = null){
-    const days = Number(query.days) || 90;
-    const { from, to } = this._resolveRange(query, days);
-    const sql = `SELECT i.Id AS IdInventario, p.Id AS IdProducto, p.Nombre AS producto, i.Stock AS stock, ISNULL(SUM(CONVERT(float, dv.Cantidad)),0) AS sold FROM Inventario i LEFT JOIN DetalleVenta dv ON dv.IdInventario = i.Id LEFT JOIN Venta v ON dv.IdVenta = v.Id AND v.Fecha >= :from AND v.Fecha <= :to INNER JOIN Producto p ON i.IdProducto = p.Id GROUP BY i.Id, p.Id, p.Nombre, i.Stock ORDER BY CASE WHEN i.Stock>0 THEN (ISNULL(SUM(CONVERT(float, dv.Cantidad)),0)/i.Stock) ELSE 999999 END ASC`;
-    const rows = await sequelize.query(sql, { replacements: { from: formatISO(from), to: formatISO(to) }, type: QueryTypes.SELECT });
-    const mapped = rows.map(r=>{ const sold = Number(r.sold||0); const stock = Number(r.stock||0); const turnover = stock>0? Number((sold/stock).toFixed(6)) : null; return { idInventario: r.IdInventario, idProducto: r.IdProducto, producto: r.producto, stock, sold, turnover }; });
-    if(this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó productos baja rotación', `days=${days}`);
-    return { periodDays: days, entries: mapped };
+  async getProductosBajaRotacion(query = {}, ctx = null) {
+    const days = Number(query.days) || 90
+    const { from, to } = this._resolveRange(query, days)
+    const inventarios = plainList(await models.Inventario.findAll({
+      include: [
+        { model: models.Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'], required: false },
+        { model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre', 'IdModeloArticulo'], required: false, include: [{ model: models.ModeloArticulo, as: 'modelo', attributes: ['Id', 'Nombre', 'IdMarcaArticulo', 'IdCategoriaArticulo'], required: false, include: [{ model: models.MarcaArticulo, as: 'marca', attributes: ['Id', 'Nombre'], required: false }, { model: models.CategoriaArticulo, as: 'categoria', attributes: ['Id', 'Nombre'], required: false }] }] },
+      ],
+      order: [['Stock', 'ASC']]
+    }))
+
+    const movimientos = plainList(await models.DetalleVenta.findAll({
+      attributes: ['Id', 'IdArticulo', 'Cantidad'],
+      include: [{ model: models.Venta, as: 'venta', attributes: ['Id', 'Fecha'], required: true }],
+      order: [['Id', 'ASC']],
+      limit: 5000
+    }))
+
+    const soldByInventory = new Map()
+    for (const detalle of movimientos) {
+      const fecha = detalle.venta?.Fecha
+      if (!fecha) continue
+      const saleDate = new Date(fecha)
+      if (saleDate < from || saleDate > to) continue
+      const key = detalle.IdArticulo ?? null
+      if (key === null) continue
+      soldByInventory.set(key, (soldByInventory.get(key) || 0) + toNumber(detalle.Cantidad))
+    }
+
+    const entries = inventarios.map((inventario) => {
+      const sold = soldByInventory.get(inventario.Id) || 0
+      const stock = toNumber(inventario.Stock)
+      const turnover = stock > 0 ? Number((sold / stock).toFixed(6)) : null
+      return { idInventario: inventario.Id, idProducto: inventario.IdArticulo, producto: inventario.articulo?.Nombre ?? `Producto ${inventario.IdArticulo}`, stock, sold, turnover }
+    }).sort((a, b) => {
+      const aScore = a.turnover === null ? Number.POSITIVE_INFINITY : a.turnover
+      const bScore = b.turnover === null ? Number.POSITIVE_INFINITY : b.turnover
+      return aScore - bScore
+    })
+
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó productos baja rotación', `days=${days}`)
+    return { periodDays: days, entries }
   }
 }
