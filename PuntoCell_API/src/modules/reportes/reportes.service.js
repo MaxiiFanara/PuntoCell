@@ -81,7 +81,7 @@ const includesForCompra = () => ([
   {
     model: models.DetalleCompra,
     as: 'detalles',
-    attributes: ['Id', 'Cantidad', 'CostoUnitario', 'IdArticulo'],
+    attributes: ['Id', 'Cantidad', 'IdArticulo'],
     required: false,
     include: [{
       model: models.Inventario,
@@ -411,7 +411,7 @@ export default class ReportesService {
         const inventoryRows = plainList(await models.Inventario.findAll({
           include: [
             { model: models.Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'], required: false },
-            { model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre'], required: false, include: includesForProducto() },
+            { model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre'], required: false, include: includesForProducto()[0].include },
           ],
           order: [['Stock', 'ASC']]
         }))
@@ -437,7 +437,7 @@ export default class ReportesService {
         const inventoryRows = plainList(await models.Inventario.findAll({
           include: [
             { model: models.Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'], required: false },
-            { model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre'], required: false, include: includesForProducto() },
+            { model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre'], required: false, include: includesForProducto()[0].include },
             { model: models.MovimientoStock, as: 'movimientos', attributes: ['Id', 'Fecha', 'TipoMovimiento', 'Cantidad'], required: false },
           ],
           order: [['Id', 'ASC']]
@@ -465,7 +465,7 @@ export default class ReportesService {
         const inventoryRows = plainList(await models.Inventario.findAll({
           include: [
             { model: models.Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'], required: false },
-            { model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre'], required: false, include: includesForProducto() },
+            { model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre'], required: false, include: includesForProducto()[0].include },
             { model: models.PrecioArticulo, as: 'precios', attributes: ['Id', 'CostoReal', 'CostoBase', 'FechaDesde', 'FechaHasta'], required: false },
           ]
         }))

@@ -26,7 +26,7 @@ import HistorialVentas from './features/venta/views/HistorialVentas';
 import TicketVenta from './features/venta/views/TicketVenta';
 import InventarioList from './features/inventario/views/InventarioList';
 import InventarioDetails from './features/inventario/views/InventarioDetails';
-import BalanceList from './features/reportes/views/BalanceList';
+import ReportesScreen from './features/reportes/views/ReportesScreen';
 import ComprasList from './features/compras/views/ComprasList';
 import PreciosScreen from './features/precios/precios';
 import { VentaProvider } from './features/punto-venta/context/VentaContext';
@@ -126,7 +126,7 @@ const App = () => (
         <Route path="precios" element={<AdminRoute><PreciosScreen /></AdminRoute>} />
 
         {/* -------- REPORTES -------- */}
-        <Route path="reportes" element={<BalanceList />} />
+        <Route path="reportes" element={<ReportesScreen />} />
 
         {/* -------- BITÁCORA INDEPENDIENTE (Sin AdminLayout) -------- */}
         <Route 
