@@ -11,5 +11,6 @@ export function createAuditoriaModule() {
 	return {
 		bitacoraController,
 		bitacoraService
+		// auditoria analytics moved to central dashboard module
 	};
 }

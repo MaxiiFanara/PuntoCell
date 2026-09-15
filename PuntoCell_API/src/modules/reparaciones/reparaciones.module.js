@@ -65,6 +65,8 @@ export function createReparacionesModule(usuarioDAO, bitacoraService = null) {
   const repuestoOrdenService = new RepuestoOrdenService(repuestoOrdenDAO, ordenReparacionDAO, bitacoraService);
   const repuestoOrdenController = new RepuestoOrdenController(repuestoOrdenService);
 
+  // reparaciones dashboard moved to central dashboard module
+
   const notificacionService = new NotificacionService();
 
   const ordenReparacionService = new OrdenReparacionService(

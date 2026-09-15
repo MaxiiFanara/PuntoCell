@@ -291,34 +291,53 @@ export const getPagosOrden = async (idOrden) => {
 
 export const getMarcasReparadas = async (limit) => {
   const qs = limit !== undefined ? `?limit=${limit}` : ''
-  const res = await fetchApi(`/estadisticas/marca-mas-reparada${qs}`)
-  return res?.data ?? []
+  const res = await fetchApi(`/dashboard/reparaciones/marca${qs}`)
+  return (res?.data?.marcas ?? res?.data?.entries ?? res?.data ?? []).map((item) => ({
+    Marca: item.Marca ?? item.marca ?? item.marca ?? item.Nombre ?? item.nombre,
+    CantidadReparaciones: Number(item.CantidadReparaciones ?? item.repairs ?? item.count ?? 0),
+  }))
 }
 
 export const getDispositivosReparados = async (limit) => {
   const qs = limit !== undefined ? `?limit=${limit}` : ''
-  const res = await fetchApi(`/estadisticas/dispositivo-mas-reparado${qs}`)
-  return res?.data ?? []
+  const res = await fetchApi(`/dashboard/reparaciones/tipo${qs}`)
+  return (res?.data?.categories ?? res?.data?.entries ?? res?.data ?? []).map((item) => ({
+    Dispositivo: item.Dispositivo ?? item.categoria ?? item.category ?? item.Nombre ?? item.nombre,
+    CantidadReparaciones: Number(item.CantidadReparaciones ?? item.repairs ?? item.count ?? 0),
+  }))
 }
 
 export const getRepuestosUsados = async (limit) => {
   const qs = limit !== undefined ? `?limit=${limit}` : ''
-  const res = await fetchApi(`/estadisticas/repuesto-mas-usado${qs}`)
-  return res?.data ?? []
+  const res = await fetchApi(`/dashboard/reparaciones/repuestos${qs}`)
+  return (res?.data?.entries ?? res?.data ?? []).map((item) => ({
+    Repuesto: item.Repuesto ?? item.repuesto ?? item.Nombre ?? item.nombre,
+    CantidadUsada: Number(item.CantidadUsada ?? item.cantidad ?? item.count ?? 0),
+  }))
 }
 
 export const getFallasRepetidas = async (limit) => {
   const qs = limit !== undefined ? `?limit=${limit}` : ''
-  const res = await fetchApi(`/estadisticas/falla-mas-repetida${qs}`)
-  return res?.data ?? []
+  const res = await fetchApi(`/dashboard/reparaciones/pareto-fallas${qs}`)
+  return (res?.data?.entries ?? res?.data ?? []).map((item) => ({
+    Falla: item.Falla ?? item.falla ?? item.Nombre ?? item.nombre,
+    CantidadReportada: Number(item.CantidadReportada ?? item.count ?? item.cnt ?? 0),
+  }))
 }
 
 export const getFinanzasResumen = async () => {
-  const res = await fetchApi('/estadisticas/finanzas')
-  return res?.data ?? null
+  const res = await fetchApi('/dashboard/finanzas/margen-bruto')
+  const data = res?.data ?? null
+  return data
+    ? {
+        TotalIngresos: Number(data.totalVentas) || 0,
+        TotalCostos: Number(data.totalCostos) || 0,
+        Ganancia: Number(data.margen) || 0,
+      }
+    : null
 }
 
 export const getDashboardMetricas = async () => {
-  const res = await fetchApi('/estadisticas/dashboard')
+  const res = await fetchApi('/dashboard/summary')
   return res?.data ?? null
 }

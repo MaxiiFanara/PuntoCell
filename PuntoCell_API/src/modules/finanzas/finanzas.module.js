@@ -10,5 +10,6 @@ export function createFinanzasModule(bitacoraService = null) {
 
   return {
     metodoPagoController
+    // finanzas analytics moved to central dashboard module
   };
 }

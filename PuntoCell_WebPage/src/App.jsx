@@ -26,14 +26,19 @@ import HistorialVentas from './features/venta/views/HistorialVentas';
 import TicketVenta from './features/venta/views/TicketVenta';
 import InventarioList from './features/inventario/views/InventarioList';
 import InventarioDetails from './features/inventario/views/InventarioDetails';
-import BalanceList from './features/reportes/views/BalanceList';
+import ReportesScreen from './features/reportes/views/ReportesScreen';
 import ComprasList from './features/compras/views/ComprasList';
 import PreciosScreen from './features/precios/precios';
 import { VentaProvider } from './features/punto-venta/context/VentaContext';
 import ThemeToggle from './components/ui/ThemeToggle';
 
-
-
+// --- IMPORTACIONES DE DASHBOARDS
+import DashboardVentas from './features/dashboards/views/DashboardVentas';
+import DashboardCompras from './features/dashboards/views/DashboardCompras';
+import DashboardInventario from './features/dashboards/views/DashboardInventario';
+import DashboardReparaciones from './features/dashboards/views/DashboardReparaciones';
+import DashboardControl from './features/dashboards/views/DashboardControl';
+import DashboardFinanciero from './features/dashboards/views/DashboardFinanciero';
 
 // --- WRAPPERS DE SEGURIDAD ---
 const ProtectedRoute = ({ children }) => {
@@ -88,11 +93,22 @@ const App = () => (
 
         {/* -------- MÓDULO REPARACIONES Y DASHBOARD (BASE) -------- */}
         <Route path="reparaciones" element={<ReparacionesPage />} />
-        <Route path="dashboard" element={
-          <AdminRoute>
-            <DashboardPage />
-          </AdminRoute>
-        } />
+        <Route path="dashboard">
+          {/* Ruta base del hub: /app/dashboard */}
+          <Route index element={
+            <AdminRoute>
+              <DashboardPage />
+            </AdminRoute>
+          } />
+          
+          {/* Sub-módulo: /app/dashboard/ventas */}
+          <Route path="ventas" element={<AdminRoute><DashboardVentas /></AdminRoute>} />
+          <Route path="compras" element={<AdminRoute><DashboardCompras /></AdminRoute>} /> 
+          <Route path="inventario" element={<AdminRoute><DashboardInventario /></AdminRoute>} />
+          <Route path="reparaciones" element={<AdminRoute><DashboardReparaciones /></AdminRoute>} />
+          <Route path="control" element={<AdminRoute><DashboardControl /></AdminRoute>} />
+          <Route path="financiero" element={<AdminRoute><DashboardFinanciero /></AdminRoute>} />
+        </Route>
 
         {/* -------- VENTAS Y POS -------- */}
         <Route path="ventas/historial" element={<HistorialVentas />} />
@@ -110,7 +126,7 @@ const App = () => (
         <Route path="precios" element={<AdminRoute><PreciosScreen /></AdminRoute>} />
 
         {/* -------- REPORTES -------- */}
-        <Route path="reportes" element={<BalanceList />} />
+        <Route path="reportes" element={<ReportesScreen />} />
 
         {/* -------- BITÁCORA INDEPENDIENTE (Sin AdminLayout) -------- */}
         <Route 

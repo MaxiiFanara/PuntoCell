@@ -11,6 +11,8 @@ import preciosRoutes from '../modules/precios/precios.routes.js';
 import estadisticasRoutes from '../modules/estadisticas/estadisticas.routes.js';
 import ventasRoutes from '../modules/ventas/ventas.routes.js';
 import finanzasRoutes from '../modules/finanzas/finanzas.routes.js';
+import dashboardRoutes from '../modules/dashboard/dashboard.routes.js';
+import reportesRoutes from '../modules/reportes/reportes.routes.js';
 import catalogoRoutes from '../modules/catalogo/catalogo.routes.js';
 import auditoriaRoutes from '../modules/auditoria/auditoria.routes.js';
 
@@ -31,9 +33,11 @@ export default (container) => {
   router.use('/inventario', inventarioRoutes(container));
   router.use('/precios', preciosRoutes(container));
   router.use('/estadisticas', estadisticasRoutes(container));
+  router.use('/dashboard', dashboardRoutes(container));
   router.use('/ventas', ventasRoutes(container));
   router.use('/finanzas', finanzasRoutes(container));
   router.use('/auditoria', auditoriaRoutes(container));
+  router.use('/reportes', reportesRoutes(container));
 
   return router;
 };
