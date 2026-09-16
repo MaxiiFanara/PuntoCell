@@ -1,5 +1,5 @@
 import {
-  Drawer, Box, Typography, IconButton, Stack, Avatar, Snackbar, Alert, Button
+  Drawer, Box, Typography, IconButton, Stack, Snackbar, Alert, Button
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -10,6 +10,7 @@ import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
 import { useCart } from '../context/CartContext';
 import { buildWhatsAppLink, formatCurrency } from '../utils/whatsapp';
 import { useTheme } from '@mui/material/styles';
+import ProductImagePlaceholder from './ProductImagePlaceholder';
 
 export default function CartDrawer() {
   const theme = useTheme();
@@ -66,7 +67,9 @@ export default function CartDrawer() {
             <Stack spacing={1.5}>
               {items.map((item) => (
                 <Box key={item.id} sx={{ display: 'flex', gap: 1.5, p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
-                  <Avatar src={item.image} variant="rounded" sx={{ width: 72, height: 72, flexShrink: 0, borderRadius: 3 }} imgProps={{ onError: (e) => { e.target.src = 'https://via.placeholder.com/64?text=?'; } }} />
+                  <Box sx={{ width: 72, height: 72, flexShrink: 0, borderRadius: 3, overflow: 'hidden' }}>
+                    <ProductImagePlaceholder categoria={item.category} iconSize={28} />
+                  </Box>
                   <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {item.name}

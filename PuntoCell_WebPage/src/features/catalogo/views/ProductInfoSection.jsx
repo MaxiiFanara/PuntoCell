@@ -4,6 +4,7 @@ import WorkspacePremiumOutlinedIcon from '@mui/icons-material/WorkspacePremiumOu
 import { formatCurrency } from '../utils/whatsapp';
 import { STORE_CONFIG } from '../config/store';
 import { useTheme } from '@mui/material/styles';
+import { formatCategoria } from '../utils/categorias';
 
 const { productPage } = STORE_CONFIG;
 
@@ -14,7 +15,7 @@ export default function ProductInfoSection({ product, addToCart }) {
   return (
     <>
       {product.category && (
-        <Chip label={product.category} size="small" sx={{ mb: 2, height: 34, px: 1, borderRadius: '999px', backgroundColor: theme.custom.cards.softBackground, color: theme.palette.text.primary, fontWeight: 600 }} />
+        <Chip label={formatCategoria(product.category)} size="small" sx={{ mb: 2, height: 34, px: 1, borderRadius: '999px', backgroundColor: theme.custom.cards.softBackground, color: theme.palette.text.primary, fontWeight: 600 }} />
       )}
       <Typography variant="h2" sx={{ fontSize: { xs: '1.8rem', md: '3rem' }, lineHeight: 1.05, letterSpacing: '-0.04em', mb: 3 }}>{product.name}</Typography>
       <Box sx={{ mb: 2 }}>

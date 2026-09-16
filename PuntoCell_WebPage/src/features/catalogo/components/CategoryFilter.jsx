@@ -5,6 +5,7 @@ import {
 } from '@mui/material';
 
 import { useTheme } from '@mui/material/styles';
+import { formatCategoria } from '../utils/categorias';
 
 export default function CategoryFilter({
   categories,
@@ -46,7 +47,7 @@ export default function CategoryFilter({
           return (
             <Chip
               key={cat}
-              label={cat}
+              label={cat === 'Todos' ? cat : formatCategoria(cat)}
               clickable
               onClick={() => onChange(cat)}
               variant="filled"
