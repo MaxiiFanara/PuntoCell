@@ -23,11 +23,10 @@ export const ProductProvider = ({ children }) => {
         const productosAdaptados = (productos || []).map((p) => ({
           id: p.id,
           name: p.name,
-          description: `${p.category}${p.memoria ? ' - Memoria: ' + p.memoria : ''}${p.color ? ' - Color: ' + p.color : ''}`,
+          description: `${p.modelo || p.categoria}${p.memoria ? ' - Memoria: ' + p.memoria : ''}${p.color ? ' - Color: ' + p.color : ''}`,
           price: p.priceUsd * (cotizacionDolar || 1),
           comparePrice: null,
-          category: p.category,
-          image: 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800&q=80',
+          category: p.categoria,
           gallery: [],
           stock: p.stock,
           material: p.color || 'Estándar',
