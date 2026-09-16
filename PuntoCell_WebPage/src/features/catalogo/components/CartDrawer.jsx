@@ -7,6 +7,8 @@ import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
+import { useNavigate } from 'react-router-dom';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
 import { useCart } from '../context/CartContext';
 import { buildWhatsAppLink, formatCurrency } from '../utils/whatsapp';
 import ProductImagePlaceholder from './ProductImagePlaceholder';
@@ -18,6 +20,13 @@ export default function CartDrawer() {
     totalPrice, totalItems,
     snackbar, closeSnack,
   } = useCart();
+
+  const navigate = useNavigate();
+
+  const irAlCheckout = () => {
+    setIsOpen(false);
+    navigate('/catalogo/checkout');
+  };
 
   const handleCheckout = () => {
     if (!items.length) return;
@@ -101,7 +110,7 @@ export default function CartDrawer() {
           <Box sx={{ p: 2.5, borderTop: '1px solid', borderColor: 'divider', bgcolor: 'background.default' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
               <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary', lineHeight: 1.7, maxWidth: '60%' }}>
-                Una vez enviado el mensaje, coordinaremos contigo disponibilidad, entrega y medios de pago.
+                Pagá online con Mercado Pago, o escribinos para coordinar la entrega.
               </Typography>
               <Box textAlign="right">
                 <Typography variant="body1" sx={{ fontWeight: 500 }}>Total</Typography>
@@ -115,8 +124,19 @@ export default function CartDrawer() {
               color="primary"
               fullWidth
               size="large"
+              startIcon={<CreditCardIcon />}
+              onClick={irAlCheckout}
+            >
+              Pagar con Mercado Pago
+            </Button>
+            <Button
+              variant="outlined"
+              color="primary"
+              fullWidth
+              size="large"
               startIcon={<WhatsAppIcon />}
               onClick={handleCheckout}
+              sx={{ mt: 1 }}
             >
               Consultar disponibilidad
             </Button>
