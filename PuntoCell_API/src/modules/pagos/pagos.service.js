@@ -9,6 +9,20 @@ const error409 = (detalle) => {
   return err;
 };
 
+// MP tiene más estados de los que le importan a la vitrina. Se colapsan a tres,
+// y lo que no está en el mapa cae en 'desconocido' para que agregar un estado
+// nuevo del lado de MP no rompa la pantalla de resultado.
+const ESTADOS = {
+  approved: 'approved',
+  authorized: 'approved',
+  pending: 'pending',
+  in_process: 'pending',
+  in_mediation: 'pending',
+  rejected: 'rejected',
+  cancelled: 'rejected',
+  refunded: 'rejected',
+};
+
 // catalogoService y mpClient se inyectan para poder chequear el módulo sin base
 // ni red (scripts/check-pagos.mjs).
 export const crearPagosService = ({ catalogoService, mpClient, backUrlBase, webhookUrl }) => {
@@ -84,5 +98,29 @@ export const crearPagosService = ({ catalogoService, mpClient, backUrlBase, webh
     return { initPoint: pref.init_point, externalReference };
   };
 
-  return { crearCheckout };
+  const consultarPago = async (paymentId) => {
+    const pago = await mpClient.obtenerPago(paymentId);
+    if (!pago) return null;
+
+    // El comprobante se arma con lo que devuelve MP, no con el carrito del
+    // navegador: así sigue siendo reproducible si el comprador pagó desde otro
+    // dispositivo o vuelve al link más tarde.
+    const items = (pago.additional_info?.items || []).map((i) => ({
+      title: i.title,
+      quantity: Number(i.quantity) || 0,
+      unitPrice: Number(i.unit_price) || 0,
+    }));
+
+    return {
+      estado: ESTADOS[pago.status] || 'desconocido',
+      paymentId: String(pago.id),
+      externalReference: pago.external_reference || null,
+      total: Number(pago.transaction_amount) || 0,
+      items,
+      fecha: pago.date_approved || pago.date_created || null,
+      medio: pago.payment_method_id || null,
+    };
+  };
+
+  return { crearCheckout, consultarPago };
 };

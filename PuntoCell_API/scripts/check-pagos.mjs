@@ -193,6 +193,74 @@ test('crearCheckout no manda auto_return con back_urls http (MP lo rechaza)', as
   );
 });
 
+// --- pagos.service.js: consultarPago ---
+
+const servicioConPago = (pago) =>
+  crearPagosService({
+    catalogoService: catalogoFalso(PRODUCTOS),
+    mpClient: { crearPreferencia: async () => ({}), obtenerPago: async () => pago },
+    backUrlBase: 'http://localhost:5173',
+    webhookUrl: '',
+  });
+
+const PAGO_MP = {
+  id: 123456,
+  status: 'approved',
+  external_reference: 'ref-abc',
+  transaction_amount: 3742200,
+  date_approved: '2026-09-16T10:00:00.000-03:00',
+  date_created: '2026-09-16T09:59:00.000-03:00',
+  payment_method_id: 'visa',
+  additional_info: {
+    items: [{ title: 'Apple iPhone 14 Pro', quantity: '2', unit_price: '1871100' }],
+  },
+};
+
+test('consultarPago normaliza un pago aprobado y arma el comprobante desde MP', async () => {
+  const resultado = await servicioConPago(PAGO_MP).consultarPago('123456');
+
+  assert.equal(resultado.estado, 'approved');
+  assert.equal(resultado.paymentId, '123456');
+  assert.equal(resultado.externalReference, 'ref-abc');
+  assert.equal(resultado.total, 3742200);
+  assert.equal(resultado.medio, 'visa');
+  assert.equal(resultado.fecha, '2026-09-16T10:00:00.000-03:00');
+  assert.deepEqual(resultado.items, [
+    { title: 'Apple iPhone 14 Pro', quantity: 2, unitPrice: 1871100 },
+  ]);
+});
+
+test('consultarPago mapea in_process a pending', async () => {
+  const resultado = await servicioConPago({ ...PAGO_MP, status: 'in_process' }).consultarPago('1');
+  assert.equal(resultado.estado, 'pending');
+});
+
+test('consultarPago mapea cancelled a rejected', async () => {
+  const resultado = await servicioConPago({ ...PAGO_MP, status: 'cancelled' }).consultarPago('1');
+  assert.equal(resultado.estado, 'rejected');
+});
+
+test('consultarPago cae en desconocido ante un estado que MP agregue despues', async () => {
+  const resultado = await servicioConPago({ ...PAGO_MP, status: 'charged_back' }).consultarPago('1');
+  assert.equal(resultado.estado, 'desconocido');
+});
+
+test('consultarPago usa date_created cuando el pago no fue aprobado', async () => {
+  const pendiente = { ...PAGO_MP, status: 'pending', date_approved: null };
+  const resultado = await servicioConPago(pendiente).consultarPago('1');
+  assert.equal(resultado.fecha, '2026-09-16T09:59:00.000-03:00');
+});
+
+test('consultarPago devuelve null si MP no conoce el pago', async () => {
+  assert.equal(await servicioConPago(null).consultarPago('999'), null);
+});
+
+test('consultarPago no explota si MP no manda additional_info', async () => {
+  const sinInfo = { ...PAGO_MP, additional_info: undefined };
+  const resultado = await servicioConPago(sinInfo).consultarPago('1');
+  assert.deepEqual(resultado.items, []);
+});
+
 // --- runner ---
 
 const main = async () => {
