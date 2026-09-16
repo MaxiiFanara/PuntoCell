@@ -1,89 +1,36 @@
-import {
-  Box,
-  Chip,
-  Stack,
-} from '@mui/material';
-
-import { useTheme } from '@mui/material/styles';
+import { Box, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { formatCategoria } from '../utils/categorias';
 
-export default function CategoryFilter({
-  categories,
-  selected,
-  onChange,
-}) {
-
-  const theme = useTheme();
-
+// Usa el ToggleButtonGroup que el tema ya estila como píldoras de filtro
+// (ver theme/index.js, MuiToggleButton). Antes eran Chips de 42px con fuente
+// propia: el mismo control, con otra escala, al lado del resto del sistema.
+export default function CategoryFilter({ categories, selected, onChange }) {
   return (
     <Box
       sx={{
         overflowX: 'auto',
         WebkitOverflowScrolling: 'touch',
-        pb: 1,
-        pt: 1,
-        px: { xs: 2, md: 0 }, 
-        mx: { xs: -2, md: 0 },
-
-        '&::-webkit-scrollbar': {
-          display: 'none',
-        },
-
+        px: { xs: 2.5, md: 0 },
+        mx: { xs: -2.5, md: 0 },
+        '&::-webkit-scrollbar': { display: 'none' },
         scrollbarWidth: 'none',
       }}
     >
-      <Stack
-        direction="row"
-        spacing={1.5}
-        sx={{
-          minWidth: 'max-content',
-        }}
+      <ToggleButtonGroup
+        exclusive
+        value={selected}
+        // `null` llega al deseleccionar la activa: se ignora para que siempre
+        // haya exactamente una categoría vigente.
+        onChange={(_, valor) => valor !== null && onChange(valor)}
+        aria-label="Filtrar por categoría"
+        sx={{ flexWrap: 'nowrap', minWidth: 'max-content' }}
       >
-        {categories.map((cat) => {
-
-          const isSelected =
-            selected === cat;
-
-          return (
-            <Chip
-              key={cat}
-              label={cat === 'Todos' ? cat : formatCategoria(cat)}
-              clickable
-              onClick={() => onChange(cat)}
-              variant="filled"
-              sx={{
-                height: 42,
-
-                px: 1,
-
-                borderRadius: '999px',
-
-                fontWeight: 500,
-
-                fontSize: '0.9rem',
-
-                transition: 'all 0.25s ease',
-
-                backgroundColor: isSelected
-                  ? theme.custom.chips.activeBg
-                  : theme.custom.chips.defaultBg,
-
-                color: isSelected
-                  ? theme.custom.chips.activeColor
-                  : theme.custom.chips.defaultColor,
-
-                border: `1px solid ${theme.palette.divider}`,
-
-                '&:hover': {
-                  backgroundColor: isSelected
-                    ? theme.custom.chips.activeBg
-                    : theme.custom.chips.hoverBg,
-                },
-              }}
-            />
-          );
-        })}
-      </Stack>
+        {categories.map((cat) => (
+          <ToggleButton key={cat} value={cat}>
+            {cat === 'Todos' ? cat : formatCategoria(cat)}
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
     </Box>
   );
 }

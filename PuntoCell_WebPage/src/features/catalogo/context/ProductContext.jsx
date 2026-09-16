@@ -1,6 +1,14 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { catalogoService } from '../../../services/catalogoServices';
 
+// "titanio negro" -> "Titanio Negro"
+const capitalizar = (texto) =>
+  (texto || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((palabra) => palabra.charAt(0).toUpperCase() + palabra.slice(1))
+    .join(' ');
+
 const ProductContext = createContext();
 
 export const useProducts = () => useContext(ProductContext);
@@ -18,22 +26,32 @@ export const ProductProvider = ({ children }) => {
 
         // Endpoint público (sin login): ya viene filtrado a productos
         // vendibles/activos y sin datos internos sensibles (costo, proveedor, IMEI).
-        const { productos, cotizacionDolar } = await catalogoService.getProductos(SUCURSAL_CATALOGO);
+        const { productos } = await catalogoService.getProductos(SUCURSAL_CATALOGO);
 
-        const productosAdaptados = (productos || []).map((p) => ({
-          id: p.id,
-          name: p.name,
-          description: `${p.modelo || p.categoria}${p.memoria ? ' - Memoria: ' + p.memoria : ''}${p.color ? ' - Color: ' + p.color : ''}`,
-          price: p.priceUsd * (cotizacionDolar || 1),
-          comparePrice: null,
-          category: p.categoria,
-          gallery: [],
-          stock: p.stock,
-          material: p.color || 'Estándar',
-          dimensions: p.memoria ? `Memoria: ${p.memoria}` : null,
-          featured: p.stock > 0,
-          promotions: p.esSerializado ? ['Único'] : []
-        }));
+        const productosAdaptados = (productos || []).map((p) => {
+          // La base guarda los colores en minúscula ("titanio negro"). Se
+          // capitaliza acá, una vez, y no en cada vista que lo muestra.
+          const color = capitalizar(p.color);
+          return {
+            id: p.id,
+            name: p.name,
+            description: `${p.modelo || p.categoria}${p.memoria ? ' - Memoria: ' + p.memoria : ''}${color ? ' - Color: ' + color : ''}`,
+            // `priceUsd` es un nombre engañoso del endpoint: PrecioArticulo.ValorFinal
+            // ya viene en PESOS (iPhone 14 Pro = 1.871.100, Funda = 3.024). Multiplicarlo
+            // por la cotización lo convertía de nuevo y dejaba toda la vitrina 1450x
+            // inflada. Se toma tal cual llega.
+            // Si el backend algún día pasa ValorFinal a dólares, acá hay que volver a
+            // multiplicar por la cotización; el cambio es de ellos, no nuestro.
+            price: p.priceUsd,
+            comparePrice: null,
+            category: p.categoria,
+            gallery: [],
+            stock: p.stock,
+            material: color || 'Estándar',
+            dimensions: p.memoria ? `Memoria: ${p.memoria}` : null,
+            promotions: p.esSerializado ? ['Único'] : [],
+          };
+        });
 
         const productosValidos = productosAdaptados.filter(p => p.price > 0);
         setProducts(productosValidos);

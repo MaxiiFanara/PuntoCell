@@ -23,11 +23,10 @@ const SERVICIOS = [
 
 export default function Services() {
   return (
-    <Box component="section" sx={{ px: 2.5, py: { xs: 8, md: 12 }, bgcolor: 'background.paper', borderTop: 1, borderColor: 'divider' }}>
+    <Box component="section" sx={{ px: 2.5, py: { xs: 6, md: 9 }, bgcolor: 'background.paper', borderTop: 1, borderColor: 'divider' }}>
       <Box sx={{ maxWidth: 1120, mx: 'auto' }}>
 
-        <Box sx={{ textAlign: 'center', mb: { xs: 5, md: 7 } }}>
-          <Box sx={{ typography: 'eyebrow', color: 'text.disabled', mb: 1 }}>Qué hacemos</Box>
+        <Box sx={{ textAlign: 'center', mb: { xs: 4, md: 5 } }}>
           <Typography
             component="h2"
             sx={{

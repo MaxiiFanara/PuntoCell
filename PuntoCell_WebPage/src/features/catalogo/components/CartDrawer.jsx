@@ -9,11 +9,9 @@ import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
 import { useCart } from '../context/CartContext';
 import { buildWhatsAppLink, formatCurrency } from '../utils/whatsapp';
-import { useTheme } from '@mui/material/styles';
 import ProductImagePlaceholder from './ProductImagePlaceholder';
 
 export default function CartDrawer() {
-  const theme = useTheme();
   const {
     items, isOpen, setIsOpen,
     removeFromCart, updateQuantity, clearCart,
@@ -33,7 +31,7 @@ export default function CartDrawer() {
         open={isOpen}
         onClose={() => setIsOpen(false)}
         PaperProps={{
-          sx: { width: { xs: '100vw', sm: 420 }, backdropFilter: 'blur(14px)', background: 'rgba(255,255,255,0.92)', borderLeft: '1px solid rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column' },
+          sx: { width: { xs: '100vw', sm: 420 }, bgcolor: 'background.paper', borderLeft: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column' },
         }}
       >
         {/* Header */}
@@ -68,7 +66,7 @@ export default function CartDrawer() {
               {items.map((item) => (
                 <Box key={item.id} sx={{ display: 'flex', gap: 1.5, p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
                   <Box sx={{ width: 72, height: 72, flexShrink: 0, borderRadius: 3, overflow: 'hidden' }}>
-                    <ProductImagePlaceholder categoria={item.category} iconSize={28} />
+                    <ProductImagePlaceholder categoria={item.category} iconSize={28} ratio="1 / 1" />
                   </Box>
                   <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -84,7 +82,7 @@ export default function CartDrawer() {
                       <Typography variant="body2" sx={{ minWidth: 24, textAlign: 'center', fontWeight: 700 }}>
                         {item.quantity}
                       </Typography>
-                      <IconButton size="small" onClick={() => updateQuantity(item.id, item.quantity + 1)} sx={{ p: 0.25, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                      <IconButton size="small" disabled={Number.isFinite(Number(item.stock)) && item.quantity >= Number(item.stock)} onClick={() => updateQuantity(item.id, item.quantity + 1)} sx={{ p: 0.25, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
                         <AddIcon sx={{ fontSize: 14 }} />
                       </IconButton>
                     </Box>
@@ -100,7 +98,7 @@ export default function CartDrawer() {
 
         {/* Footer */}
         {items.length > 0 && (
-          <Box sx={{ p: 2.5, borderTop: '1px solid', borderColor: 'divider', bgcolor: theme.palette.background.default }}>
+          <Box sx={{ p: 2.5, borderTop: '1px solid', borderColor: 'divider', bgcolor: 'background.default' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
               <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary', lineHeight: 1.7, maxWidth: '60%' }}>
                 Una vez enviado el mensaje, coordinaremos contigo disponibilidad, entrega y medios de pago.
@@ -130,7 +128,7 @@ export default function CartDrawer() {
       </Drawer>
 
       <Snackbar open={snackbar.open} autoHideDuration={2500} onClose={closeSnack} anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}>
-        <Alert onClose={closeSnack} severity="success" variant="filled" sx={{ borderRadius: 2 }}>
+        <Alert onClose={closeSnack} severity={snackbar.severity || 'success'} variant="filled" sx={{ borderRadius: 2 }}>
           {snackbar.message}
         </Alert>
       </Snackbar>

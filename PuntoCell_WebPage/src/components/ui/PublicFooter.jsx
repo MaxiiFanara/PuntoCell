@@ -1,18 +1,24 @@
 import { Box, Button, Typography } from '@mui/material';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import InstagramIcon from '@mui/icons-material/Instagram';
-import { STORE_CONFIG } from '../../catalogo/config/store';
+
+import { STORE_CONFIG } from '../../features/catalogo/config/store';
 
 const { whatsapp, instagram, name } = STORE_CONFIG.business;
 const whatsappUrl = `https://wa.me/${whatsapp}`;
 
-export default function FooterCTA() {
+/**
+ * Cierre único de la cara pública (landing + catálogo).
+ *
+ * El catálogo tenía su propio footer con la marca a 2.5rem, iconos de 52px y
+ * otro ritmo de espaciado: mismo contenido que este, con otra estética. Uno
+ * solo para las dos vistas.
+ */
+export default function PublicFooter() {
   return (
     <Box component="footer">
-
-      {/* Banda de cierre en verde de marca: funciona igual en claro y oscuro,
-          a diferencia del gris carbón hardcodeado que había antes. */}
-      <Box sx={{ px: 2.5, py: { xs: 8, md: 11 }, bgcolor: 'pc.accentSoft', color: 'primary.main', textAlign: 'center' }}>
+      {/* Banda de cierre en verde de marca: funciona igual en claro y oscuro. */}
+      <Box sx={{ px: 2.5, py: { xs: 7, md: 9 }, bgcolor: 'pc.accentSoft', color: 'primary.main', textAlign: 'center' }}>
         <Box sx={{ maxWidth: 700, mx: 'auto' }}>
           <Typography
             component="h2"

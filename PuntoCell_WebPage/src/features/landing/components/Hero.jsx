@@ -13,7 +13,7 @@ export default function Hero() {
         position: 'relative',
         overflow: 'hidden',
         px: 2.5,
-        py: { xs: 10, md: 16 },
+        py: { xs: 8, md: 12 },
         bgcolor: 'background.default',
       }}
     >
