@@ -6,7 +6,6 @@ import { getCategoriaIcon } from '../utils/categorias';
 // tanto, un ícono por categoría sobre el mismo fondo muted que ya usaba la
 // landing en su vidriera de ejemplo.
 export default function ProductImagePlaceholder({ categoria, iconSize = 44, sx }) {
-  // eslint-disable-next-line react-hooks/static-components
   const Icon = getCategoriaIcon(categoria);
   return (
     <Box
@@ -20,6 +19,7 @@ export default function ProductImagePlaceholder({ categoria, iconSize = 44, sx }
         ...sx,
       }}
     >
+      {/* eslint-disable-next-line react-hooks/static-components */}
       <Icon sx={{ fontSize: iconSize, opacity: 0.45 }} />
     </Box>
   );
