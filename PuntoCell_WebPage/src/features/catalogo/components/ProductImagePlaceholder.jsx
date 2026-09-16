@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box } from '@mui/material';
 import { getCategoriaIcon } from '../utils/categorias';
 
@@ -7,6 +6,8 @@ import { getCategoriaIcon } from '../utils/categorias';
 // tanto, un ícono por categoría sobre el mismo fondo muted que ya usaba la
 // landing en su vidriera de ejemplo.
 export default function ProductImagePlaceholder({ categoria, iconSize = 44, sx }) {
+  // eslint-disable-next-line react-hooks/static-components
+  const Icon = getCategoriaIcon(categoria);
   return (
     <Box
       sx={{
@@ -19,9 +20,7 @@ export default function ProductImagePlaceholder({ categoria, iconSize = 44, sx }
         ...sx,
       }}
     >
-      {React.createElement(getCategoriaIcon(categoria), {
-        sx: { fontSize: iconSize, opacity: 0.45 },
-      })}
+      <Icon sx={{ fontSize: iconSize, opacity: 0.45 }} />
     </Box>
   );
 }
