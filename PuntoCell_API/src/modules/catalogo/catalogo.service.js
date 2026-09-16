@@ -21,7 +21,15 @@ export default class CatalogoService {
           include: [{
             association: 'modelo',
             attributes: ['Nombre'],
-            include: [{ association: 'marca', attributes: ['Nombre'] }]
+            include: [
+              { association: 'marca', attributes: ['Nombre'] },
+              // Categoría real del producto (Celulares/Accesorios/etc. en la DB).
+              // Antes el catálogo público agrupaba por nombre de MODELO, lo que
+              // rompía el filtro de categorías del front (cada modelo era casi su
+              // propia categoría). Cambio acotado a este include + al mapeo de
+              // abajo; no toca modelos, asociaciones ni la base de datos.
+              { association: 'categoria', attributes: ['Nombre'] },
+            ]
           }]
         }, {
           association: 'color', attributes: ['Nombre']
@@ -80,7 +88,8 @@ export default class CatalogoService {
         return {
           id: String(inv.Id),
           name: inv.articulo?.Nombre || 'Producto',
-          category: inv.articulo?.modelo?.Nombre || 'Dispositivos',
+          modelo: inv.articulo?.modelo?.Nombre || null,
+          categoria: inv.articulo?.modelo?.categoria?.Nombre || 'otros',
           marca: inv.articulo?.modelo?.marca?.Nombre || null,
           priceUsd,
           stock: inv.Stock || 0,
