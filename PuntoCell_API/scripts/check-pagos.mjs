@@ -212,7 +212,7 @@ const PAGO_MP = {
   date_created: '2026-09-16T09:59:00.000-03:00',
   payment_method_id: 'visa',
   additional_info: {
-    items: [{ title: 'Apple iPhone 14 Pro', quantity: '2', unit_price: '1871100' }],
+    items: [{ id: '4', title: 'Apple iPhone 14 Pro', quantity: '2', unit_price: '1871100' }],
   },
 };
 
@@ -226,7 +226,7 @@ test('consultarPago normaliza un pago aprobado y arma el comprobante desde MP', 
   assert.equal(resultado.medio, 'visa');
   assert.equal(resultado.fecha, '2026-09-16T10:00:00.000-03:00');
   assert.deepEqual(resultado.items, [
-    { title: 'Apple iPhone 14 Pro', quantity: 2, unitPrice: 1871100 },
+    { id: '4', title: 'Apple iPhone 14 Pro', quantity: 2, unitPrice: 1871100 },
   ]);
 });
 
@@ -278,6 +278,171 @@ test('consultarPago descarta un id invalido sin llegar a llamar a MP', async () 
     assert.equal(await servicio.consultarPago(id), null, `id inválido: ${id}`);
   }
   assert.equal(llamado, false);
+});
+
+// --- pagos.service.js: registro de la venta (Nivel 3) ---
+
+const PAGO_CRUDO = {
+  id: 178428934069,
+  status: 'approved',
+  external_reference: 'ref-abc',
+  transaction_amount: 6048,
+  date_approved: '2026-09-16T10:00:00.000-03:00',
+  payment_method_id: 'account_money',
+  payer: { email: 'comprador@testuser.com', identification: { number: '1111111', type: 'DNI' } },
+  metadata: { nombre: 'Ana Prueba', telefono: '3510000000' },
+  additional_info: { items: [{ id: '2', title: 'Funda Silicona', quantity: '2', unit_price: '3024' }] },
+};
+
+// models falso: solo lo que usa confirmarVenta.
+const modelsFalsos = ({ ventaExistente = null, usuarioExistente = null } = {}) => {
+  const creados = { usuarios: [] };
+  return {
+    creados,
+    Venta: { findOne: async () => ventaExistente },
+    Usuario: {
+      findOne: async () => usuarioExistente,
+      create: async (d) => { creados.usuarios.push(d); return { Id: 77, ...d }; },
+    },
+    Cotizacion: {
+      findAll: async () => [
+        { Id: 1, Clave: 'DolarBlue', Valor: 1450, CreatedAt: '2026-09-01' },
+        { Id: 2, Clave: 'DolarOficial', Valor: 1000, CreatedAt: '2026-09-01' },
+      ],
+    },
+    PrecioArticulo: {
+      findAll: async () => [{ IdInventario: 2, CostoReal: 1890, FechaDesde: '2026-01-01' }],
+    },
+  };
+};
+
+const servicioNivel3 = (models, ventaServiceFalso, pagoCrudo = PAGO_CRUDO) =>
+  crearPagosService({
+    catalogoService: catalogoFalso(PRODUCTOS),
+    mpClient: { crearPreferencia: async () => ({ init_point: 'x' }), obtenerPago: async () => pagoCrudo },
+    backUrlBase: 'http://localhost:5173',
+    webhookUrl: '',
+    models,
+    ventaService: ventaServiceFalso,
+    ventaOnline: { idEmpleado: 6, idTurnoCaja: 2, idMetodoPago: 2 },
+  });
+
+test('la venta se arma con TotalVenta en dolares y TotalVentaARS en pesos', async () => {
+  let payload = null;
+  const servicio = servicioNivel3(modelsFalsos(), { create: async (d) => { payload = d; return { Id: 99 }; } });
+
+  const resultado = await servicio.consultarPago('178428934069');
+
+  assert.equal(resultado.ventaId, 99);
+  assert.equal(payload.TotalVentaARS, 6048);
+  // 6048 / 1450 = 4.17. La base guarda los precios en pesos y TotalVenta en USD.
+  assert.equal(payload.TotalVenta, 4.17);
+  // 1890 de CostoReal x 2 unidades
+  assert.equal(payload.TotalCosto, 3780);
+  assert.equal(payload.IdCotizacionDolar, 1);
+});
+
+test('el detalle apunta al inventario que devuelve MP, con el precio en pesos', async () => {
+  let payload = null;
+  const servicio = servicioNivel3(modelsFalsos(), { create: async (d) => { payload = d; return { Id: 99 }; } });
+  await servicio.consultarPago('178428934069');
+
+  assert.deepEqual(payload.Detalles, [{ IdArticulo: 2, Cantidad: 2, PrecioUnitario: 3024 }]);
+  assert.equal(payload.Pagos.length, 1);
+  assert.equal(payload.Pagos[0].IdMetodoPago, 2);
+  assert.equal(payload.Pagos[0].Monto, 6048);
+});
+
+test('la venta usa la identidad online configurada', async () => {
+  let payload = null;
+  const servicio = servicioNivel3(modelsFalsos(), { create: async (d) => { payload = d; return { Id: 99 }; } });
+  await servicio.consultarPago('178428934069');
+
+  assert.equal(payload.IdEmpleado, 6);
+  assert.equal(payload.IdTurnoCaja, 2);
+  assert.ok(payload.Observaciones.includes('MP:178428934069'));
+});
+
+test('no se registra dos veces el mismo pago', async () => {
+  let llamadas = 0;
+  const models = modelsFalsos({ ventaExistente: { Id: 55 } });
+  const servicio = servicioNivel3(models, { create: async () => { llamadas++; return { Id: 99 }; } });
+
+  const resultado = await servicio.consultarPago('178428934069');
+
+  assert.equal(resultado.ventaId, 55);
+  assert.equal(llamadas, 0);
+});
+
+test('el comprador se crea con los datos de MP y del metadata', async () => {
+  const models = modelsFalsos();
+  const servicio = servicioNivel3(models, { create: async () => ({ Id: 99 }) });
+  await servicio.consultarPago('178428934069');
+
+  const u = models.creados.usuarios[0];
+  assert.equal(u.Email, 'comprador@testuser.com');
+  assert.equal(u.DNI, '1111111');
+  assert.equal(u.Nombre, 'Ana');
+  assert.equal(u.Apellido, 'Prueba');
+  assert.equal(u.EsCliente, true);
+});
+
+test('si el comprador ya existe se reusa y no se duplica', async () => {
+  let payload = null;
+  const models = modelsFalsos({ usuarioExistente: { Id: 5 } });
+  const servicio = servicioNivel3(models, { create: async (d) => { payload = d; return { Id: 99 }; } });
+  await servicio.consultarPago('178428934069');
+
+  assert.equal(payload.IdCliente, 5);
+  assert.equal(models.creados.usuarios.length, 0);
+});
+
+test('si no alcanza el stock el pago se informa igual, con aviso y sin ventaId', async () => {
+  const servicio = servicioNivel3(modelsFalsos(), {
+    create: async () => { throw new Error('Stock insuficiente para el producto (Id 2).'); },
+  });
+
+  const resultado = await servicio.consultarPago('178428934069');
+
+  assert.equal(resultado.estado, 'approved');
+  assert.equal(resultado.ventaId, null);
+  assert.ok(resultado.avisoRegistro.length > 0);
+});
+
+test('un pago rechazado no registra ninguna venta', async () => {
+  let llamadas = 0;
+  const servicio = servicioNivel3(
+    modelsFalsos(),
+    { create: async () => { llamadas++; return { Id: 99 }; } },
+    { ...PAGO_CRUDO, status: 'rejected' }
+  );
+
+  const resultado = await servicio.consultarPago('178428934069');
+
+  assert.equal(resultado.estado, 'rejected');
+  assert.equal(llamadas, 0);
+});
+
+test('el endpoint publico no filtra datos personales del comprador', async () => {
+  const servicio = servicioNivel3(modelsFalsos(), { create: async () => ({ Id: 99 }) });
+  const resultado = await servicio.consultarPago('178428934069');
+
+  const serializado = JSON.stringify(resultado);
+  assert.equal(serializado.includes('comprador@testuser.com'), false, 'no puede salir el email');
+  assert.equal(serializado.includes('1111111'), false, 'no puede salir el DNI');
+});
+
+test('crearCheckout manda nombre y telefono en el metadata de la preferencia', async () => {
+  const mp = mpFalso();
+  const servicio = servicioDePrueba(mp);
+
+  await servicio.crearCheckout({
+    items: [{ id: '4', cantidad: 1 }],
+    comprador: { email: 'a@b.com', nombre: 'Ana Prueba', telefono: '3510000000' },
+  });
+
+  assert.equal(mp.llamadas[0].metadata.nombre, 'Ana Prueba');
+  assert.equal(mp.llamadas[0].metadata.telefono, '3510000000');
 });
 
 // --- runner ---
