@@ -17,13 +17,21 @@ export default function CheckoutPage() {
   const { items, totalPrice } = useCart();
   const navigate = useNavigate();
 
-  const [comprador, setComprador] = useState({ email: '', nombre: '', telefono: '' });
+  const [comprador, setComprador] = useState({ email: '', nombre: '', dni: '', celular: '' });
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState(null);
   const [rechazados, setRechazados] = useState([]);
 
   const emailValido = /^\S+@\S+\.\S+$/.test(comprador.email);
-  const puedePagar = items.length > 0 && emailValido && !enviando;
+  // Se compara por dígitos: el comprador puede escribirlo con puntos.
+  const dniValido = /^\d{7,9}$/.test(comprador.dni.replace(/\D/g, ''));
+  // Todos obligatorios: con estos cuatro alcanza para registrar la compra a su
+  // nombre. Si el DNI ya es cliente del local se reusa su ficha y el resto se
+  // ignora; si no, se da de alta con estos datos.
+  const nombreValido = comprador.nombre.trim().length >= 3;
+  const celularValido = comprador.celular.replace(/\D/g, '').length >= 8;
+  const puedePagar =
+    items.length > 0 && emailValido && nombreValido && dniValido && celularValido && !enviando;
 
   const cambiar = (campo) => (e) => setComprador((prev) => ({ ...prev, [campo]: e.target.value }));
 
@@ -115,8 +123,25 @@ export default function CheckoutPage() {
           error={comprador.email.length > 0 && !emailValido}
           helperText="Ahí te llega el comprobante de Mercado Pago"
         />
-        <TextField label="Nombre y apellido" fullWidth value={comprador.nombre} onChange={cambiar('nombre')} />
-        <TextField label="Teléfono" fullWidth value={comprador.telefono} onChange={cambiar('telefono')} />
+        <TextField
+          label="Nombre y apellido" required fullWidth
+          value={comprador.nombre} onChange={cambiar('nombre')}
+          error={comprador.nombre.length > 0 && !nombreValido}
+        />
+        <TextField
+          label="DNI" required fullWidth
+          value={comprador.dni} onChange={cambiar('dni')}
+          error={comprador.dni.length > 0 && !dniValido}
+          inputProps={{ inputMode: 'numeric' }}
+          helperText="Con esto registramos la compra a tu nombre"
+        />
+        <TextField
+          label="Celular" required fullWidth
+          value={comprador.celular} onChange={cambiar('celular')}
+          error={comprador.celular.length > 0 && !celularValido}
+          inputProps={{ inputMode: 'tel' }}
+          helperText="Para coordinar la entrega"
+        />
       </Stack>
 
       <Button

@@ -288,20 +288,33 @@ const PAGO_CRUDO = {
   external_reference: 'ref-abc',
   transaction_amount: 6048,
   date_approved: '2026-09-16T10:00:00.000-03:00',
-  payment_method_id: 'account_money',
+  // Tarjeta de crédito en 3 cuotas: el caso que hoy se registraba mal.
+  payment_method_id: 'master',
+  payment_type_id: 'credit_card',
+  installments: 3,
+  // El documento del payer es el de la cuenta de Mercado Pago, no el que el
+  // comprador escribió en el checkout: ese viaja en metadata.dni.
   payer: { email: 'comprador@testuser.com', identification: { number: '1111111', type: 'DNI' } },
-  metadata: { nombre: 'Ana Prueba', telefono: '3510000000' },
+  metadata: { nombre: 'Ana Prueba', dni: '38222333', email: 'ana@formulario.com', celular: '3510001122' },
   additional_info: { items: [{ id: '2', title: 'Funda Silicona', quantity: '2', unit_price: '3024' }] },
 };
 
-// models falso: solo lo que usa confirmarVenta.
-const modelsFalsos = ({ ventaExistente = null, usuarioExistente = null } = {}) => {
-  const creados = { usuarios: [] };
+// models falso: solo lo que usa confirmarVenta. El findOne de Usuario mira el
+// where para poder distinguir la búsqueda por DNI de la búsqueda por email.
+const modelsFalsos = ({ ventaExistente = null, clientePorDni = null, clientePorEmail = null } = {}) => {
+  const creados = { usuarios: [], busquedas: [] };
   return {
     creados,
     Venta: { findOne: async () => ventaExistente },
     Usuario: {
-      findOne: async () => usuarioExistente,
+      findOne: async ({ where }) => {
+        if (where?.DNI !== undefined) {
+          creados.busquedas.push({ por: 'DNI', valor: where.DNI });
+          return clientePorDni;
+        }
+        creados.busquedas.push({ por: 'Email', valor: where?.Email });
+        return clientePorEmail;
+      },
       create: async (d) => { creados.usuarios.push(d); return { Id: 77, ...d }; },
     },
     Cotizacion: {
@@ -312,6 +325,16 @@ const modelsFalsos = ({ ventaExistente = null, usuarioExistente = null } = {}) =
     },
     PrecioArticulo: {
       findAll: async () => [{ IdInventario: 2, CostoReal: 1890, FechaDesde: '2026-01-01' }],
+    },
+    MetodoPago: {
+      findAll: async () => [
+        { Id: 1, Nombre: 'efectivo' },
+        { Id: 2, Nombre: 'billetera virtual (qr/alias)' },
+        { Id: 3, Nombre: 'transferencia bancaria' },
+        { Id: 4, Nombre: 'tarjeta de debito' },
+        { Id: 5, Nombre: 'tarjeta de credito' },
+        { Id: 6, Nombre: 'cuotas' },
+      ],
     },
   };
 };
@@ -349,7 +372,6 @@ test('el detalle apunta al inventario que devuelve MP, con el precio en pesos', 
 
   assert.deepEqual(payload.Detalles, [{ IdArticulo: 2, Cantidad: 2, PrecioUnitario: 3024 }]);
   assert.equal(payload.Pagos.length, 1);
-  assert.equal(payload.Pagos[0].IdMetodoPago, 2);
   assert.equal(payload.Pagos[0].Monto, 6048);
 });
 
@@ -374,27 +396,64 @@ test('no se registra dos veces el mismo pago', async () => {
   assert.equal(llamadas, 0);
 });
 
-test('el comprador se crea con los datos de MP y del metadata', async () => {
+test('el cliente nuevo se crea con el DNI del checkout, no con el de la cuenta de MP', async () => {
   const models = modelsFalsos();
   const servicio = servicioNivel3(models, { create: async () => ({ Id: 99 }) });
   await servicio.consultarPago('178428934069');
 
   const u = models.creados.usuarios[0];
-  assert.equal(u.Email, 'comprador@testuser.com');
-  assert.equal(u.DNI, '1111111');
+  // Los dos vienen del formulario, no de la cuenta de Mercado Pago:
+  // MP devolvería comprador@testuser.com y documento 1111111.
+  assert.equal(u.Email, 'ana@formulario.com');
+  assert.equal(u.DNI, '38222333');
   assert.equal(u.Nombre, 'Ana');
   assert.equal(u.Apellido, 'Prueba');
+  assert.equal(u.Celular, '3510001122');
   assert.equal(u.EsCliente, true);
 });
 
-test('si el comprador ya existe se reusa y no se duplica', async () => {
+test('si el DNI ya es cliente del local, la venta queda a nombre de esa persona', async () => {
   let payload = null;
-  const models = modelsFalsos({ usuarioExistente: { Id: 5 } });
+  const models = modelsFalsos({ clientePorDni: { Id: 5 } });
   const servicio = servicioNivel3(models, { create: async (d) => { payload = d; return { Id: 99 }; } });
   await servicio.consultarPago('178428934069');
 
   assert.equal(payload.IdCliente, 5);
+  assert.equal(models.creados.usuarios.length, 0, 'no puede crear un duplicado');
+  assert.deepEqual(models.creados.busquedas[0], { por: 'DNI', valor: '38222333' });
+});
+
+test('si el DNI no esta pero el email si, se reusa ese cliente', async () => {
+  let payload = null;
+  const models = modelsFalsos({ clientePorEmail: { Id: 8 } });
+  const servicio = servicioNivel3(models, { create: async (d) => { payload = d; return { Id: 99 }; } });
+  await servicio.consultarPago('178428934069');
+
+  assert.equal(payload.IdCliente, 8);
   assert.equal(models.creados.usuarios.length, 0);
+});
+
+test('sin DNI en el metadata no se busca por documento y cae al de la cuenta de MP', async () => {
+  const models = modelsFalsos();
+  const servicio = servicioNivel3(models, { create: async () => ({ Id: 99 }) }, {
+    ...PAGO_CRUDO,
+    metadata: { ...PAGO_CRUDO.metadata, dni: '' },
+  });
+  await servicio.consultarPago('178428934069');
+
+  assert.equal(models.creados.busquedas.some((b) => b.por === 'DNI'), false);
+  assert.equal(models.creados.usuarios[0].DNI, '1111111');
+});
+
+test('no se busca por el email de la cuenta de MP, solo por el del formulario', async () => {
+  const models = modelsFalsos({ clientePorEmail: { Id: 2012 } });
+  const servicio = servicioNivel3(models, { create: async () => ({ Id: 99 }) });
+  await servicio.consultarPago('178428934069');
+
+  const busquedaEmail = models.creados.busquedas.find((b) => b.por === 'Email');
+  // Si buscara por comprador@testuser.com (la cuenta de MP), dos personas
+  // distintas pagando desde la misma cuenta se colapsarían en un solo cliente.
+  assert.equal(busquedaEmail.valor, 'ana@formulario.com');
 });
 
 test('si no alcanza el stock el pago se informa igual, con aviso y sin ventaId', async () => {
@@ -432,17 +491,75 @@ test('el endpoint publico no filtra datos personales del comprador', async () =>
   assert.equal(serializado.includes('1111111'), false, 'no puede salir el DNI');
 });
 
-test('crearCheckout manda nombre y telefono en el metadata de la preferencia', async () => {
+test('crearCheckout manda nombre y DNI en el metadata de la preferencia', async () => {
   const mp = mpFalso();
   const servicio = servicioDePrueba(mp);
 
   await servicio.crearCheckout({
     items: [{ id: '4', cantidad: 1 }],
-    comprador: { email: 'a@b.com', nombre: 'Ana Prueba', telefono: '3510000000' },
+    // Con puntos, como lo escribe cualquiera.
+    comprador: { email: 'a@b.com', nombre: 'Ana Prueba', dni: '38.222.333', celular: '3510001122' },
   });
 
-  assert.equal(mp.llamadas[0].metadata.nombre, 'Ana Prueba');
-  assert.equal(mp.llamadas[0].metadata.telefono, '3510000000');
+  const meta = mp.llamadas[0].metadata;
+  assert.equal(meta.nombre, 'Ana Prueba');
+  // Se normaliza a solo dígitos: así matchea contra el DNI guardado en la base.
+  assert.equal(meta.dni, '38222333');
+  // El email va en el metadata porque MP devuelve el de la cuenta, no este.
+  assert.equal(meta.email, 'a@b.com');
+  assert.equal(meta.celular, '3510001122');
+});
+
+test('el medio de pago sale del tipo que informa MP, no de uno fijo', async () => {
+  let payload = null;
+  const servicio = servicioNivel3(modelsFalsos(), { create: async (d) => { payload = d; return { Id: 99 }; } });
+  await servicio.consultarPago('178428934069');
+
+  // credit_card -> 'tarjeta de credito' (Id 5), no el 2 configurado por entorno.
+  assert.equal(payload.Pagos[0].IdMetodoPago, 5);
+});
+
+test('dinero en cuenta se registra como billetera virtual', async () => {
+  let payload = null;
+  const servicio = servicioNivel3(modelsFalsos(), { create: async (d) => { payload = d; return { Id: 99 }; } }, {
+    ...PAGO_CRUDO, payment_type_id: 'account_money', payment_method_id: 'account_money', installments: 1,
+  });
+  await servicio.consultarPago('178428934069');
+
+  assert.equal(payload.Pagos[0].IdMetodoPago, 2);
+});
+
+test('pagar en efectivo por Rapipago se registra como efectivo', async () => {
+  let payload = null;
+  const servicio = servicioNivel3(modelsFalsos(), { create: async (d) => { payload = d; return { Id: 99 }; } }, {
+    ...PAGO_CRUDO, payment_type_id: 'ticket', payment_method_id: 'rapipago', installments: 1,
+  });
+  await servicio.consultarPago('178428934069');
+
+  assert.equal(payload.Pagos[0].IdMetodoPago, 1);
+});
+
+test('un tipo de pago que MP agregue despues cae al metodo configurado', async () => {
+  let payload = null;
+  const servicio = servicioNivel3(modelsFalsos(), { create: async (d) => { payload = d; return { Id: 99 }; } }, {
+    ...PAGO_CRUDO, payment_type_id: 'crypto_transfer', installments: 1,
+  });
+  await servicio.consultarPago('178428934069');
+
+  assert.equal(payload.Pagos[0].IdMetodoPago, 2);
+});
+
+test('las cuotas de tarjeta NO se registran como el metodo cuotas', async () => {
+  let payload = null;
+  const servicio = servicioNivel3(modelsFalsos(), { create: async (d) => { payload = d; return { Id: 99 }; } });
+  await servicio.consultarPago('178428934069');
+
+  // 'cuotas' (Id 6) en este sistema significa que financia el local y arma un
+  // cronograma de Cuota. Con MP financia el emisor y el local cobra todo junto.
+  assert.notEqual(payload.Pagos[0].IdMetodoPago, 6);
+  // Pero el dato no se pierde: queda en la observación para poder conciliar.
+  assert.ok(payload.Pagos[0].Observacion.includes('3 cuotas'));
+  assert.ok(payload.Pagos[0].Observacion.includes('master'));
 });
 
 // --- runner ---

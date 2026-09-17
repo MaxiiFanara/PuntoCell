@@ -62,7 +62,9 @@ Los tres son públicos (sin token), igual que `/api/catalogo/productos`.
 
 ```
 POST /api/pagos/checkout
-  body  { items: [{ id, cantidad }], comprador: { email, nombre, telefono } }
+  body  { items: [{ id, cantidad }], comprador: { email, nombre, dni, celular } }
+        los cuatro campos de comprador son obligatorios: con ellos se resuelve
+        o se da de alta el cliente de la venta (ver sección 8)
   200   { status: "success", data: { initPoint, externalReference } }
   400   carrito vacío
   409   { status, message, detalle: [{ id, motivo, disponible }] }
@@ -216,11 +218,55 @@ Los tres Id se configuran por entorno: `MP_ID_EMPLEADO`, `MP_ID_TURNO_CAJA` y
 `MP_ID_METODO_PAGO`. El método de pago reusa `billetera virtual (qr/alias)`, que
 ya existía.
 
-El **cliente sí es real**: se busca por email y, si no existe, se crea como
-`Usuario` con `EsCliente = 1`. El DNI sale de Mercado Pago; el nombre y el
-teléfono viajan en el `metadata` de la preferencia, porque cuando el comprador
-paga con su cuenta de MP el `payer` que vuelve trae `first_name`, `last_name` y
-`phone` en `null`.
+### El cliente es real, y se resuelve por DNI
+
+El checkout pide **email, nombre y apellido, DNI y celular**, los cuatro
+obligatorios. Al confirmar el pago:
+
+1. Se busca un `Usuario` con ese **DNI**. Si existe, la venta queda a nombre de
+   esa persona y el resto de los datos se ignoran.
+2. Si no, se busca por el **email del formulario**. Cubre a quien ya compró y
+   tipeó mal el documento, y evita chocar contra el índice único de
+   `Usuario.Email`, que haría fallar el alta y perder la venta entera.
+3. Si tampoco, se crea el cliente con los datos del checkout y `EsCliente = 1`.
+
+**Todos esos datos viajan en el `metadata` de la preferencia, no se leen del
+`payer` que devuelve Mercado Pago.** Es importante y no es un capricho: cuando
+el comprador paga con su cuenta de MP, el `payer` trae `first_name`,
+`last_name` y `phone` en `null`, y el email y el documento que devuelve son los
+de **la cuenta de Mercado Pago**, no los de la persona. Usarlos hacía que dos
+compradores distintos que pagaran desde la misma cuenta se colapsaran en un solo
+cliente, y que toda venta de alguien no registrado quedara atribuida al primero
+que hubiera comprado alguna vez.
+
+El cruce contra la base de clientes ocurre **solo en el backend**. No hay ningún
+endpoint que diga si un DNI es cliente: sería público, y permitiría probar
+documentos hasta averiguar quién le compra al local.
+
+### El medio de pago sale de lo que informa Mercado Pago
+
+`payment_type_id` se traduce a los métodos que **ya existen** en `MetodoPago`.
+No hizo falta agregar ninguno:
+
+| Mercado Pago informa | Se registra como |
+|---|---|
+| `credit_card` | tarjeta de credito |
+| `debit_card`, `prepaid_card` | tarjeta de debito |
+| `account_money` | billetera virtual (qr/alias) |
+| `bank_transfer`, `atm` | transferencia bancaria |
+| `ticket` (Rapipago, Pago Fácil) | efectivo |
+| cualquier otro | el de `MP_ID_METODO_PAGO` |
+
+La búsqueda es **por nombre, no por id**: los ids pueden diferir entre bases, los
+nombres no. Es el mismo criterio que ya usa el sistema en otros lados.
+
+**Una aclaración de negocio, por si la revisan:** un pago en cuotas con tarjeta
+**no** se registra con el método `cuotas`. En este sistema ese método significa
+que el local financia y genera un cronograma en `Cuota`; con Mercado Pago
+financia el emisor de la tarjeta y el local cobra el total de una vez. Anotarlo
+como `cuotas` haría aparecer una cuenta corriente inexistente. El dato no se
+pierde: el medio concreto y la cantidad de cuotas quedan en
+`PagoVenta.Observacion`, por ejemplo `Mercado Pago master 3 cuotas - pago 178450433075`.
 
 ### Idempotencia
 

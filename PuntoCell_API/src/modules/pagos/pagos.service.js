@@ -11,6 +11,25 @@ const error409 = (detalle) => {
 // MP tiene más estados de los que le importan a la vitrina. Se colapsan a tres,
 // y lo que no está en el mapa cae en 'desconocido' para que agregar un estado
 // nuevo del lado de MP no rompa la pantalla de resultado.
+// Mercado Pago informa con qué se pagó realmente (payment_type_id). Se traduce a
+// los métodos que ya existen en MetodoPago buscando por NOMBRE y no por id: los
+// nombres son estables entre bases, los ids no tienen por qué serlo. Es el mismo
+// criterio que ya usa el resto del sistema para elegir métodos de pago.
+//
+// Deliberadamente NO se mapea a "cuotas" aunque installments sea mayor a 1: en
+// este sistema ese método significa que el LOCAL financia, y genera un cronograma
+// de Cuota. Con Mercado Pago financia el emisor de la tarjeta y el local cobra
+// todo junto, así que para el negocio es una venta de contado con tarjeta.
+const METODO_POR_TIPO_MP = {
+  credit_card: /cr[eé]dito/i,
+  debit_card: /d[eé]bito/i,
+  prepaid_card: /d[eé]bito/i,
+  account_money: /billetera/i,
+  bank_transfer: /transferencia/i,
+  atm: /transferencia/i,
+  ticket: /efectivo/i,
+};
+
 const ESTADOS = {
   approved: 'approved',
   authorized: 'approved',
@@ -94,11 +113,14 @@ export const crearPagosService = ({
         phone: comprador.telefono ? { number: String(comprador.telefono) } : undefined,
       },
       // MP devuelve el metadata intacto en el pago. Es la única forma de recuperar
-      // el nombre y el teléfono del comprador: cuando paga con su cuenta de Mercado
-      // Pago, el payer que vuelve trae first_name, last_name y phone en null.
+      // lo que el comprador escribió en el checkout: cuando paga con su cuenta de
+      // Mercado Pago, el payer que vuelve trae first_name, last_name y phone en
+      // null, y el documento que trae es el de la cuenta de MP, no el que cargó.
       metadata: {
         nombre: comprador.nombre || '',
-        telefono: comprador.telefono ? String(comprador.telefono) : '',
+        dni: comprador.dni ? String(comprador.dni).replace(/\D/g, '') : '',
+        email: comprador.email || '',
+        celular: comprador.celular ? String(comprador.celular) : '',
       },
       back_urls: { success: resultado, pending: resultado, failure: resultado },
     };
@@ -117,31 +139,60 @@ export const crearPagosService = ({
 
   const resolverCliente = async (pagoCrudo) => {
     const { Usuario } = models;
-    const email = pagoCrudo.payer?.email || null;
+    const meta = pagoCrudo.metadata || {};
+    const dni = (meta.dni || '').trim();
 
-    if (email) {
-      const existente = await Usuario.findOne({ where: { Email: email } });
-      if (existente) return existente.Id;
+    // El email del formulario, no el de pagoCrudo.payer: ese último es el de la
+    // CUENTA de Mercado Pago y puede no ser el del comprador.
+    const email = (meta.email || '').trim() || null;
+
+    // El DNI que escribió el comprador en el checkout manda: es lo que identifica
+    // a una persona en el sistema. Si ya es cliente del local, la venta queda a su
+    // nombre en vez de crear un duplicado. El cruce se hace solo acá, en el
+    // backend — nunca desde el navegador, porque el endpoint del catálogo es
+    // público y permitiría averiguar qué documentos son clientes.
+    if (dni) {
+      const porDni = await Usuario.findOne({ where: { DNI: dni } });
+      if (porDni) return porDni.Id;
     }
 
-    // Usuario exige DNI, Nombre, Apellido, Email y Celular NOT NULL. MP aporta el
-    // email y el documento; el nombre y el teléfono vienen del metadata que
-    // mandamos al crear la preferencia. Lo que falte lleva un relleno explícito
-    // en vez de romper el alta.
-    const nombreCompleto = (pagoCrudo.metadata?.nombre || '').trim();
+    // Segundo intento por el email del formulario. Cubre a quien ya compró y
+    // esta vez tipeó mal el documento, y además evita chocar con el índice único
+    // de Usuario.Email, que haría fallar el alta y perder la venta entera.
+    if (email) {
+      const porEmail = await Usuario.findOne({ where: { Email: email } });
+      if (porEmail) return porEmail.Id;
+    }
+
+    // Cliente nuevo, con los datos que cargó en el checkout. Usuario exige DNI,
+    // Nombre, Apellido, Email y Celular NOT NULL: los cuatro primeros son campos
+    // obligatorios del formulario, así que llegan completos.
+    const nombreCompleto = (meta.nombre || '').trim();
     const [nombre, ...resto] = nombreCompleto.split(/\s+/).filter(Boolean);
 
     const creado = await Usuario.create({
-      DNI: pagoCrudo.payer?.identification?.number || `MP${pagoCrudo.id}`,
+      DNI: dni || pagoCrudo.payer?.identification?.number || `MP${pagoCrudo.id}`,
       Nombre: nombre || 'Comprador',
       Apellido: resto.join(' ') || 'Online',
       Email: email || `mp-${pagoCrudo.id}@sin-email.local`,
-      Celular: pagoCrudo.metadata?.telefono || '-',
+      Celular: (meta.celular || '').trim() || '-',
       EsCliente: true,
       Activo: true,
     });
 
     return creado.Id;
+  };
+
+  const resolverMetodoPago = async (pagoCrudo) => {
+    const patron = METODO_POR_TIPO_MP[pagoCrudo.payment_type_id];
+    if (patron && models.MetodoPago) {
+      const metodos = await models.MetodoPago.findAll();
+      const encontrado = metodos.find((m) => patron.test(m.Nombre || ''));
+      if (encontrado) return encontrado.Id;
+    }
+    // Tipo que MP agregue después, o nombre que no exista en esta base: cae al
+    // método configurado por entorno en vez de perder la venta.
+    return ventaOnline.idMetodoPago;
   };
 
   const confirmarVenta = async (normalizado, pagoCrudo) => {
@@ -197,9 +248,16 @@ export const crearPagosService = ({
         PrecioUnitario: i.unitPrice,
       })),
       Pagos: [{
-        IdMetodoPago: ventaOnline.idMetodoPago,
+        IdMetodoPago: await resolverMetodoPago(pagoCrudo),
         Monto: normalizado.total,
-        Observacion: `Mercado Pago ${normalizado.paymentId}`,
+        // El medio concreto (visa, master, rapipago) y las cuotas no tienen
+        // columna propia, así que quedan acá para poder conciliar contra MP.
+        Observacion: [
+          'Mercado Pago',
+          pagoCrudo.payment_method_id,
+          Number(pagoCrudo.installments) > 1 ? `${pagoCrudo.installments} cuotas` : null,
+          `- pago ${normalizado.paymentId}`,
+        ].filter(Boolean).join(' ').slice(0, 200),
         FechaPago: normalizado.fecha || new Date(),
         IdTurnoCaja: ventaOnline.idTurnoCaja,
       }],
