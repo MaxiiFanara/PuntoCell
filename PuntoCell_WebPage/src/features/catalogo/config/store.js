@@ -1,4 +1,9 @@
 export const STORE_CONFIG = {
+  // Lo consume formatCurrency. Faltaba, así que Intl.NumberFormat caía al locale
+  // del navegador del visitante: con el navegador en inglés los precios salían
+  // "$1,871,100" en vez de "$1.871.100".
+  locale: 'es-AR',
+
   business: {
     name: 'Punto Cell',
 
