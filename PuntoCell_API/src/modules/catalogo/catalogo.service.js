@@ -35,6 +35,12 @@ export default class CatalogoService {
           association: 'color', attributes: ['Nombre']
         }, {
           association: 'memoria', attributes: ['Capacidad']
+        }, {
+          // El inventario es por sucursal: el mismo producto puede existir en las
+          // dos sedes como renglones distintos, con su propio stock. El catálogo
+          // muestra de cuál viene cada uno para que el comprador lo sepa antes
+          // de comprar. Solo el nombre: no se expone dirección ni nada interno.
+          association: 'sucursal', attributes: ['Nombre']
         }]
       }),
       models.Cotizacion.findAll({ order: [['CreatedAt', 'DESC']] })
@@ -96,6 +102,7 @@ export default class CatalogoService {
           esSerializado: !!inv.articulo?.EsSerializado,
           color: inv.color?.Nombre || null,
           memoria: inv.memoria?.Capacidad || null,
+          sucursal: inv.sucursal?.Nombre || null,
         };
       })
       .filter((p) => p.priceUsd > 0);

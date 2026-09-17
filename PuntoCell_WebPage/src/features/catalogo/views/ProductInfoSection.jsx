@@ -5,6 +5,7 @@ import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
+import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import { formatCurrency } from '../utils/whatsapp';
 import { STORE_CONFIG } from '../config/store';
 import { formatCategoria } from '../utils/categorias';
@@ -128,6 +129,19 @@ export default function ProductInfoSection({ product, addToCart }) {
               ? productPage.outOfStockText
               : `${stock} ${stock === 1 ? 'unidad disponible' : 'unidades disponibles'}`}
           </Typography>
+
+          {/* El inventario es por sucursal: la misma unidad solo existe en una
+              sede. Se muestra al lado del stock para que el comprador sepa dónde
+              está antes de comprar. */}
+          {product.sucursal && (
+            <>
+              <Typography variant="body2" sx={{ color: 'text.disabled' }}>·</Typography>
+              <StorefrontOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                {product.sucursal}
+              </Typography>
+            </>
+          )}
         </Stack>
       )}
 

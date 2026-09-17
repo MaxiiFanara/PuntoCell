@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Op } from 'sequelize';
 
-const SUCURSAL_CATALOGO = 1;
-
 const error409 = (detalle) => {
   const err = new Error('Hay productos que ya no se pueden comprar');
   err.status = 409;
@@ -49,7 +47,10 @@ export const crearPagosService = ({
     // mismo que muestra la vitrina (misma resolución de lista minorista vigente).
     // ponytail: trae el catálogo entero para validar N ítems. Si el catálogo
     // crece, filtrar por ids en el propio service del catálogo.
-    const { productos } = await catalogoService.getProductosVendibles({ IdSucursal: SUCURSAL_CATALOGO });
+    // Sin IdSucursal: se valida contra el inventario de todas las sedes, igual
+    // que lo que ve el comprador. Filtrar por una sola hacía que un producto de
+    // la otra sucursal se rechazara como "inexistente" al ir a pagar.
+    const { productos } = await catalogoService.getProductosVendibles();
     const porId = new Map(productos.map((p) => [String(p.id), p]));
 
     const rechazados = [];

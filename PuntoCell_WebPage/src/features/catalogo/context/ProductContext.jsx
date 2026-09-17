@@ -17,8 +17,6 @@ export const ProductProvider = ({ children }) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const SUCURSAL_CATALOGO = 1;
-
   useEffect(() => {
     const fetchProductos = async () => {
       try {
@@ -26,7 +24,9 @@ export const ProductProvider = ({ children }) => {
 
         // Endpoint público (sin login): ya viene filtrado a productos
         // vendibles/activos y sin datos internos sensibles (costo, proveedor, IMEI).
-        const { productos } = await catalogoService.getProductos(SUCURSAL_CATALOGO);
+        // Sin sucursal: se muestra el stock de las dos sedes, y cada producto
+        // dice de cuál viene.
+        const { productos } = await catalogoService.getProductos();
 
         const productosAdaptados = (productos || []).map((p) => {
           // La base guarda los colores en minúscula ("titanio negro"). Se
@@ -48,6 +48,7 @@ export const ProductProvider = ({ children }) => {
             gallery: [],
             stock: p.stock,
             material: color || 'Estándar',
+            sucursal: p.sucursal,
             dimensions: p.memoria ? `Memoria: ${p.memoria}` : null,
             promotions: p.esSerializado ? ['Único'] : [],
           };
