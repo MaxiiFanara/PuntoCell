@@ -57,6 +57,9 @@ services:
       MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN}
       MP_BACK_URL_BASE: ${MP_BACK_URL_BASE:-http://localhost:5173}
       MP_WEBHOOK_URL: ${MP_WEBHOOK_URL:-}
+      MP_ID_EMPLEADO: ${MP_ID_EMPLEADO:-}
+      MP_ID_TURNO_CAJA: ${MP_ID_TURNO_CAJA:-}
+      MP_ID_METODO_PAGO: ${MP_ID_METODO_PAGO:-}
     ports:
       - "3000:3000"
     volumes:
