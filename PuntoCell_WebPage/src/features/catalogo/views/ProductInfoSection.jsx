@@ -1,17 +1,30 @@
 import { useState } from 'react';
-import { Typography, Button, Box, Chip, Divider, Stack, IconButton } from '@mui/material';
+import { Button, Chip, Divider, IconButton, Paper, Stack, Typography } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
+
 import { formatCurrency } from '../utils/whatsapp';
 import { STORE_CONFIG } from '../config/store';
-import { formatCategoria } from '../utils/categorias';
+import { btn, muted, price as priceSx } from '../../../components/ui/publicStyles';
 
 const { productPage } = STORE_CONFIG;
 
+/**
+ * La caja de compra del detalle: precio, disponibilidad, cantidad y acción.
+ *
+ * Es lo único que se lleva el scroll (sticky desde `md`), porque es lo único con
+ * lo que se interactúa: el resto de la ficha se lee una vez. En `xs` se apila
+ * debajo del contenido y deja de ser sticky, que en una pantalla de 700px de
+ * alto sería una caja clavada tapando media ficha.
+ *
+ * El precio se repite acá a propósito. Está a escala de display arriba a la
+ * izquierda, pero cuando se scrolleó hasta las especificaciones ya no se ve, y
+ * nadie aprieta "Agregar al carrito" sin el número a la vista.
+ */
 export default function ProductInfoSection({ product, addToCart }) {
   const [cantidad, setCantidad] = useState(1);
 
@@ -24,143 +37,93 @@ export default function ProductInfoSection({ product, addToCart }) {
     : null;
 
   const cuotas = product.installmentText || productPage.installmentText;
-  const specs = [
-    product.material && { label: 'Color', value: product.material },
-    product.dimensions && { label: 'Memoria', value: product.dimensions.replace(/^Memoria:\s*/, '') },
-  ].filter(Boolean);
 
   return (
-    <>
-      {product.category && (
-        <Chip
-          label={formatCategoria(product.category)}
-          size="small"
-          sx={(t) => ({
-            mb: 2.5,
-            height: 26,
-            // Vía `t.vars`, no `theme.palette.*` ni el atajo `sx: 'pc.accentSoft'`:
-            // con cssVariables el objeto palette queda congelado en el esquema
-            // claro, y sx sólo traduce a CSS var las claves estándar — las
-            // custom como `pc.*` las resuelve estáticas. Por eso el badge salía
-            // con texto negro sobre fondo claro en tema oscuro.
-            bgcolor: t.vars.palette.pc.accentSoft,
-            color: t.vars.palette.primary.main,
-            fontWeight: 700,
-          })}
-        />
+    <Paper
+      sx={{
+        p: 3,
+        borderRadius: 2,
+        position: { md: 'sticky' },
+        top: 96,
+      }}
+    >
+      {discount && (
+        <Typography
+          className="mono"
+          sx={{ ...muted, fontSize: '.8125rem', textDecoration: 'line-through' }}
+        >
+          ${formatCurrency(product.comparePrice)}
+        </Typography>
       )}
 
-      {/* Es el h1 de la vista de detalle: la página no tenía ninguno. */}
-      <Typography
-        component="h1"
-        sx={{ fontSize: { xs: '1.8rem', md: '2.4rem' }, fontWeight: 600, lineHeight: 1.08, letterSpacing: '-0.035em', mb: 2.5 }}
-      >
-        {product.name}
-      </Typography>
-
-      <Box sx={{ mb: cuotas ? 1.5 : 3.5 }}>
-        {discount && (
-          <Typography sx={{ textDecoration: 'line-through', color: 'text.disabled', fontSize: '1rem' }}>
-            ${formatCurrency(product.comparePrice)}
-          </Typography>
-        )}
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          <Typography
-            variant="h3"
-            sx={{ fontWeight: 700, fontSize: { xs: '1.7rem', md: '2.25rem' }, letterSpacing: '-0.03em' }}
-          >
-            ${formatCurrency(product.price)}
-          </Typography>
-          {discount && <Chip label={`${discount}% OFF`} color="error" size="small" />}
-        </Stack>
-      </Box>
+      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: discount ? 0.5 : 0 }}>
+        <Typography sx={priceSx()}>
+          ${formatCurrency(product.price)}
+        </Typography>
+        {discount && <Chip label={`${discount}% OFF`} color="error" size="small" />}
+      </Stack>
 
       {/* Sólo si hay texto: antes se renderizaba un Typography vacío con
           margen y dejaba un hueco muerto debajo del precio. */}
       {cuotas && (
-        <Typography variant="body1" sx={{ color: 'text.secondary', mb: 3.5 }}>
+        <Typography sx={{ mt: 1, fontSize: '.875rem', color: 'text.secondary' }}>
           {cuotas}
         </Typography>
       )}
 
-      <Divider sx={{ mb: 3.5 }} />
-
-      {product.promotions?.length > 0 && (
-        <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 2.5 }}>
-          {product.promotions.map((promo) => (
-            <Chip key={promo} label={promo} color="success" size="small" variant="outlined" />
-          ))}
-        </Stack>
-      )}
-
-      <Typography variant="body1" sx={{ color: 'text.secondary', mb: 3.5, lineHeight: 1.75 }}>
-        {product.description || 'Sin descripción disponible.'}
-      </Typography>
-
-      {specs.length > 0 && (
-        <Stack spacing={0} sx={(t) => ({ mb: 4, borderTop: `1px solid ${t.vars.palette.pc.dividerSoft}` })}>
-          {specs.map((spec) => (
-            <Box
-              key={spec.label}
-              sx={(t) => ({
-                display: 'flex',
-                justifyContent: 'space-between',
-                gap: 2,
-                py: 1.25,
-                borderBottom: `1px solid ${t.vars.palette.pc.dividerSoft}`,
-              })}
-            >
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>{spec.label}</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{spec.value}</Typography>
-            </Box>
-          ))}
-        </Stack>
-      )}
-
       {stock !== null && (
-        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 2.5 }}>
-          {/* El ícono también cambia: antes salía un tilde verde-o-rojo incluso
-              en "Sin stock", que se leía como confirmación. */}
-          {sinStock
-            ? <HighlightOffIcon sx={{ fontSize: 17, color: 'error.main' }} />
-            : <CheckCircleOutlineIcon sx={{ fontSize: 17, color: 'success.main' }} />}
-          <Typography variant="body2" sx={{ color: sinStock ? 'error.main' : 'success.main', fontWeight: 600 }}>
-            {sinStock
-              ? productPage.outOfStockText
-              : `${stock} ${stock === 1 ? 'unidad disponible' : 'unidades disponibles'}`}
-          </Typography>
+        <>
+          <Divider sx={{ my: 2.5 }} />
 
-          {/* El inventario es por sucursal: la misma unidad solo existe en una
-              sede. Se muestra al lado del stock para que el comprador sepa dónde
-              está antes de comprar. */}
-          {product.sucursal && (
-            <>
-              <Typography variant="body2" sx={{ color: 'text.disabled' }}>·</Typography>
-              <StorefrontOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                {product.sucursal}
+          <Stack spacing={1}>
+            <Stack direction="row" spacing={0.75} alignItems="center">
+              {/* El ícono también cambia: antes salía un tilde verde-o-rojo incluso
+                  en "Sin stock", que se leía como confirmación. */}
+              {sinStock
+                ? <HighlightOffIcon sx={{ fontSize: 17, color: 'error.main' }} />
+                : <CheckCircleOutlineIcon sx={{ fontSize: 17, color: 'success.main' }} />}
+              <Typography
+                sx={{ fontSize: '.9375rem', fontWeight: 600, color: sinStock ? 'error.main' : 'success.main' }}
+              >
+                {sinStock
+                  ? productPage.outOfStockText
+                  : `${stock} ${stock === 1 ? 'unidad disponible' : 'unidades disponibles'}`}
               </Typography>
-            </>
-          )}
-        </Stack>
+            </Stack>
+
+            {/* El inventario es por sucursal: la misma unidad solo existe en una
+                sede. Va en su propio renglón y no separada por un punto medio: en
+                una caja angosta el separador quedaba colgando al final de la línea. */}
+            {product.sucursal && (
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <StorefrontOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <Typography sx={{ fontSize: '.9375rem', color: 'text.secondary' }}>
+                  {product.sucursal}
+                </Typography>
+              </Stack>
+            )}
+          </Stack>
+        </>
       )}
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems="stretch">
+      <Stack spacing={1.5} sx={{ mt: 3 }}>
         {!sinStock && tope > 1 && (
           <Stack
             direction="row"
             alignItems="center"
-            sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, px: 0.5, alignSelf: 'stretch' }}
+            justifyContent="space-between"
+            sx={{ height: 48, px: 0.5, border: 1, borderColor: 'divider', borderRadius: 2 }}
           >
             <IconButton
               size="small"
               aria-label="Quitar una unidad"
               disabled={cantidad <= 1}
               onClick={() => setCantidad((c) => Math.max(1, c - 1))}
+              sx={{ '&:active': { transform: 'scale(.94)' } }}
             >
               <RemoveIcon sx={{ fontSize: 16 }} />
             </IconButton>
-            <Typography sx={{ minWidth: 32, textAlign: 'center', fontWeight: 700 }} className="num">
+            <Typography className="num" sx={{ minWidth: 32, textAlign: 'center', fontWeight: 600 }}>
               {cantidad}
             </Typography>
             <IconButton
@@ -168,6 +131,7 @@ export default function ProductInfoSection({ product, addToCart }) {
               aria-label="Agregar una unidad"
               disabled={cantidad >= tope}
               onClick={() => setCantidad((c) => Math.min(tope, c + 1))}
+              sx={{ '&:active': { transform: 'scale(.94)' } }}
             >
               <AddIcon sx={{ fontSize: 16 }} />
             </IconButton>
@@ -176,17 +140,15 @@ export default function ProductInfoSection({ product, addToCart }) {
 
         <Button
           variant="contained"
-          color="primary"
-          size="large"
           fullWidth
           startIcon={<AddShoppingCartIcon />}
           onClick={() => addToCart(product, cantidad)}
           disabled={sinStock}
-          sx={{ height: 46, flexGrow: 1 }}
+          sx={btn}
         >
           {sinStock ? productPage.outOfStockText : productPage.addToCartText}
         </Button>
       </Stack>
-    </>
+    </Paper>
   );
 }
