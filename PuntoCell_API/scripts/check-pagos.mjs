@@ -261,6 +261,25 @@ test('consultarPago no explota si MP no manda additional_info', async () => {
   assert.deepEqual(resultado.items, []);
 });
 
+test('consultarPago descarta un id invalido sin llegar a llamar a MP', async () => {
+  let llamado = false;
+  const servicio = crearPagosService({
+    catalogoService: catalogoFalso(PRODUCTOS),
+    mpClient: {
+      crearPreferencia: async () => ({}),
+      obtenerPago: async () => { llamado = true; return PAGO_MP; },
+    },
+    backUrlBase: 'http://localhost:5173',
+    webhookUrl: '',
+  });
+
+  // '0' es el que importa: MP lo rechaza con 400 y salía como 500 al comprador.
+  for (const id of ['0', '-5', 'abc', '', null, undefined]) {
+    assert.equal(await servicio.consultarPago(id), null, `id inválido: ${id}`);
+  }
+  assert.equal(llamado, false);
+});
+
 // --- runner ---
 
 const main = async () => {

@@ -99,6 +99,11 @@ export const crearPagosService = ({ catalogoService, mpClient, backUrlBase, webh
   };
 
   const consultarPago = async (paymentId) => {
+    // Ante un id inválido como "0", MP responde 400 y no 404, así que el endpoint
+    // devolvía 500 por una URL que cualquiera puede escribir. Se descarta acá y no
+    // en el controller para cubrir también al webhook, que llama por este mismo camino.
+    if (!/^[1-9]\d*$/.test(String(paymentId ?? ''))) return null;
+
     const pago = await mpClient.obtenerPago(paymentId);
     if (!pago) return null;
 
