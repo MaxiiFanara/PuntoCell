@@ -89,6 +89,12 @@ export default function PagoResultado() {
         <Typography color="text.secondary" sx={{ mt: 1 }}>{bajada}</Typography>
       </Box>
 
+      {pago.avisoRegistro && (
+        <Alert severity="warning" className="no-imprimir" sx={{ mb: 3 }}>
+          {pago.avisoRegistro}
+        </Alert>
+      )}
+
       <Box
         className="comprobante"
         sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}
@@ -98,6 +104,9 @@ export default function PagoResultado() {
 
         <Stack spacing={0.5} sx={{ mb: 2 }}>
           <Typography variant="body2" color="text.secondary">Pago N° {pago.paymentId}</Typography>
+          {pago.ventaId && (
+            <Typography variant="body2" color="text.secondary">Venta N° {pago.ventaId}</Typography>
+          )}
           {pago.fecha && (
             <Typography variant="body2" color="text.secondary">
               {new Date(pago.fecha).toLocaleString('es-AR')}
