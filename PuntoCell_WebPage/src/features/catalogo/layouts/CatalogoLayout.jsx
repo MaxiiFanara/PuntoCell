@@ -9,6 +9,7 @@ import PublicNavbar from '../../../components/ui/PublicNavbar';
 import CartDrawer from '../components/CartDrawer';
 import PublicFooter from '../../../components/ui/PublicFooter';
 import WhatsappFloating from '../components/WhatsappFloating';
+import { shell } from '../../../components/ui/publicStyles';
 
 // El catálogo hereda el tema único del root (src/theme). No tiene tema propio.
 export default function CatalogoLayout() {
@@ -36,7 +37,13 @@ export default function CatalogoLayout() {
           <PublicNavbar />
           <CartDrawer />
 
-          <Box component="main" sx={{ flexGrow: 1 }}>
+          {/* El ancho y el ritmo de la vitrina viven acá, una sola vez: 1180px
+              con el gutter de publicStyles y el aire de la cara pública. Las
+              vistas ya no traen contenedor propio. */}
+          <Box
+            component="main"
+            sx={{ ...shell, flexGrow: 1, pt: '2.25rem', pb: 'clamp(5rem, 8vw, 7rem)' }}
+          >
             <Outlet />
           </Box>
 
