@@ -35,16 +35,18 @@ export default function WhatsappFloating() {
             minHeight: TOGGLE_SIZE,
             // Por debajo del Drawer del carrito (1200) para no flotar sobre él.
             zIndex: theme.zIndex.fab,
+            // El #25D366 es la marca de WhatsApp, no nuestro acento: por eso es el
+            // único verde del sistema que no marca precio ni acción primaria. La
+            // sombra, en cambio, va del tema: el halo verde saturado lo convertía
+            // en el objeto más ruidoso de la página.
             bgcolor: '#25D366',
             color: '#fff',
-            boxShadow: '0 8px 24px rgba(37,211,102,.32)',
-            transition: 'transform .15s, background-color .15s, box-shadow .15s',
-            '&:hover': {
-              bgcolor: '#1ebe5d',
-              transform: 'scale(1.10)',
-              boxShadow: '0 10px 30px rgba(37,211,102,.42)',
+            boxShadow: 'var(--pc-palette-pc-lift)',
+            transition: 'transform 160ms cubic-bezier(.23,1,.32,1), background-color 180ms ease',
+            '@media (hover: hover) and (pointer: fine)': {
+              '&:hover': { bgcolor: '#1ebe5d' },
             },
-            '&:active': { transform: 'scale(0.92)' },
+            '&:active': { transform: 'scale(.94)' },
             '@media print': { display: 'none' },
           })}
         >
