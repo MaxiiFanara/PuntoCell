@@ -1,55 +1,71 @@
-import { Box, Button, Typography } from '@mui/material';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import { Link } from 'react-router-dom';
+import { Box, Typography } from '@mui/material'
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
+import { Link } from 'react-router-dom'
 
-import ProductCard from '../../catalogo/components/ProductCard';
-import ProductCardSkeleton from '../../catalogo/components/ProductCardSkeleton';
-import { useProducts } from '../../catalogo/context/ProductContext';
+import ProductCard from '../../catalogo/components/ProductCard'
+import ProductCardSkeleton from '../../catalogo/components/ProductCardSkeleton'
+import { useProducts } from '../../catalogo/context/ProductContext'
+import { section, shell } from '../../../components/ui/publicStyles'
 
 export default function CatalogHighlight() {
-  const { products, loading } = useProducts();
+  const { products, loading } = useProducts()
   // Lo que se muestra acá es "lo que hay en el local ahora", no una selección
   // editorial: el flag `featured` del contexto era literalmente stock > 0.
-  const disponibles = products.filter((p) => p.stock > 0).slice(0, 4);
+  const disponibles = products.filter((p) => p.stock > 0).slice(0, 4)
 
-  if (!loading && disponibles.length === 0) return null;
+  if (!loading && disponibles.length === 0) return null
 
   return (
-    <Box
-      component="section"
-      sx={{ px: 2.5, py: { xs: 6, md: 9 }, bgcolor: 'background.default', borderTop: 1, borderColor: 'divider' }}
-    >
-      <Box sx={{ maxWidth: 1120, mx: 'auto' }}>
+    <Box component="section" id="disponibles" sx={section(true)}>
+      <Box sx={shell}>
         <Box
           sx={{
             display: 'flex',
             alignItems: 'baseline',
             justifyContent: 'space-between',
-            gap: 2,
+            gap: 4,
             flexWrap: 'wrap',
-            mb: 3,
           }}
         >
-          <Typography
-            component="h2"
-            sx={{ fontSize: { xs: '1.6rem', md: '2rem' }, fontWeight: 600, letterSpacing: '-.03em' }}
-          >
+          <Typography component="h2" sx={{ typography: 'd2' }}>
             Disponibles ahora
           </Typography>
-          <Button
+
+          {/* La flecha que avanza 3px es la única coquetería de la página, y
+              sólo donde hay puntero fino. */}
+          <Box
             component={Link}
             to="/catalogo"
-            endIcon={<ArrowForwardIcon sx={{ fontSize: '16px !important' }} />}
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 0.5,
+              color: 'text.primary',
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: '.9375rem',
+              lineHeight: 1,
+              '& svg': {
+                fontSize: 16,
+                transition: 'transform 220ms cubic-bezier(.23,1,.32,1)',
+              },
+              '@media (hover: hover) and (pointer: fine)': {
+                '&:hover svg': { transform: 'translateX(3px)' },
+              },
+            }}
           >
             Ver todo el catálogo
-          </Button>
+            <ArrowForwardIcon />
+          </Box>
         </Box>
 
         <Box
           sx={{
+            mt: 'clamp(2.5rem, 4.5vw, 3.5rem)',
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))',
-            gap: 2,
+            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+            gap: 'clamp(1rem, 1.8vw, 1.5rem)',
+            alignItems: 'stretch',
           }}
         >
           {loading
@@ -58,5 +74,5 @@ export default function CatalogHighlight() {
         </Box>
       </Box>
     </Box>
-  );
+  )
 }
