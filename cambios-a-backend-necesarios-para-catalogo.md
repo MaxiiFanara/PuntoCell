@@ -133,3 +133,51 @@ Todo dentro de `PuntoCell_WebPage/`. Resumen de lo que se hizo:
 
 - Los colores llegan en minúscula desde la base y se muestran capitalizados.
 - El ícono de disponibilidad mostraba un tilde incluso cuando no había stock.
+
+---
+
+## 4. Segundo cambio aplicado: la sucursal en el catálogo
+
+**Archivo:** `PuntoCell_API/src/modules/catalogo/catalogo.service.js`
+**Commit:** `04b031d` — "Muestra el stock de las dos sucursales y su ubicacion en el detalle"
+
+### Problema
+
+El catálogo público llamaba al endpoint con `IdSucursal=1` fijo, así que **solo
+mostraba el inventario de La Calera Centro**. El renglón de La Calera Stoecklin
+era invisible.
+
+Con los datos actuales eso producía un resultado directamente engañoso: el
+Apple iPhone 13 figuraba como "Sin stock" (renglón de Centro, stock 0) mientras
+había una unidad disponible en Stoecklin (renglón 8, stock 1). El comprador veía
+agotado algo que el local tenía.
+
+Además, la pasarela de pago heredaba el mismo filtro, así que un producto de
+Stoecklin habría sido rechazado como "inexistente" al ir a pagar.
+
+### Qué se cambió
+
+Se amplía el `include` de `Inventario` para traer también su `sucursal`. La
+asociación `Inventario.belongsTo(Sucursal, { as: 'sucursal' })` ya existía, así
+que **no se tocó el modelo de datos, ni las asociaciones, ni la base**.
+
+El objeto de salida suma un campo:
+
+| Campo | Origen | Uso |
+|---|---|---|
+| `sucursal` | `Sucursal.Nombre` | Mostrar dónde está físicamente esa unidad |
+
+Solo el nombre. No se expone dirección, teléfono ni ningún otro dato interno de
+la sucursal.
+
+### Cambio de contrato
+
+**Aditivo, no rompe nada.** `GET /api/catalogo/productos` sigue aceptando
+`IdSucursal` como filtro opcional y respetándolo; lo que cambió es que el
+frontend dejó de mandarlo. Un consumidor que siga pasando `IdSucursal` obtiene
+exactamente el mismo resultado que antes, más el campo nuevo.
+
+### Cómo revertir
+
+El cambio está acotado a dos lugares del mismo archivo, ambos con comentario: el
+`include` de la asociación `sucursal` y el campo agregado en el objeto del `map`.
