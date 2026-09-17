@@ -16,12 +16,17 @@ La sección 7 de este documento amplía el punto 2.1 de aquella.
 | Archivo | Responsabilidad |
 |---|---|
 | `mercadopago.client.js` | Único punto que habla con la API de Mercado Pago. Dos llamadas HTTP |
-| `pagos.service.js`      | Revalida el carrito contra la base, arma la preferencia, normaliza el estado del pago |
+| `pagos.service.js`      | Revalida el carrito contra la base, arma la preferencia, normaliza el estado del pago y registra la venta |
 | `pagos.controller.js`   | Traducción HTTP. Sin lógica |
-| `pagos.routes.js`       | Las tres rutas |
+| `pagos.routes.js`       | Las tres rutas y el cableado de `CatalogoService` y `VentaService` |
 
-Más un chequeo ejecutable: `PuntoCell_API/scripts/check-pagos.mjs`, 17 asserts
-sobre el servicio con un cliente de Mercado Pago falso. No necesita red ni base:
+Más dos scripts:
+
+- `PuntoCell_API/scripts/seed-tienda-online.sql` — las dos filas de identidad de
+  la venta online (ver sección 8). Idempotente.
+- `PuntoCell_API/scripts/check-pagos.mjs` — 28 asserts sobre el servicio, con un
+  cliente de Mercado Pago, unos `models` y un `VentaService` falsos. No necesita
+  red ni base:
 
 ```
 docker compose exec api node scripts/check-pagos.mjs
@@ -102,9 +107,17 @@ crece, conviene un método que filtre por ids.
 | `MP_ACCESS_TOKEN` | Sí | Token de la aplicación de Mercado Pago. **Nunca debe llegar al frontend** |
 | `MP_BACK_URL_BASE` | No (default `http://localhost:5173`) | Base del frontend a la que Mercado Pago devuelve al comprador |
 | `MP_WEBHOOK_URL` | No (default vacío) | URL pública del webhook. Si está vacía no se manda `notification_url` |
+| `MP_ID_EMPLEADO` | Sí, para registrar ventas | Id del `Usuario` "Tienda Online" que devuelve el script de seed |
+| `MP_ID_TURNO_CAJA` | Sí, para registrar ventas | Id del `TurnoCaja` "Caja Online" que devuelve el script de seed |
+| `MP_ID_METODO_PAGO` | Sí, para registrar ventas | Id de `billetera virtual (qr/alias)` en `MetodoPago` |
 
 La API levanta sin `MP_ACCESS_TOKEN`: nada lo lee al arrancar. Solo fallan las
 llamadas que necesitan hablar con Mercado Pago.
+
+Ojo con **dónde** se cargan: el que lee `docker compose` es el `.env` de la raíz
+del repo, junto al `docker-compose.yml`. Un `.env` dentro de `PuntoCell_API/` no
+lo lee nadie cuando la API corre en Docker, y las variables llegan vacías al
+contenedor sin ningún error visible.
 
 ## 6. Decisiones de seguridad, con su motivo
 
@@ -127,65 +140,134 @@ Mercado Pago antes de usarse. El body nunca se trata como dato. Si en el futuro
 el webhook pasara a confiar en el contenido de la notificación, **habría que
 agregar la validación de firma**.
 
-## 7. Pendiente del lado de backend: el conflicto de moneda
+## 7. La convención de moneda, y el bug que encontramos en el punto de venta
 
 Amplía el punto 2.1 de `cambios-a-backend-necesarios-para-catalogo.md`, que ya
-avisó que `priceUsd` devuelve pesos. Al integrar el pago aparecieron las otras
-dos piezas del problema. Hoy conviven tres criterios incompatibles:
+avisó que el campo `priceUsd` del catálogo devuelve pesos.
 
-| Dónde | Qué asume |
+**Sus datos están bien.** Lo verificamos contra la única venta que existía en la
+base de desarrollo, que sirve de referencia de la convención:
+
+```
+Venta 1  |  TotalVenta 844,63  |  TotalVentaARS 1.224.720  |  TotalCosto 1.008.000
+DetalleVenta                   |  PrecioUnitario 1.360.800
+```
+
+844,63 × 1450 (DólarBlue) = 1.224.713. La convención es inequívoca y coherente:
+
+| Campo | Moneda |
 |---|---|
-| `PrecioArticulo.ValorFinal` (datos) | Está cargado en **pesos**: Apple iPhone 14 Pro = 1.871.100, Funda Silicona = 3.024 |
-| `Venta.TotalVenta` (esquema) | Está definido en **dólares**. `venta.service.js` calcula `TotalVentaARS = TotalVenta × cotización` |
-| Punto de venta (frontend interno) | Trata ese mismo `ValorFinal` como **dólares**: `PuntoVentaScreen.jsx` hace `TotalVenta × valorDolar` |
+| `PrecioArticulo.ValorFinal`, `PrecioArticulo.CostoReal`, `DetalleVenta.PrecioUnitario` | **pesos** |
+| `Venta.TotalVentaARS`, `Venta.TotalCosto` | **pesos** |
+| `Venta.TotalVenta` | **dólares** = pesos ÷ cotización |
 
-Los tres no pueden ser correctos a la vez.
+Esta integración sigue exactamente esa convención, así que las ventas online se
+registran igual que cualquier otra.
 
-**La corrección es del lado de la API**, no del frontend, porque involucra el
-esquema y el significado de los datos. Hay dos caminos:
+### Lo que sí está mal: el punto de venta
 
-- `ValorFinal` pasa efectivamente a dólares, y se convierte a pesos en un solo
-  lugar. Implica recargar los precios de la base.
-- O `Venta.TotalVenta` se redefine en pesos, y se renombra `priceUsd` del
-  endpoint del catálogo (que ya hoy miente).
+`PuntoVentaScreen.jsx` toma el `PrecioUnitario` (que está **en pesos**) y arma
+`TotalVentaARS = TotalVenta × valorDolar`, tratando ese valor como si fuera
+dólares. Con el dólar a 1450, una venta de una funda de $3.024 quedaría
+registrada como $4.384.800.
 
-**Qué hace esta integración mientras tanto:** le cobra a Mercado Pago el valor de
-`ValorFinal` tal cual, en pesos (`currency_id: "ARS"`), sin convertir por
-cotización. Es consistente con lo que muestra el catálogo público y con la plata
-que efectivamente se mueve.
+No lo tocamos porque ese frontend no es nuestro. Lo dejamos anotado acá porque
+es el mismo campo que consume esta integración, y si alguien "corrige" la
+convención mirando el punto de venta en vez de mirar los datos, va a romper las
+dos cosas.
 
-**Qué bloquea:** registrar la venta online como una `Venta` del sistema. Ver la
-sección 8.
+### Y el nombre del campo del catálogo sigue mintiendo
 
-## 8. Qué NO hace esta integración
+`GET /api/catalogo/productos` devuelve `priceUsd`, pero el valor está en pesos.
+Conviene renombrarlo a `precio` o `precioArs`. Es una trampa para el próximo que
+lo consuma.
 
-Esta integración **cobra, pero no registra la venta**. Concretamente, un pago
-aprobado en el catálogo **no**:
+## 8. La venta SÍ se registra — qué van a ver en sus módulos
 
-- crea una fila en `Venta`, `DetalleVenta` ni `PagoVenta`;
-- **descuenta stock de `Inventario`**;
-- aparece en dashboards, reportes, caja ni bitácora.
+> Esta sección reemplaza a la versión anterior, que decía que la integración
+> cobraba sin registrar nada. Eso cambió: **un pago aprobado ahora crea una
+> `Venta` real y descuenta stock.**
 
-El local se entera del pedido por el panel de Mercado Pago y por el mensaje de
-WhatsApp que ofrece la pantalla de éxito, con el número de pago incluido.
+Cuando Mercado Pago confirma un pago, el módulo llama a
+**`VentaService.create()` tal cual está, sin modificarlo**, y ese servicio hace
+lo de siempre en una sola transacción: crea la `Venta`, sus `DetalleVenta`,
+descuenta el `Stock` del `Inventario` con lock de fila, y registra el
+`PagoVenta`.
 
-Esto fue una decisión deliberada, no una limitación técnica. Registrar la venta
-implicaría que las compras online empiecen a aparecer en módulos que mantiene
-este equipo, y hay tres obstáculos concretos:
+**Consecuencia directa: las ventas del catálogo online van a aparecer en
+dashboards, reportes, caja y bitácora, mezcladas con las del local.** Se pueden
+distinguir de tres formas: por el empleado "Tienda Online", por el turno "Caja
+Online", y porque el campo `Observaciones` arranca con `Venta online. MP:<id>`.
 
-1. **`Venta` no admite una venta online.** Exige `IdTurnoCaja`, `IdEmpleado`,
-   `IdCliente` e `IdCotizacionDolar`, los cuatro NOT NULL con FK. Una compra a
-   las 3 de la mañana no tiene turno de caja abierto ni empleado que la facture.
-   Habría que sembrar un usuario "Tienda Online" y un turno de caja virtual
-   permanentemente abierto, que aparecería en los arqueos de caja.
-2. **El conflicto de moneda de la sección 7** tiene que resolverse primero: sin
-   saber en qué unidad va `TotalVenta`, la venta se registraría mal.
-3. **Sobreventa.** Si el stock se agota entre el pago y la confirmación,
-   `VentaService.create()` tira error. Hay que definir qué hacer con un pago ya
-   cobrado que no se puede cumplir.
+### Identidad de la venta online
 
-Si el equipo quiere avanzar con esto, conviene acordarlo antes: el diseño está
-escrito y `VentaService.create()` se reusaría tal cual está, sin modificarlo.
+`Venta` exige `IdTurnoCaja`, `IdEmpleado`, `IdCliente` e `IdCotizacionDolar`,
+los cuatro NOT NULL con FK, y una compra a las 3 de la mañana no tiene turno de
+caja abierto ni empleado que la facture. Se resolvió sembrando dos filas — son
+**datos, no cambios de esquema** — con el script idempotente
+`scripts/seed-tienda-online.sql`:
+
+| Fila | Detalle |
+|---|---|
+| `Usuario` "Tienda Online" | Empleado ficticio. Rol `vendedor`, sucursal 1. Su `Pwd` es el texto `CUENTA-DE-SISTEMA-SIN-LOGIN`, que **no es un hash de bcrypt válido**: ninguna contraseña puede autenticar esa cuenta |
+| `TurnoCaja` "Caja Online" | **Queda permanentemente abierto** (`FechaCierre` NULL) para no mezclar las ventas online con el arqueo del turno real. Van a verlo siempre abierto en sus listados de caja |
+
+Los tres Id se configuran por entorno: `MP_ID_EMPLEADO`, `MP_ID_TURNO_CAJA` y
+`MP_ID_METODO_PAGO`. El método de pago reusa `billetera virtual (qr/alias)`, que
+ya existía.
+
+El **cliente sí es real**: se busca por email y, si no existe, se crea como
+`Usuario` con `EsCliente = 1`. El DNI sale de Mercado Pago; el nombre y el
+teléfono viajan en el `metadata` de la preferencia, porque cuando el comprador
+paga con su cuenta de MP el `payer` que vuelve trae `first_name`, `last_name` y
+`phone` en `null`.
+
+### Idempotencia
+
+El webhook reintenta, y además puede llegar a la vez que la pantalla de
+resultado. Sin una tabla propia, el vínculo pago→venta vive en
+`Venta.Observaciones` y se consulta con un `LIKE '%MP:<paymentId>%'` antes de
+crear nada. Verificado contra la base: tres consultas seguidas al mismo pago
+devuelven la misma venta y no duplican ni la venta, ni el cliente, ni el
+descuento de stock.
+
+Es una solución deliberadamente barata. Si en algún momento existe una tabla de
+pedidos online, ese vínculo debería mudarse a una columna indexada.
+
+### Sobreventa
+
+Si el stock se agotó entre el pago y la confirmación, `VentaService.create()`
+aborta la transacción. **No se duplicó su lógica para forzar el registro.** El
+pago queda cobrado, la venta no se registra, y la pantalla le avisa al comprador
+con el número de pago para que el local lo resuelva a mano. Queda un
+`console.error` en el log de la API con el id del pago.
+
+### Redondeo: el total en pesos no coincide exactamente con lo cobrado
+
+Esto **no es específico de las ventas online** y conviene que lo miren.
+
+`Venta.TotalVenta` está en dólares con dos decimales, y `VentaService.create()`
+recalcula `TotalVentaARS = TotalVenta × cotización`. Con el dólar a 1450, **cada
+centavo de dólar vale 14,50 pesos**, así que el total en pesos de cualquier
+venta arrastra hasta ±7,25 de error de redondeo.
+
+Caso real medido en esta integración:
+
+| | |
+|---|---|
+| Mercado Pago cobró | 6.048,00 |
+| `TotalVenta` = 6048 ÷ 1450 | 4,171034… → se guarda **4,17** |
+| `TotalVentaARS` recalculado | 4,17 × 1450 = **6.046,50** |
+| Diferencia | **1,50** |
+
+`PagoVenta.Monto` sí guarda el importe exacto (6.048,00), así que la plata que
+entró está bien registrada; lo que queda desalineado es el total de cabecera, y
+con él la suma de pagos contra el total de la venta.
+
+No es resoluble desde el módulo de pagos: dos decimales en dólares no alcanzan
+para representar cualquier importe en pesos. Si les importa la conciliación
+exacta, la decisión es de ustedes — por ejemplo, ampliar la precisión de
+`TotalVenta`, o tomar `TotalVentaARS` como el valor primario en vez del derivado.
 
 ## 9. Qué falta para producción
 
@@ -208,12 +290,25 @@ documenta, donde el resultado del pago se controla con el nombre del titular.
 
 ## 11. Cómo revertir
 
-El módulo es aditivo, así que se saca entero:
+El **código** es aditivo, así que se saca entero:
 
 1. Borrar la carpeta `src/modules/pagos/`.
-2. Borrar `scripts/check-pagos.mjs`.
+2. Borrar `scripts/check-pagos.mjs` y `scripts/seed-tienda-online.sql`.
 3. Sacar de `src/routes/index.js` el import de `pagosRoutes` y la línea
    `router.use('/pagos', pagosRoutes())`.
 
-El bloque `MP` de `env.js` y las tres variables del `docker-compose.yml` quedan
+El bloque `MP` de `env.js` y las variables del `docker-compose.yml` quedan
 inertes si sobran: no hace falta tocarlos.
+
+**Los datos son otra cosa.** Revertir el código deja de generar ventas nuevas,
+pero no borra las que ya se registraron ni devuelve el stock descontado. Para
+encontrarlas:
+
+```sql
+SELECT * FROM Venta WHERE Observaciones LIKE 'Venta online. MP:%';
+```
+
+Las dos filas seed (`Usuario` "Tienda Online" y `TurnoCaja` "Caja Online") no se
+pueden borrar mientras alguna venta las referencie, por las FK. Si hace falta
+dar de baja el canal online sin borrar historial, lo razonable es cerrar el
+turno "Caja Online" poniéndole `FechaCierre`, y dejar el resto como está.
