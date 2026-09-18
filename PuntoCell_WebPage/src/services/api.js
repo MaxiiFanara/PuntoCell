@@ -20,7 +20,6 @@ export const fetchApi = async (endpoint, options = {}) => {
     let message
     try {
       const data = await res.json()
-      // validateFields (Joi) devuelve { errors: [...] }, no { message }
       message = data.message || (Array.isArray(data.errors) ? data.errors.join(' | ') : null) || `Error ${res.status}`
     } catch {
       message = `Error ${res.status}`
@@ -34,7 +33,6 @@ export const fetchApi = async (endpoint, options = {}) => {
 }
 
 // Auth
-
 export const loginUsuario = async (identificador, pwd) => {
   const res = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
@@ -51,11 +49,8 @@ export const loginUsuario = async (identificador, pwd) => {
   return data
 }
 
-export const logoutUsuario = () =>
-  fetchApi('/auth/logout', { method: 'POST' })
+export const logoutUsuario = () => fetchApi('/auth/logout', { method: 'POST' })
 
-// Perfil plano que consume el front (AuthContext / LoginPage). El backend devuelve
-// la fila cruda en PascalCase; acá la normalizamos a un único shape.
 export const mapUsuario = (u) => ({
   userID:   u.Id,
   user:     `${u.Nombre ?? ''} ${u.Apellido ?? ''}`.trim() || u.UsuarioEmpleado,
@@ -64,7 +59,6 @@ export const mapUsuario = (u) => ({
   sucursal: u.IdSucursal,
 })
 
-// GET /auth/me — devuelve el usuario si la cookie de sesión sigue viva, o null.
 export const getSesionActual = async () => {
   try {
     const res = await fetch(`${API_URL}/auth/me`, { credentials: 'include' })
@@ -98,7 +92,6 @@ export const resetearContrasena = async (token, nuevaContrasena) => {
   return data
 }
 
-// basic = item de getAll(); detalle = respuesta de getById(); tiposMap = { idCategoria: nombreTipo }
 const normalizarOrden = (basic, detalle = null, tiposMap = {}) => ({
   NumOrden:          basic.Id,
   FechaEmision:      basic.FechaEmision ? String(basic.FechaEmision).split('T')[0] : null,
@@ -119,8 +112,6 @@ const normalizarOrden = (basic, detalle = null, tiposMap = {}) => ({
   Fallas:            (detalle?.fallas ?? []).map(f => f.Nombre),
   Falla:             detalle?.fallas?.[0]?.Nombre ?? '',
 })
-
-// Órdenes
 
 export const getOrdenes = async () => {
   const listRes = await fetchApi('/reparaciones/ordenes-reparacion')
@@ -149,49 +140,23 @@ export const getOrdenes = async () => {
   return basicItems.map((basic, i) => normalizarOrden(basic, detalles[i], tiposMap))
 }
 
-export const crearOrden = (datos) =>
-  fetchApi('/reparaciones/ordenes-reparacion', {
-    method: 'POST',
-    body: JSON.stringify(datos),
-  })
-
-export const actualizarOrden = (id, datos) =>
-  fetchApi(`/reparaciones/ordenes-reparacion/${id}/estado`, {
-    method: 'PATCH',
-    body: JSON.stringify(datos),
-  })
-
-export const anularOrden = (id) =>
-  fetchApi(`/reparaciones/ordenes-reparacion/${id}/estado`, {
-    method: 'PATCH',
-    body: JSON.stringify({ IdEstadoOrden: 5 }),
-  })
-
-// Fallas
+export const crearOrden = (datos) => fetchApi('/reparaciones/ordenes-reparacion', { method: 'POST', body: JSON.stringify(datos) })
+export const actualizarOrden = (id, datos) => fetchApi(`/reparaciones/ordenes-reparacion/${id}/estado`, { method: 'PATCH', body: JSON.stringify(datos) })
+export const anularOrden = (id) => fetchApi(`/reparaciones/ordenes-reparacion/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ IdEstadoOrden: 5 }) })
 
 export const getFallasPorTipo = async (idTipo) => {
   const res = await fetchApi(`/reparaciones/fallas/por-categoria/${idTipo}`)
   return (res?.data ?? []).map(f => ({ id: f.Id, nombre: f.Nombre }))
 }
 
-// Solo Admin/Encargado (el backend exige isAdmin en POST /reparaciones/fallas).
 export const crearFalla = (idCategoriaArticulo, nombre) =>
-  fetchApi('/reparaciones/fallas', {
-    method: 'POST',
-    body: JSON.stringify({ Nombre: nombre, IdCategoriaArticulo: idCategoriaArticulo }),
-  })
+  fetchApi('/reparaciones/fallas', { method: 'POST', body: JSON.stringify({ Nombre: nombre, IdCategoriaArticulo: idCategoriaArticulo }) })
 
-// Reparaciones solo cobra en efectivo/transferencia (Ventas acepta todo el catálogo).
-// Se filtra sobre el catálogo real en vez de hardcodear IDs.
 export const getMetodosPagoReparacion = async () => {
   const res = await fetchApi('/finanzas/metodo-pagos')
   const lista = res?.data ?? res ?? []
-  return lista
-    .filter(m => /efectivo|transferencia/i.test(m.Nombre ?? m.nombre ?? ''))
-    .map(m => ({ id: m.Id ?? m.id, nombre: m.Nombre ?? m.nombre }))
+  return lista.filter(m => /efectivo|transferencia/i.test(m.Nombre ?? m.nombre ?? '')).map(m => ({ id: m.Id ?? m.id, nombre: m.Nombre ?? m.nombre }))
 }
-
-// Catálogos
 
 export const getLocalidades = async () => {
   const res = await fetchApi('/usuarios/localidades')
@@ -205,9 +170,7 @@ export const getEstadosOrden = async () => {
 
 export const getTiposDispositivo = async () => {
   const res = await fetchApi('/inventario/categoria-articulos')
-  return (res?.data ?? [])
-    .filter(c => c.EsDispositivo === true || c.EsDispositivo === 1)
-    .map(c => ({ id: Number(c.Id), nombre: c.Nombre }))
+  return (res?.data ?? []).filter(c => c.EsDispositivo === true || c.EsDispositivo === 1).map(c => ({ id: Number(c.Id), nombre: c.Nombre }))
 }
 
 export const getMarcas = async () => {
@@ -217,43 +180,33 @@ export const getMarcas = async () => {
 
 export const getModelos = async () => {
   const res = await fetchApi('/inventario/modelo-articulos')
-  return (res?.data ?? []).map(m => ({
-    id:      Number(m.Id),
-    nombre:  m.Nombre,
-    idMarca: Number(m.IdMarcaArticulo),
-    idTipo:  Number(m.IdCategoriaArticulo),
-  }))
+  return (res?.data ?? []).map(m => ({ id: Number(m.Id), nombre: m.Nombre, idMarca: Number(m.IdMarcaArticulo), idTipo: Number(m.IdCategoriaArticulo) }))
 }
 
 export const getEmpleados = async () => {
   try {
     const res = await fetchApi('/usuarios/')
-    return (res?.data ?? [])
-      .filter(u => u.EsCliente === false || u.EsCliente === 0)
-      .map(u => ({ id: u.Id, nombre: u.Nombre, apellido: u.Apellido }))
+    return (res?.data ?? []).filter(u => u.EsCliente === false || u.EsCliente === 0).map(u => ({ id: u.Id, nombre: u.Nombre, apellido: u.Apellido }))
   } catch (err) {
     if (err.status === 403) return []
     throw err
   }
 }
 
-// Dispositivos
+// NUEVA FUNCIÓN AÑADIDA: Obtener catálogo de sucursales
+export const getSucursales = async () => {
+  try {
+    const res = await fetchApi('/usuarios/sucursales')
+    return (res?.data ?? []).map(s => ({ id: s.Id ?? s.id, nombre: s.Nombre }))
+  } catch (err) {
+    if (err.status === 403) return []
+    throw err
+  }
+}
 
-export const crearDispositivo = (datos) =>
-  fetchApi('/reparaciones/dispositivos-cliente', {
-    method: 'POST',
-    body: JSON.stringify(datos),
-  })
+export const crearDispositivo = (datos) => fetchApi('/reparaciones/dispositivos-cliente', { method: 'POST', body: JSON.stringify(datos) })
+export const crearModeloArticulo = (datos) => fetchApi('/inventario/modelo-articulos', { method: 'POST', body: JSON.stringify(datos) })
 
-// Modelos
-
-export const crearModeloArticulo = (datos) =>
-  fetchApi('/inventario/modelo-articulos', {
-    method: 'POST',
-    body: JSON.stringify(datos),
-  })
-
-// Clientes
 export const getClienteByDNI = async (dni) => {
   try {
     const res = await fetchApi(`/usuarios?DNI=${encodeURIComponent(dni)}`)
@@ -265,23 +218,13 @@ export const getClienteByDNI = async (dni) => {
   }
 }
 
-export const crearCliente = (datos) =>
-  fetchApi('/usuarios/', {
-    method: 'POST',
-    body: JSON.stringify({ ...datos, EsCliente: true }),
-  })
+export const crearCliente = (datos) => fetchApi('/usuarios/', { method: 'POST', body: JSON.stringify({ ...datos, EsCliente: true }) })
 
-// Orden — detalle completo
 export const getOrdenById = async (id) => {
   const res = await fetchApi(`/reparaciones/ordenes-reparacion/${id}`)
   return res?.data ?? null
 }
 
-// Repuestos de orden
-// El precio ya no vive en Inventario: se resuelve del PrecioArticulo vigente
-// (cualquier lista) mergeando client-side. El backend exige que el repuesto tenga
-// un precio vigente para agregarlo a la orden, así que descartamos los que no lo tienen
-// (marcándolos con sinPrecio para poder avisar en la UI).
 export const getRepuestosDisponibles = async () => {
   const [res, preciosRes, listas] = await Promise.all([
     fetchApi('/reparaciones/inventario/repuestos-disponibles'),
@@ -290,39 +233,17 @@ export const getRepuestosDisponibles = async () => {
   ])
   const precios = Array.isArray(preciosRes?.data) ? preciosRes.data : (preciosRes ?? [])
   const mapa = mapVigentePorInventario(precios)
-  // El repuesto se carga siempre al precio minorista (regla de negocio: mayorista solo
-  // aplica con un selector explícito, que este flujo todavía no tiene).
   const listasMayoristas = idsListasMayoristas(listas)
   return (res?.data ?? []).map(item => {
     const idInv = item.id ?? item.Id
-    const p = precioVigenteEntreListas(mapa, idInv, { excluir: listasMayoristas })
-      || precioVigenteEntreListas(mapa, idInv) // fallback si solo hay precio en lista mayorista
-    return {
-      id:       idInv,
-      nombre:   item.articulo?.Nombre ?? '',
-      stock:    item.Stock ?? 0,
-      precio:   p ? Number(p.ValorFinal) || 0 : 0,
-      sinPrecio: !p,
-      marca:    item.articulo?.modelo?.marca?.Nombre ?? '',
-      modelo:   item.articulo?.modelo?.Nombre ?? '',
-    }
+    const p = precioVigenteEntreListas(mapa, idInv, { excluir: listasMayoristas }) || precioVigenteEntreListas(mapa, idInv)
+    return { id: idInv, nombre: item.articulo?.Nombre ?? '', stock: item.Stock ?? 0, precio: p ? Number(p.ValorFinal) || 0 : 0, sinPrecio: !p, marca: item.articulo?.modelo?.marca?.Nombre ?? '', modelo: item.articulo?.modelo?.Nombre ?? '' }
   })
 }
 
-export const agregarRepuestoOrden = (datos) =>
-  fetchApi('/reparaciones/repuestos-orden', {
-    method: 'POST',
-    body: JSON.stringify(datos),
-  })
-
-export const eliminarRepuestoOrden = (id) =>
-  fetchApi(`/reparaciones/repuestos-orden/${id}`, { method: 'DELETE' })
-
-export const enviarComprobanteEmail = (idOrden, pdfBase64) =>
-  fetchApi(`/reparaciones/ordenes-reparacion/${idOrden}/testemail`, {
-    method: 'POST',
-    body: JSON.stringify({ pdfBase64 }),
-  })
+export const agregarRepuestoOrden = (datos) => fetchApi('/reparaciones/repuestos-orden', { method: 'POST', body: JSON.stringify(datos) })
+export const eliminarRepuestoOrden = (id) => fetchApi(`/reparaciones/repuestos-orden/${id}`, { method: 'DELETE' })
+export const enviarComprobanteEmail = (idOrden, pdfBase64) => fetchApi(`/reparaciones/ordenes-reparacion/${idOrden}/testemail`, { method: 'POST', body: JSON.stringify({ pdfBase64 }) })
 
 export const getPagosOrden = async (idOrden) => {
   const res = await fetchApi('/reparaciones/pagos-reparacion')
@@ -330,38 +251,9 @@ export const getPagosOrden = async (idOrden) => {
   return todos.filter(p => p.IdOrdenReparacion === idOrden)
 }
 
-// Estadísticas
-
-export const getMarcasReparadas = async (limit) => {
-  const qs = limit !== undefined ? `?limit=${limit}` : ''
-  const res = await fetchApi(`/estadisticas/marca-mas-reparada${qs}`)
-  return res?.data ?? []
-}
-
-export const getDispositivosReparados = async (limit) => {
-  const qs = limit !== undefined ? `?limit=${limit}` : ''
-  const res = await fetchApi(`/estadisticas/dispositivo-mas-reparado${qs}`)
-  return res?.data ?? []
-}
-
-export const getRepuestosUsados = async (limit) => {
-  const qs = limit !== undefined ? `?limit=${limit}` : ''
-  const res = await fetchApi(`/estadisticas/repuesto-mas-usado${qs}`)
-  return res?.data ?? []
-}
-
-export const getFallasRepetidas = async (limit) => {
-  const qs = limit !== undefined ? `?limit=${limit}` : ''
-  const res = await fetchApi(`/estadisticas/falla-mas-repetida${qs}`)
-  return res?.data ?? []
-}
-
-export const getFinanzasResumen = async () => {
-  const res = await fetchApi('/estadisticas/finanzas')
-  return res?.data ?? null
-}
-
-export const getDashboardMetricas = async () => {
-  const res = await fetchApi('/estadisticas/dashboard')
-  return res?.data ?? null
-}
+export const getMarcasReparadas = async (limit) => { const qs = limit !== undefined ? `?limit=${limit}` : ''; const res = await fetchApi(`/estadisticas/marca-mas-reparada${qs}`); return res?.data ?? [] }
+export const getDispositivosReparados = async (limit) => { const qs = limit !== undefined ? `?limit=${limit}` : ''; const res = await fetchApi(`/estadisticas/dispositivo-mas-reparado${qs}`); return res?.data ?? [] }
+export const getRepuestosUsados = async (limit) => { const qs = limit !== undefined ? `?limit=${limit}` : ''; const res = await fetchApi(`/estadisticas/repuesto-mas-usado${qs}`); return res?.data ?? [] }
+export const getFallasRepetidas = async (limit) => { const qs = limit !== undefined ? `?limit=${limit}` : ''; const res = await fetchApi(`/estadisticas/falla-mas-repetida${qs}`); return res?.data ?? [] }
+export const getFinanzasResumen = async () => { const res = await fetchApi('/estadisticas/finanzas'); return res?.data ?? null }
+export const getDashboardMetricas = async () => { const res = await fetchApi('/estadisticas/dashboard'); return res?.data ?? null }

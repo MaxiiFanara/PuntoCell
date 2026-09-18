@@ -9,7 +9,25 @@ const compraAttributes = ['Id', 'Fecha', 'TotalCosto', 'IdProveedor', 'IdSucursa
 
 const buildCompraIncludes = () => ([
   { model: models.Proveedor, as: 'proveedor', attributes: ['Id', 'Nombre'], required: false },
-  { model: models.DetalleCompra, as: 'detalles', attributes: ['Id', 'Cantidad', 'PrecioCostoUnitario', 'IdArticulo'], required: false, include: [{ model: models.Inventario, as: 'inventario', attributes: ['Id', 'IdArticulo', 'IdSucursal', 'Stock'], required: false }] },
+  { 
+    model: models.DetalleCompra, 
+    as: 'detalles', 
+    attributes: ['Id', 'Cantidad', 'PrecioCostoUnitario', 'IdArticulo'], 
+    required: false, 
+    include: [{ 
+      model: models.Inventario, 
+      as: 'inventario', 
+      attributes: ['Id', 'IdArticulo', 'IdSucursal', 'Stock'], 
+      required: false,
+      include: [{
+        // CORRECCIÓN: Agregamos el Articulo para poder leer el nombre real
+        model: models.Articulo,
+        as: 'articulo',
+        attributes: ['Id', 'Nombre'],
+        required: false
+      }]
+    }] 
+  },
 ])
 
 const buildVentaDetalleIncludes = () => ([
@@ -67,7 +85,7 @@ export default class ComprasDashboardService {
     }
     const proveedores = Array.from(map.values()).sort((a, b) => b.totalComprado - a.totalComprado)
     if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó compras por proveedor', `from=${from.toISOString()} to=${to.toISOString()}`)
-    return { period: { from: from.toISOString(), to: to.toISOString() }, proveedores }
+    return { period: { from: from.toISOString(), to: to.toISOString(), proveedores } }
   }
 
   async getRankingProveedores(query = {}, ctx = null) {
@@ -161,7 +179,9 @@ export default class ComprasDashboardService {
     for (const compra of rows) {
       for (const detalle of compra.detalles ?? []) {
         const id = detalle.inventario?.IdArticulo ?? detalle.IdArticulo
-        if (!map.has(id)) map.set(id, { id, producto: `Producto ${id}`, total: 0 })
+        // CORRECCIÓN: Leemos el nombre real que unimos en buildCompraIncludes
+        const nombreReal = detalle.inventario?.articulo?.Nombre ?? `Producto ${id}`
+        if (!map.has(id)) map.set(id, { id, producto: nombreReal, total: 0 })
         map.get(id).total += toNumber(detalle.Cantidad) * toNumber(detalle.PrecioCostoUnitario)
       }
     }
