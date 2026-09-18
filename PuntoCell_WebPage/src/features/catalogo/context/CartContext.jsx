@@ -30,8 +30,8 @@ export const CartProvider = ({ children }) => {
   // --- FUNCIONES DEL CARRITO ---
   // El tope por stock vive acá y no en cada botón: agregan al carrito la card,
   // el detalle y el drawer, y los tres tienen que respetar el mismo límite.
-  // ponytail: el stock es el del momento en que se cargó el catálogo; la
-  // disponibilidad real se confirma por WhatsApp al cerrar la consulta.
+  // El stock es el del momento en que se cargó el catálogo; la
+  // disponibilidad real la revalida el backend al ir a pagar.
   const addToCart = (product, cantidad = 1) => {
     const tope = topeDe(product);
     const actual = items.find((item) => item.id === product.id)?.quantity ?? 0;
