@@ -64,7 +64,7 @@ export const crearPagosService = ({
     // localStorage del comprador es editable y mandaría el precio que quiera.
     // Se reusa CatalogoService para que el precio cobrado sea exactamente el
     // mismo que muestra la vitrina (misma resolución de lista minorista vigente).
-    // ponytail: trae el catálogo entero para validar N ítems. Si el catálogo
+    // Trae el catálogo entero para validar N ítems. Si el catálogo
     // crece, filtrar por ids en el propio service del catálogo.
     // Sin IdSucursal: se valida contra el inventario de todas las sedes, igual
     // que lo que ve el comprador. Filtrar por una sola hacía que un producto de
@@ -110,7 +110,7 @@ export const crearPagosService = ({
       payer: {
         email: comprador.email,
         name: comprador.nombre,
-        phone: comprador.telefono ? { number: String(comprador.telefono) } : undefined,
+        phone: comprador.celular ? { number: String(comprador.celular) } : undefined,
       },
       // MP devuelve el metadata intacto en el pago. Es la única forma de recuperar
       // lo que el comprador escribió en el checkout: cuando paga con su cuenta de
