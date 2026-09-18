@@ -1,6 +1,7 @@
 import { Op } from 'sequelize'
 import { models } from '../../models/index.js'
 import { auditar } from '../../core/utils/audit.util.js'
+import { resolveIdSucursal, resolveProductId } from '../dashboard/dashboard.utils.js'
 
 const DEFAULT_LIMIT = 20
 
@@ -193,18 +194,20 @@ export default class ReportesService {
     const { from, to } = normalizeRange(query, 30)
     const groupBy = String(query.groupBy || 'month').toLowerCase()
     const reportType = String(query.reportType || 'gasto').toLowerCase()
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
 
     const where = { Fecha: { [Op.between]: [from, to] } }
     if (query.supplierId) where.IdProveedor = Number(query.supplierId)
-    if (query.branchId) where.IdSucursalDestino = Number(query.branchId)
+    if (idSucursal !== null) where.IdSucursalDestino = idSucursal
     if (query.employeeId) where.IdEmpleado = Number(query.employeeId)
 
     let rows = plainList(await models.Compra.findAll({ where, include: includesForCompra(), order: [['Fecha', 'DESC']] }))
 
-    if (query.productId || query.categoryId) {
+    if (productId !== null || query.categoryId) {
       rows = rows.filter((compra) => (compra.detalles ?? []).some((detalle) => {
         const meta = getProductoMeta(detalle.inventario)
-        if (query.productId && Number(meta.id) !== Number(query.productId)) return false
+        if (productId !== null && Number(meta.id) !== Number(productId)) return false
         if (query.categoryId && Number(meta.idCategoria) !== Number(query.categoryId)) return false
         return true
       }))
@@ -262,6 +265,8 @@ export default class ReportesService {
     const { from, to } = normalizeRange(query, 30)
     const groupBy = String(query.groupBy || 'month').toLowerCase()
     const reportType = String(query.reportType || 'facturacion').toLowerCase()
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
 
     const where = { Fecha: { [Op.between]: [from, to] } }
     if (query.employeeId) where.IdEmpleado = Number(query.employeeId)
@@ -269,18 +274,17 @@ export default class ReportesService {
 
     let rows = plainList(await models.Venta.findAll({ where, include: includesForVenta(), order: [['Fecha', 'DESC']] }))
 
-    if (query.branchId) {
-      const branchId = Number(query.branchId)
-      rows = rows.filter((venta) => Number(venta.turnoCaja?.IdSucursal) === branchId)
+    if (idSucursal !== null) {
+      rows = rows.filter((venta) => Number(venta.turnoCaja?.IdSucursal) === idSucursal)
     }
     if (query.paymentMethodId) {
       const paymentMethodId = Number(query.paymentMethodId)
       rows = rows.filter((venta) => (venta.pagos ?? []).some((pago) => Number(pago.IdMetodoPago) === paymentMethodId))
     }
-    if (query.productId || query.categoryId) {
+    if (productId !== null || query.categoryId) {
       rows = rows.filter((venta) => (venta.detalles ?? []).some((detalle) => {
         const meta = getProductoMeta(detalle.inventario)
-        if (query.productId && Number(meta.id) !== Number(query.productId)) return false
+        if (productId !== null && Number(meta.id) !== Number(productId)) return false
         if (query.categoryId && Number(meta.idCategoria) !== Number(query.categoryId)) return false
         return true
       }))
@@ -364,20 +368,21 @@ export default class ReportesService {
     const { from, to } = normalizeRange(query, 30)
     const groupBy = String(query.groupBy || 'month').toLowerCase()
     const reportType = String(query.reportType || 'movimientos').toLowerCase()
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
 
     const where = { Fecha: { [Op.between]: [from, to] } }
     if (query.employeeId) where.IdEmpleado = Number(query.employeeId)
 
     let rows = plainList(await models.MovimientoStock.findAll({ where, include: includesForMovimiento(), order: [['Fecha', 'DESC']] }))
 
-    if (query.branchId) {
-      const branchId = Number(query.branchId)
-      rows = rows.filter((movimiento) => Number(movimiento.inventario?.IdSucursal) === branchId)
+    if (idSucursal !== null) {
+      rows = rows.filter((movimiento) => Number(movimiento.inventario?.IdSucursal) === idSucursal)
     }
-    if (query.productId || query.categoryId) {
+    if (productId !== null || query.categoryId) {
       rows = rows.filter((movimiento) => {
         const meta = getProductoMeta(movimiento.inventario)
-        if (query.productId && Number(meta.id) !== Number(query.productId)) return false
+        if (productId !== null && Number(meta.id) !== Number(productId)) return false
         if (query.categoryId && Number(meta.idCategoria) !== Number(query.categoryId)) return false
         return true
       })
@@ -417,8 +422,8 @@ export default class ReportesService {
         }))
         const stockLimit = Number(query.stockMax ?? query.limitStock ?? 20)
         resultRows = inventoryRows.filter((inventario) => {
-          if (query.branchId && Number(inventario.IdSucursal) !== Number(query.branchId)) return false
-          if (query.productId && Number(inventario.IdArticulo) !== Number(query.productId)) return false
+          if (idSucursal !== null && Number(inventario.IdSucursal) !== idSucursal) return false
+          if (productId !== null && Number(inventario.IdArticulo) !== Number(productId)) return false
           if (query.categoryId) {
             const categoryId = inventario.articulo?.modelo?.IdCategoriaArticulo ?? inventario.articulo?.modelo?.IdCategoriaProducto
             if (Number(categoryId) !== Number(query.categoryId)) return false
@@ -470,8 +475,8 @@ export default class ReportesService {
           ]
         }))
         resultRows = inventoryRows.filter((inventario) => {
-          if (query.branchId && Number(inventario.IdSucursal) !== Number(query.branchId)) return false
-          if (query.productId && Number(inventario.IdArticulo) !== Number(query.productId)) return false
+          if (idSucursal !== null && Number(inventario.IdSucursal) !== idSucursal) return false
+          if (productId !== null && Number(inventario.IdArticulo) !== Number(productId)) return false
           if (query.categoryId) {
             const categoryId = inventario.articulo?.modelo?.IdCategoriaArticulo ?? inventario.articulo?.modelo?.IdCategoriaProducto
             if (Number(categoryId) !== Number(query.categoryId)) return false
@@ -504,12 +509,17 @@ export default class ReportesService {
     const { from, to } = normalizeRange(query, 30)
     const groupBy = String(query.groupBy || 'month').toLowerCase()
     const reportType = String(query.reportType || 'productividad').toLowerCase()
+    const idSucursal = resolveIdSucursal(query)
 
     const where = { FechaEmision: { [Op.between]: [from, to] } }
     if (query.technicianId) where.IdEmpleado = Number(query.technicianId)
     if (query.statusId) where.IdEstadoOrden = Number(query.statusId)
 
     let rows = plainList(await models.OrdenReparacion.findAll({ where, include: includesForReparacion(), order: [['FechaEmision', 'DESC']] }))
+
+    if (idSucursal !== null) {
+      rows = rows.filter((reparacion) => Number(reparacion.empleado?.IdSucursal) === idSucursal)
+    }
 
     if (query.deviceTypeId || query.brandId || query.failureId) {
       rows = rows.filter((reparacion) => {

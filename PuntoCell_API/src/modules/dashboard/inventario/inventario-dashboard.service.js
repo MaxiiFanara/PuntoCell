@@ -1,7 +1,7 @@
 import { Op } from 'sequelize'
 import { auditar } from '../../../core/utils/audit.util.js'
 import { models } from '../../../models/index.js'
-import { includesForProducto, normalizeRange, plainList, toNumber } from '../dashboard.utils.js'
+import { includesForProducto, normalizeRange, plainList, resolveIdSucursal, toNumber } from '../dashboard.utils.js'
 
 const rangeToWhere = (field, from, to) => ({ [field]: { [Op.between]: [from, to] } })
 
@@ -15,6 +15,7 @@ export default class InventarioDashboardService {
   async getProductosBajaRotacion(query = {}, ctx = null) {
     const days = Number(query.days) || 90
     const { from, to } = this._resolveRange(query, days)
+    const idSucursal = resolveIdSucursal(query)
     const inventarios = plainList(await models.Inventario.findAll({
       include: [
         { model: models.Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'], required: false },
@@ -25,7 +26,7 @@ export default class InventarioDashboardService {
 
     const movimientos = plainList(await models.DetalleVenta.findAll({
       attributes: ['Id', 'IdArticulo', 'Cantidad'],
-      include: [{ model: models.Venta, as: 'venta', attributes: ['Id', 'Fecha'], required: true }],
+      include: [{ model: models.Venta, as: 'venta', attributes: ['Id', 'Fecha', 'IdTurnoCaja'], required: true, ...(idSucursal !== null ? { include: [{ model: models.TurnoCaja, as: 'turnoCaja', attributes: ['Id', 'IdSucursal'], required: true, where: { IdSucursal: idSucursal } }] } : {}) }],
       order: [['Id', 'ASC']],
       limit: 5000
     }))
@@ -36,6 +37,7 @@ export default class InventarioDashboardService {
       if (!fecha) continue
       const saleDate = new Date(fecha)
       if (saleDate < from || saleDate > to) continue
+      if (idSucursal !== null && Number(detalle.venta?.turnoCaja?.IdSucursal) !== idSucursal) continue
       const key = detalle.IdArticulo ?? null
       if (key === null) continue
       soldByInventory.set(key, (soldByInventory.get(key) || 0) + toNumber(detalle.Cantidad))

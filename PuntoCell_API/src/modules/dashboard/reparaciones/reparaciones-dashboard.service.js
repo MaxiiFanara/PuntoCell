@@ -1,13 +1,13 @@
 import { Op } from 'sequelize'
 import { auditar } from '../../../core/utils/audit.util.js'
 import { models } from '../../../models/index.js'
-import { normalizeRange, periodKey, plainList, sortDesc, toNumber } from '../dashboard.utils.js'
+import { normalizeRange, periodKey, plainList, resolveIdSucursal, sortDesc, toNumber } from '../dashboard.utils.js'
 
 const VALID_GRAN = ['day', 'week', 'month', 'year']
 const rangeToWhere = (field, from, to) => ({ [field]: { [Op.between]: [from, to] } })
 
-const buildRepairIncludes = () => ([
-  { model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido'], required: false },
+const buildRepairIncludes = (idSucursal = null) => ([
+  { model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido', 'IdSucursal'], required: idSucursal !== null, ...(idSucursal !== null ? { where: { IdSucursal: idSucursal } } : {}), include: [{ model: models.Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'], required: false }] },
   { model: models.DispositivoCliente, as: 'dispositivo', attributes: ['Id', 'IdModeloArticulo', 'IdCliente'], required: false, include: [{ model: models.ModeloArticulo, as: 'modelo', attributes: ['Id', 'Nombre', 'IdMarcaArticulo', 'IdCategoriaArticulo'], required: false, include: [{ model: models.MarcaArticulo, as: 'marca', attributes: ['Id', 'Nombre'], required: false }, { model: models.CategoriaArticulo, as: 'categoria', attributes: ['Id', 'Nombre'], required: false }] }] },
   { model: models.Falla, as: 'fallas', through: { attributes: [] }, attributes: ['Id', 'Nombre'], required: false },
   { model: models.RepuestoOrden, as: 'repuestos', attributes: ['Id', 'Cantidad', 'IdInventario'], required: false, include: [{ model: models.Inventario, as: 'inventario', attributes: ['Id', 'IdArticulo', 'Stock'], required: false, include: [{ model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre'], required: false }] }] },
@@ -21,7 +21,8 @@ export default class ReparacionesDashboardService {
   async getReparacionesEvolucion(query = {}, ctx = null) {
     const gran = VALID_GRAN.includes(String(query.granularity || '').toLowerCase()) ? String(query.granularity).toLowerCase() : 'day'
     const { from, to } = this._resolveRange(query, 29)
-    const rows = plainList(await models.OrdenReparacion.findAll({ where: rangeToWhere('FechaEmision', from, to), attributes: ['Id', 'FechaEmision'], order: [['FechaEmision', 'ASC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const rows = plainList(await models.OrdenReparacion.findAll({ where: rangeToWhere('FechaEmision', from, to), attributes: ['Id', 'FechaEmision'], include: idSucursal === null ? [] : [{ model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido', 'IdSucursal'], required: true, where: { IdSucursal: idSucursal } }], order: [['FechaEmision', 'ASC']], limit: 1000 }))
     const map = new Map()
     for (const reparacion of rows) {
       const key = periodKey(reparacion.FechaEmision, gran)
@@ -35,7 +36,8 @@ export default class ReparacionesDashboardService {
 
   async getReparacionesPorTipo(query = {}, ctx = null) {
     const { from, to } = this._resolveRange(query, 29)
-    const rows = plainList(await models.OrdenReparacion.findAll({ where: rangeToWhere('FechaEmision', from, to), include: buildRepairIncludes(), order: [['FechaEmision', 'ASC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const rows = plainList(await models.OrdenReparacion.findAll({ where: rangeToWhere('FechaEmision', from, to), include: buildRepairIncludes(idSucursal), order: [['FechaEmision', 'ASC']], limit: 1000 }))
     const map = new Map()
     for (const reparacion of rows) {
       const categoria = reparacion.dispositivo?.modelo?.categoria?.Nombre ?? 'Categoría'
@@ -49,7 +51,8 @@ export default class ReparacionesDashboardService {
 
   async getReparacionesPorMarca(query = {}, ctx = null) {
     const { from, to } = this._resolveRange(query, 29)
-    const rows = plainList(await models.OrdenReparacion.findAll({ where: rangeToWhere('FechaEmision', from, to), include: buildRepairIncludes(), order: [['FechaEmision', 'ASC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const rows = plainList(await models.OrdenReparacion.findAll({ where: rangeToWhere('FechaEmision', from, to), include: buildRepairIncludes(idSucursal), order: [['FechaEmision', 'ASC']], limit: 1000 }))
     const map = new Map()
     for (const reparacion of rows) {
       const marca = reparacion.dispositivo?.modelo?.marca?.Nombre ?? 'Marca'
@@ -64,7 +67,8 @@ export default class ReparacionesDashboardService {
   async getRepuestosUsados(query = {}, ctx = null) {
     const limit = Math.max(1, Math.min(Number(query.limit) || 5, 50))
     const { from, to } = this._resolveRange(query, 29)
-    const rows = plainList(await models.RepuestoOrden.findAll({ where: { [Op.and]: [{}, { }] }, include: [{ model: models.OrdenReparacion, as: 'orden', attributes: ['Id', 'FechaEmision'], required: true }, { model: models.Inventario, as: 'inventario', attributes: ['Id', 'IdArticulo'], required: true, include: [{ model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre'], required: false }] }], order: [['Id', 'ASC']], limit: 5000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const rows = plainList(await models.RepuestoOrden.findAll({ where: { [Op.and]: [{}, { }] }, include: [{ model: models.OrdenReparacion, as: 'orden', attributes: ['Id', 'FechaEmision', 'IdEmpleado'], required: true, ...(idSucursal !== null ? { include: [{ model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido', 'IdSucursal'], required: true, where: { IdSucursal: idSucursal } }] } : {}) }, { model: models.Inventario, as: 'inventario', attributes: ['Id', 'IdArticulo'], required: true, include: [{ model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre'], required: false }] }], order: [['Id', 'ASC']], limit: 5000 }))
     const map = new Map()
     for (const repuesto of rows) {
       const fecha = repuesto.orden?.FechaEmision
@@ -83,7 +87,8 @@ export default class ReparacionesDashboardService {
 
   async getHeatmapMarcaFalla(query = {}, ctx = null) {
     const { from, to } = this._resolveRange(query, 89)
-    const rows = plainList(await models.OrdenReparacion.findAll({ where: rangeToWhere('FechaEmision', from, to), include: buildRepairIncludes(), order: [['FechaEmision', 'ASC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const rows = plainList(await models.OrdenReparacion.findAll({ where: rangeToWhere('FechaEmision', from, to), include: buildRepairIncludes(idSucursal), order: [['FechaEmision', 'ASC']], limit: 1000 }))
     const map = new Map()
     const fallasSet = new Set()
     const marcasSet = new Set()
@@ -106,7 +111,8 @@ export default class ReparacionesDashboardService {
 
   async getParetoFallas(query = {}, ctx = null) {
     const { from, to } = this._resolveRange(query, 89)
-    const rows = plainList(await models.OrdenReparacion.findAll({ where: rangeToWhere('FechaEmision', from, to), include: buildRepairIncludes(), order: [['FechaEmision', 'ASC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const rows = plainList(await models.OrdenReparacion.findAll({ where: rangeToWhere('FechaEmision', from, to), include: buildRepairIncludes(idSucursal), order: [['FechaEmision', 'ASC']], limit: 1000 }))
     const map = new Map()
     for (const reparacion of rows) {
       for (const falla of reparacion.fallas ?? []) {
@@ -129,7 +135,8 @@ export default class ReparacionesDashboardService {
 
   async getTiemposReparacion(query = {}, ctx = null) {
     const { from, to } = this._resolveRange(query, 90)
-    const rows = plainList(await models.OrdenReparacion.findAll({ where: { FechaEntrega: { [Op.ne]: null }, FechaEmision: { [Op.between]: [from, to] } }, attributes: ['Id', 'FechaEmision', 'FechaEntrega'], order: [['FechaEmision', 'ASC']], limit: 5000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const rows = plainList(await models.OrdenReparacion.findAll({ where: { FechaEntrega: { [Op.ne]: null }, FechaEmision: { [Op.between]: [from, to] } }, attributes: ['Id', 'FechaEmision', 'FechaEntrega'], include: idSucursal === null ? [] : [{ model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido', 'IdSucursal'], required: true, where: { IdSucursal: idSucursal } }], order: [['FechaEmision', 'ASC']], limit: 5000 }))
     const diffs = rows.map((row) => Math.max(0, Math.floor((new Date(row.FechaEntrega) - new Date(row.FechaEmision)) / 86400000)))
     const mean = diffs.reduce((s, x) => s + x, 0) / Math.max(1, diffs.length)
     const buckets = [
@@ -156,7 +163,8 @@ export default class ReparacionesDashboardService {
 
   async getRentabilidadPorFalla(query = {}, ctx = null) {
     const { from, to } = this._resolveRange(query, 180)
-    const rows = plainList(await models.OrdenReparacion.findAll({ where: rangeToWhere('FechaEmision', from, to), include: buildRepairIncludes(), order: [['FechaEmision', 'ASC']], limit: 5000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const rows = plainList(await models.OrdenReparacion.findAll({ where: rangeToWhere('FechaEmision', from, to), include: buildRepairIncludes(idSucursal), order: [['FechaEmision', 'ASC']], limit: 5000 }))
     const map = new Map()
     for (const reparacion of rows) {
       for (const falla of reparacion.fallas ?? []) {
