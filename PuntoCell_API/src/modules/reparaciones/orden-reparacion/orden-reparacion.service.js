@@ -9,7 +9,8 @@ export default class OrdenReparacionService {
     ordenFallaDAO,
     seguimientoOrdenDAO,
     notificacionService,
-    bitacoraService = null
+    bitacoraService = null,
+    cajaService = null
   ) {
     this.usuarioDAO = usuarioDAO;
     this.dispositivoClienteDAO = dispositivoClienteDAO;
@@ -18,6 +19,7 @@ export default class OrdenReparacionService {
     this.seguimientoOrdenDAO = seguimientoOrdenDAO;
     this.notificacionService = notificacionService;
     this.bitacoraService = bitacoraService;
+    this.cajaService = cajaService;
   }
 
   async create(datosPaquete, idEmpleadoSesion, ctx = null) {
@@ -78,7 +80,7 @@ if (!idClienteAsignado) {
 
       // Seña
       if (sena && sena.Monto > 0) {
-        await sequelize.models.PagoReparacion.create({
+        const pagoSena = await sequelize.models.PagoReparacion.create({
           Monto: sena.Monto,
           FechaPago: sequelize.fn('SYSDATETIME'),
           Observacion: 'Seña inicial de reparación',
@@ -86,6 +88,16 @@ if (!idClienteAsignado) {
           IdMetodoPago: sena.IdMetodoPago,
           IdTurnoCaja: sena.IdTurnoCaja
         }, { transaction: t });
+
+        if (this.cajaService) {
+          await this.cajaService.registrarIngreso({
+            IdTurnoCaja: sena.IdTurnoCaja,
+            IdEmpleado: idEmpleadoSesion,
+            Monto: sena.Monto,
+            Descripcion: `Seña de reparación Id=${nuevaOrden.Id}`,
+            Fecha: new Date()
+          }, { transaction: t });
+        }
       }
 
       // Bitácora inicial
@@ -212,7 +224,7 @@ if (!idClienteAsignado) {
             err.statusCode = 400;
             throw err;
           }
-          await sequelize.models.PagoReparacion.create({
+          const pagoFinalCreado = await sequelize.models.PagoReparacion.create({
             Monto: saldo,
             FechaPago: sequelize.fn('SYSDATETIME'),
             Observacion: 'Saldo final al entregar',
@@ -220,6 +232,16 @@ if (!idClienteAsignado) {
             IdMetodoPago: pagoFinal.IdMetodoPago,
             IdTurnoCaja: pagoFinal.IdTurnoCaja
           }, { transaction: t });
+
+          if (this.cajaService) {
+            await this.cajaService.registrarIngreso({
+              IdTurnoCaja: pagoFinal.IdTurnoCaja,
+              IdEmpleado: idEmpleadoSesion,
+              Monto: saldo,
+              Descripcion: `Pago final de reparación Id=${idOrden}`,
+              Fecha: new Date()
+            }, { transaction: t });
+          }
         }
 
         await orden.update({

@@ -10,11 +10,12 @@ const bizError = (message, statusCode = 400) => {
 };
 
 export default class CompraService {
-  constructor(compraDAO, detalleCompraDAO, cuentaCorrienteProveedorService, bitacoraService = null) {
+  constructor(compraDAO, detalleCompraDAO, cuentaCorrienteProveedorService, bitacoraService = null, cajaService = null) {
     this.compraDAO = compraDAO;
     this.detalleCompraDAO = detalleCompraDAO;
     this.cuentaCorrienteProveedorService = cuentaCorrienteProveedorService;
     this.bitacoraService = bitacoraService;
+    this.cajaService = cajaService;
   }
 
   async getAll(query = {}) {
@@ -271,6 +272,16 @@ export default class CompraService {
           { IdProveedor: data.IdProveedor, IdCompra: compra.Id, IdPagoCompra: pagoCompra.Id, Monto: round2(pago.Monto) },
           { transaction: t }
         );
+
+        if (this.cajaService) {
+          await this.cajaService.registrarEgreso({
+            IdTurnoCaja: data.IdTurnoCaja,
+            IdEmpleado: data.IdEmpleado,
+            Monto: pagoCompra.Monto,
+            Descripcion: `Pago de compra Id=${compra.Id}`,
+            Fecha: pagoCompra.FechaPago
+          }, { transaction: t });
+        }
       }
 
       await t.commit();

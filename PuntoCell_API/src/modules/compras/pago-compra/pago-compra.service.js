@@ -9,10 +9,11 @@ const bizError = (message, statusCode = 400) => {
 };
 
 export default class PagoCompraService {
-  constructor(pagoCompraDAO, cuentaCorrienteProveedorService, bitacoraService = null) {
+  constructor(pagoCompraDAO, cuentaCorrienteProveedorService, bitacoraService = null, cajaService = null) {
     this.pagoCompraDAO = pagoCompraDAO;
     this.cuentaCorrienteProveedorService = cuentaCorrienteProveedorService;
     this.bitacoraService = bitacoraService;
+    this.cajaService = cajaService;
   }
 
   async getAll(query = {}) {
@@ -64,6 +65,16 @@ export default class PagoCompraService {
         { IdProveedor: compra.IdProveedor, IdCompra: compra.Id, IdPagoCompra: pago.Id, Monto: monto },
         { transaction: t }
       );
+
+      if (this.cajaService) {
+        await this.cajaService.registrarEgreso({
+          IdTurnoCaja: data.IdTurnoCaja,
+          IdEmpleado: ctx?.IdEmpleado || compra.IdEmpleado,
+          Monto: monto,
+          Descripcion: `Pago de compra Id=${data.IdCompra}`,
+          Fecha: pago.FechaPago
+        }, { transaction: t });
+      }
 
       const nuevoSaldo = round2(saldoActual - monto);
       const nuevoEstado = nuevoSaldo === 0 ? 3 : 2;

@@ -4,10 +4,11 @@ import { registerAudit, auditar } from '../../../core/utils/audit.util.js';
 const round2 = (v) => Number(Number(v || 0).toFixed(2));
 
 export default class VentaService {
-  constructor(ventaDAO, detalleDAO, bitacoraService = null) {
+  constructor(ventaDAO, detalleDAO, bitacoraService = null, cajaService = null) {
     this.ventaDAO = ventaDAO;
     this.detalleDAO = detalleDAO;
     this.bitacoraService = bitacoraService;
+    this.cajaService = cajaService;
     this.ATTRIBUTES = {};
   }
 
@@ -118,7 +119,7 @@ export default class VentaService {
       // Pagos asociados
       if (pagos.length > 0 && sequelize.models.PagoVenta) {
         for (const p of pagos) {
-          await sequelize.models.PagoVenta.create({
+          const pagoVenta = await sequelize.models.PagoVenta.create({
             IdVenta: ventaId,
             IdMetodoPago: p.IdMetodoPago,
             Monto: p.Monto,
@@ -126,6 +127,16 @@ export default class VentaService {
             FechaPago: p.FechaPago ? new Date(p.FechaPago) : new Date(),
             IdTurnoCaja: p.IdTurnoCaja || ventaData.IdTurnoCaja
           }, { transaction: t });
+
+          if (this.cajaService) {
+            await this.cajaService.registrarIngreso({
+              IdTurnoCaja: pagoVenta.IdTurnoCaja,
+              IdEmpleado: ventaData.IdEmpleado,
+              Monto: pagoVenta.Monto,
+              Descripcion: `Cobro de venta Id=${ventaId}`,
+              Fecha: pagoVenta.FechaPago
+            }, { transaction: t });
+          }
         }
       }
 

@@ -257,3 +257,15 @@ export const getRepuestosUsados = async (limit) => { const qs = limit !== undefi
 export const getFallasRepetidas = async (limit) => { const qs = limit !== undefined ? `?limit=${limit}` : ''; const res = await fetchApi(`/estadisticas/falla-mas-repetida${qs}`); return res?.data ?? [] }
 export const getFinanzasResumen = async () => { const res = await fetchApi('/estadisticas/finanzas'); return res?.data ?? null }
 export const getDashboardMetricas = async () => { const res = await fetchApi('/estadisticas/dashboard'); return res?.data ?? null }
+
+export const getCajaMovimientos = async (params = {}) => {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')).toString()
+  const res = await fetchApi(`/caja/movimientos${qs ? `?${qs}` : ''}`)
+  return res?.data ?? null
+}
+
+export const getCajaResumen = async (params = {}) => {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')).toString()
+  const res = await fetchApi(`/caja/resumen${qs ? `?${qs}` : ''}`)
+  return res?.data ?? null
+}
