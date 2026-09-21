@@ -31,6 +31,7 @@ import ComprasList from './features/compras/views/ComprasList';
 import PreciosScreen from './features/precios/precios';
 import { VentaProvider } from './features/punto-venta/context/VentaContext';
 import ThemeToggle from './components/ui/ThemeToggle';
+import CajaList from './features/caja/views/CajaList';
 
 // --- IMPORTACIONES DE DASHBOARDS
 import DashboardVentas from './features/dashboards/views/DashboardVentas';
@@ -39,6 +40,7 @@ import DashboardInventario from './features/dashboards/views/DashboardInventario
 import DashboardReparaciones from './features/dashboards/views/DashboardReparaciones';
 import DashboardControl from './features/dashboards/views/DashboardControl';
 import DashboardFinanciero from './features/dashboards/views/DashboardFinanciero';
+import DashboardCaja from './features/dashboards/views/DashboardCaja';
 
 // --- WRAPPERS DE SEGURIDAD ---
 const ProtectedRoute = ({ children }) => {
@@ -108,6 +110,7 @@ const App = () => (
           <Route path="reparaciones" element={<AdminRoute><DashboardReparaciones /></AdminRoute>} />
           <Route path="control" element={<AdminRoute><DashboardControl /></AdminRoute>} />
           <Route path="financiero" element={<AdminRoute><DashboardFinanciero /></AdminRoute>} />
+          <Route path="caja" element={<AdminRoute><DashboardCaja /></AdminRoute>} />
         </Route>
 
         {/* -------- VENTAS Y POS -------- */}
@@ -121,6 +124,9 @@ const App = () => (
 
         {/* -------- COMPRAS / ABASTECIMIENTO -------- */}
         <Route path="compras" element={<AdminRoute><ComprasList /></AdminRoute>} />
+
+        {/* -------- CAJA -------- */}
+        <Route path="caja" element={<AdminRoute><CajaList /></AdminRoute>} />
 
         {/* -------- PRECIOS -------- */}
         <Route path="precios" element={<AdminRoute><PreciosScreen /></AdminRoute>} />

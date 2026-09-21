@@ -42,7 +42,7 @@ export default function DashboardFinanciero() {
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, width: '100%', pb: 10 }}>
-      <PageHeader eyebrow="Dashboard" title="Módulo Financiero / Caja" meta="Flujo de caja, ingresos, egresos y análisis de márgenes." />
+      <PageHeader eyebrow="Dashboard" title="Módulo Financiero" meta="Flujo de caja, ingresos, egresos y análisis de márgenes." />
       <DashboardRangeFilter 
         range={range} seeAll={seeAll} onChangeFrom={updateFrom} onChangeTo={updateTo} onToggleSeeAll={toggleSeeAll} 
         sucursales={sucursalesLista} branchId={branchId} onChangeBranch={setBranchId}
@@ -74,11 +74,11 @@ export default function DashboardFinanciero() {
 
           <DashboardCard title="Margen por Categoría (Apilado)">
             <BarChart
-              xAxis={[{ scaleType: 'band', data: margenCategoria.map(c => c.categoria), label: 'Categorías' , width: 'auto', tickLabelStyle: { fontSize: 11 }}]}
+              xAxis={[{ scaleType: 'band', data: margenCategoria.map(c => c.categoria), label: 'Categorías' , width: 'auto', tickLabelStyle: { fontSize: 11 },colorMap: {type: 'ordinal',colors: ['#12684e', '#dfa758', '#a93b32', '#4cbf93', '#a39d93', '#c08d42']}}]}
               yAxis={[{ label: 'Monto ($)', width: 'auto', tickLabelStyle: { fontSize: 11 } }]}
               series={[
                 { data: margenCategoria.map(c => c.costo), label: 'Costo', color: '#a39d93', stack: 'total' },
-                { data: margenCategoria.map(c => c.margenNeto), label: 'Margen Neto', color: '#12684e', stack: 'total' }
+                { data: margenCategoria.map(c => c.margenNeto), label: 'Margen Neto', stack: 'total' }
               ]}
               margin={{ top: 20, bottom: 50, left: 20, right: 20 }}
             />
@@ -102,9 +102,9 @@ export default function DashboardFinanciero() {
           <DashboardCard title="Ranking de Rentabilidad por Marca (U$S)">
             <BarChart
               layout="horizontal"
-              yAxis={[{ scaleType: 'band', data: rentabilidadMarca.map(m => m.marca), label: 'Marcas', width: 'auto', tickLabelStyle: { fontSize: 11 } }]}
+              yAxis={[{ scaleType: 'band', data: rentabilidadMarca.map(m => m.marca), label: 'Marcas', width: 'auto', tickLabelStyle: { fontSize: 11 },colorMap: {type: 'ordinal',colors: ['#12684e', '#dfa758', '#a93b32', '#4cbf93', '#a39d93', '#c08d42']} }]}
               xAxis={[{ label: 'Rentabilidad ($)', width: 'auto', tickLabelStyle: { fontSize: 11 } }]}
-              series={[{ data: rentabilidadMarca.map(m => m.rentabilidad), color: '#12684e' }]}
+              series={[{ data: rentabilidadMarca.map(m => m.rentabilidad) }]}
               margin={{ top: 10, bottom: 20, left: 20, right: 20 }}
             />
           </DashboardCard>

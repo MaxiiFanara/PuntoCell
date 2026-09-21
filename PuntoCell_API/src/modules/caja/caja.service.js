@@ -62,7 +62,8 @@ export default class CajaService {
     Monto,
     TipoMovimiento,
     Descripcion,
-    Fecha
+    Fecha,
+    IdMetodoPago
   }, options = {}) {
     const transaction = options.transaction || null;
     const monto = round2(Monto);
@@ -84,6 +85,7 @@ export default class CajaService {
       Monto: monto,
       TipoMovimiento: !!TipoMovimiento,
       Descripcion,
+      IdMetodoPago: IdMetodoPago || 1,
       IdTurnoCaja,
       IdEmpleado
     }, { transaction });
@@ -215,5 +217,60 @@ export default class CajaService {
       series,
       turnoCaja
     };
+  }
+
+  async getTurnoActual(ctx) {
+    const { TurnoCaja } = this._getModels();
+    const idSucursal = ctx?.IdSucursal;
+    if (!idSucursal) throw bizError('Sucursal no identificada en el contexto.');
+
+    const turno = await TurnoCaja.findOne({
+      where: { IdSucursal: idSucursal, FechaCierre: null },
+      order: [['Id', 'DESC']]
+    });
+    return turno;
+  }
+
+  async abrirTurno(data, ctx) {
+    const { TurnoCaja } = this._getModels();
+    const idSucursal = ctx?.IdSucursal;
+    const idEmpleado = ctx?.IdEmpleado;
+    const montoInicial = round2(data.MontoInicial);
+
+    if (!idSucursal) throw bizError('Sucursal no identificada.');
+    
+    // Verificar que no haya ya un turno abierto
+    const turnoAbierto = await this.getTurnoActual(ctx);
+    if (turnoAbierto) throw bizError('Ya existe un turno abierto en esta sucursal.');
+
+    const nuevoTurno = await TurnoCaja.create({
+      FechaApertura: new Date(),
+      FechaCierre: null,
+      MontoInicial: montoInicial,
+      TotalIngresos: 0,
+      TotalEgresos: 0,
+      MontoCierreFisico: 0,
+      Observaciones: '',
+      IdSucursal: idSucursal,
+      IdEmpleadoApertura: idEmpleado,
+      IdEmpleadoCierre: idEmpleado // Por defecto el mismo, se pisa al cerrar
+    });
+    return nuevoTurno;
+  }
+
+  async cerrarTurno(data, ctx) {
+    const { TurnoCaja } = this._getModels();
+    const montoCierreFisico = round2(data.MontoCierreFisico);
+    
+    const turno = await this.getTurnoActual(ctx);
+    if (!turno) throw bizError('No hay ningún turno abierto para cerrar.');
+
+    await turno.update({
+      FechaCierre: new Date(),
+      MontoCierreFisico: montoCierreFisico,
+      Observaciones: data.Observaciones || '',
+      IdEmpleadoCierre: ctx?.IdEmpleado
+    });
+    return turno;
   }
 }

@@ -157,10 +157,10 @@ export default function DashboardCompras() {
           <DashboardCard title="Volumen por Proveedor">
             <BarChart
               layout="horizontal"
-              yAxis={[{ scaleType: 'band', data: proveedores.map(p => p.nombre), label: 'Proveedores', width: 'auto', tickLabelStyle: { fontSize: 11 } }]}
+              yAxis={[{ scaleType: 'band', data: proveedores.map(p => p.nombre), label: 'Proveedores', width: 'auto', tickLabelStyle: { fontSize: 11 }, colorMap: {type: 'ordinal',colors: ['#12684e', '#dfa758', '#a93b32', '#4cbf93', '#a39d93', '#c08d42']} }]}
               xAxis={[{ label: 'Monto Total ($)', width: 'auto', tickLabelStyle: { fontSize: 11 } }]}
               series={[
-                { data: proveedores.map(p => p.monto), label: 'Monto', color: '#dfa758' }
+                { data: proveedores.map(p => p.monto)}
               ]}
               margin={{ top: 10, bottom: 50, left: 20, right: 20 }}
             />

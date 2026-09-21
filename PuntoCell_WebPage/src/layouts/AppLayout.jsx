@@ -36,6 +36,7 @@ const GRUPOS = [
       { name: 'Registrar una venta', path: '/app/punto-venta',      icon: Storefront },
       { name: 'Historial de Ventas', path: '/app/ventas/historial', icon: ReceiptLong },
       { name: 'Inventario',          path: '/app/inventario',       icon: Inventory2 },
+      { name: 'Caja',                 path: '/app/caja',            icon: Assessment },
     ],
   },
   {

@@ -269,3 +269,32 @@ export const getCajaResumen = async (params = {}) => {
   const res = await fetchApi(`/caja/resumen${qs ? `?${qs}` : ''}`)
   return res?.data ?? null
 }
+
+export const getTurnoActual = async () => {
+  const res = await fetchApi('/caja/turno-actual');
+  return res?.data ?? null;
+};
+
+export const abrirCaja = async (payload) => {
+  const res = await fetchApi('/caja/abrir', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return res;
+};
+
+export const cerrarCaja = async (payload) => {
+  const res = await fetchApi('/caja/cerrar', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return res;
+};
+
+export const registrarMovimientoCaja = async (payload) => {
+  const res = await fetchApi('/caja/movimientos', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return res;
+};

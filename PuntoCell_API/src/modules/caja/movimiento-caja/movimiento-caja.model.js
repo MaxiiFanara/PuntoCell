@@ -8,7 +8,13 @@ export default (sequelize) => {
     TipoMovimiento: { type: DataTypes.BOOLEAN, allowNull: false },
     Descripcion: { type: DataTypes.STRING(200), allowNull: false },
     IdTurnoCaja: { type: DataTypes.INTEGER, allowNull: false },
-    IdEmpleado: { type: DataTypes.INTEGER, allowNull: false }
+    IdEmpleado: { type: DataTypes.INTEGER, allowNull: false },
+    //IdMetodoPago: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 }
+    IdMetodoPago: { 
+      type: DataTypes.INTEGER, 
+      allowNull: false,
+      field: 'IdMetodoPago' // Fuerza a Sequelize a usar este nombre exacto en el SELECT
+    }
   }, {
     tableName: 'MovimientoCaja',
     timestamps: false

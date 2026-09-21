@@ -91,9 +91,9 @@ export default function DashboardVentas() {
           <DashboardCard title="Ventas por Categoría" height={getCategoryChartHeight(categorias.length)}>
             <BarChart
               layout="horizontal"
-              yAxis={[{ scaleType: 'band', data: categorias.map((c) => c.label), label: 'Categorías', width: 'auto', tickLabelInterval: () => true, tickLabelStyle: { fontSize: 11 } }]}
+              yAxis={[{ scaleType: 'band', data: categorias.map((c) => c.label), label: 'Categorías', width: 'auto', tickLabelInterval: () => true, tickLabelStyle: { fontSize: 11 }, colorMap: {type: 'ordinal',colors: ['#12684e', '#dfa758', '#a93b32', '#4cbf93', '#a39d93', '#c08d42']}}]}
               xAxis={[{ label: 'Ventas ($)', valueFormatter: numberFormatter, tickLabelStyle: { fontSize: 11 } }]}
-              series={[{ data: categorias.map((c) => c.value), color: '#12684e' }]}
+              series={[{ data: categorias.map((c) => c.value) }]}
               margin={{ top: 10, bottom: 40, left: 10, right: 30 }}
               sx={{ width: '100%', height: '100%' }}
             />
@@ -101,9 +101,9 @@ export default function DashboardVentas() {
           
           <DashboardCard title="Ventas por Sucursal" height={getBranchChartHeight(sucursales.length)}>
             <BarChart
-              xAxis={[{ scaleType: 'band', data: sucursales.map((s) => s.nombre), label: 'Sucursales', tickLabelInterval: () => true, height: 65, tickLabelStyle: { fontSize: 11 } }]}
+              xAxis={[{ scaleType: 'band', data: sucursales.map((s) => s.nombre), label: 'Sucursales', tickLabelInterval: () => true, height: 65, tickLabelStyle: { fontSize: 11 }, colorMap: {type: 'ordinal',colors: ['#12684e', '#dfa758', '#a93b32', '#4cbf93', '#a39d93', '#c08d42']}}]}
               yAxis={[{ label: 'Facturación ($)', width: 'auto', valueFormatter: currencyFormatter, tickLabelStyle: { fontSize: 11 } }]}
-              series={[{ data: sucursales.map((s) => s.facturacion), label: 'Facturación ($)', color: '#4cbf93' }]}
+              series={[{ data: sucursales.map((s) => s.facturacion)}]}
               margin={{ top: 20, bottom: 30, left: 10, right: 20 }}
               sx={{ width: '100%', height: '100%' }}
             />
