@@ -1,79 +1,64 @@
-import { Box, Paper, Typography } from '@mui/material';
-import SmartphoneIcon from '@mui/icons-material/Smartphone';
-import HandymanIcon from '@mui/icons-material/Handyman';
-import HeadphonesIcon from '@mui/icons-material/Headphones';
+import { Box, Typography } from '@mui/material'
+
+import { section, shell } from '../../../components/ui/publicStyles'
 
 const SERVICIOS = [
   {
     title: 'Equipos',
     description: 'Nuevos y seminuevos verificados, con garantía del local y batería declarada.',
-    icon: SmartphoneIcon,
   },
   {
     title: 'Servicio técnico',
     description: 'Reparaciones en el día. Cambio de batería, módulos y diagnóstico con repuestos de calidad.',
-    icon: HandymanIcon,
   },
   {
     title: 'Accesorios',
     description: 'Fundas, vidrios templados, cargadores originales y auriculares para cuidar tu equipo.',
-    icon: HeadphonesIcon,
   },
-];
+]
 
+/**
+ * Lo que se hace en el local.
+ *
+ * Filas editoriales anchas separadas por un filete, no tres cards iguales de
+ * ícono + título + texto: esa estructura es la que el sistema prohíbe. Sin caja
+ * y sin ícono, la separación la hacen el aire y la línea de 1px.
+ */
 export default function Services() {
   return (
-    <Box component="section" sx={{ px: 2.5, py: { xs: 8, md: 12 }, bgcolor: 'background.paper', borderTop: 1, borderColor: 'divider' }}>
-      <Box sx={{ maxWidth: 1120, mx: 'auto' }}>
+    <Box component="section" sx={section(true)}>
+      <Box sx={shell}>
+        <Typography component="h2" sx={{ typography: 'd2' }}>
+          Lo que se hace en el local
+        </Typography>
+        <Typography sx={{ typography: 'publicBody', mt: 2, maxWidth: '46ch', color: 'text.secondary' }}>
+          Calidad, confianza y atención personalizada.
+        </Typography>
 
-        <Box sx={{ textAlign: 'center', mb: { xs: 5, md: 7 } }}>
-          <Box sx={{ typography: 'eyebrow', color: 'text.disabled', mb: 1 }}>Qué hacemos</Box>
-          <Typography
-            component="h2"
-            sx={{
-              fontSize: { xs: '1.75rem', md: '2.25rem' },
-              fontWeight: 600,
-              letterSpacing: '-.03em',
-              textWrap: 'balance',
-            }}
-          >
-            Todo para tu dispositivo en un solo lugar
-          </Typography>
-          <Typography sx={{ maxWidth: 560, mx: 'auto', mt: 1.5, fontSize: '1rem', lineHeight: 1.6, color: 'text.secondary' }}>
-            Calidad, confianza y atención personalizada.
-          </Typography>
-        </Box>
-
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2 }}>
+        <Box sx={{ mt: 'clamp(2.5rem, 5vw, 4rem)', borderTop: 1, borderColor: 'divider' }}>
           {SERVICIOS.map((servicio) => (
-            <Paper
+            <Box
               key={servicio.title}
               sx={{
-                p: 3.5,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 1.5,
-                transition: 'border-color .2s',
-                '&:hover': { borderColor: 'primary.main' },
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 5fr) minmax(0, 7fr)' },
+                alignItems: { md: 'baseline' },
+                gap: { xs: 1.5, md: 6 },
+                py: 'clamp(2rem, 4vw, 3rem)',
+                borderBottom: 1,
+                borderColor: 'divider',
               }}
             >
-              <Box sx={{
-                width: 44, height: 44, borderRadius: '12px',
-                bgcolor: 'pc.accentSoft', color: 'primary.main',
-                display: 'grid', placeItems: 'center',
-              }}>
-                <servicio.icon sx={{ fontSize: 22 }} />
-              </Box>
-              <Typography component="h3" sx={{ fontWeight: 600, fontSize: '1.1rem', letterSpacing: '-.02em' }}>
+              <Typography component="h3" sx={{ typography: 'd3' }}>
                 {servicio.title}
               </Typography>
-              <Typography sx={{ fontSize: '.9rem', lineHeight: 1.6, color: 'text.secondary' }}>
+              <Typography sx={{ typography: 'publicBody', maxWidth: '58ch', color: 'text.secondary' }}>
                 {servicio.description}
               </Typography>
-            </Paper>
+            </Box>
           ))}
         </Box>
       </Box>
     </Box>
-  );
+  )
 }

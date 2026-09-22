@@ -40,5 +40,17 @@ export const env = {
   SMTP: {
     USER: process.env.EMAIL_USER,
     PASS: process.env.SMTP_PASS,
-    PORT: parseInt(process.env.EMAIL_PORT || 587, 10),  }
+    PORT: parseInt(process.env.EMAIL_PORT || 587, 10),  },
+  MP: {
+    ACCESS_TOKEN: process.env.MP_ACCESS_TOKEN,
+    // Base del frontend para las back_urls a las que MP devuelve al comprador.
+    BACK_URL_BASE: process.env.MP_BACK_URL_BASE || 'http://localhost:5173',
+    // URL pública del webhook. En desarrollo queda vacía: MP no puede alcanzar
+    // localhost, y el flujo se confirma igual por la back_url.
+    WEBHOOK_URL: process.env.MP_WEBHOOK_URL || '',
+    // Identidad de las ventas online (ver scripts/seed-tienda-online.sql).
+    ID_EMPLEADO: Number(process.env.MP_ID_EMPLEADO) || null,
+    ID_TURNO_CAJA: Number(process.env.MP_ID_TURNO_CAJA) || null,
+    ID_METODO_PAGO: Number(process.env.MP_ID_METODO_PAGO) || null,
+  }
 };

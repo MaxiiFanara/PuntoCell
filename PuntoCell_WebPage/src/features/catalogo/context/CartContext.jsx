@@ -23,20 +23,47 @@ export const CartProvider = ({ children }) => {
     localStorage.setItem('puntoCell_cart', JSON.stringify(items));
   }, [items]);
 
+  // Stock disponible del producto. Si el backend no lo manda, no se topea.
+  const topeDe = (producto) =>
+    Number.isFinite(Number(producto?.stock)) ? Number(producto.stock) : Infinity;
+
   // --- FUNCIONES DEL CARRITO ---
-  const addToCart = (product) => {
-    setItems((prev) => {
-      const existing = prev.find((item) => item.id === product.id);
-      if (existing) {
-        // Si ya está, sumamos 1 a la cantidad
-        return prev.map((item) => 
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        );
-      }
-      // Si no está, lo agregamos con cantidad 1
-      return [...prev, { ...product, quantity: 1 }];
+  // El tope por stock vive acá y no en cada botón: agregan al carrito la card,
+  // el detalle y el drawer, y los tres tienen que respetar el mismo límite.
+  // El stock es el del momento en que se cargó el catálogo; la
+  // disponibilidad real la revalida el backend al ir a pagar.
+  const addToCart = (product, cantidad = 1) => {
+    const tope = topeDe(product);
+    const actual = items.find((item) => item.id === product.id)?.quantity ?? 0;
+    const objetivo = Math.min(actual + cantidad, tope);
+
+    if (objetivo <= actual) {
+      setSnackbar({
+        open: true,
+        severity: 'info',
+        message: tope === 0
+          ? 'Este producto no tiene stock disponible'
+          : tope === 1
+            ? 'Ya tenés en el carrito la única unidad disponible'
+            : `Ya tenés en el carrito las ${tope} unidades disponibles`,
+      });
+      return;
+    }
+
+    setItems((prev) =>
+      prev.some((item) => item.id === product.id)
+        ? prev.map((item) => (item.id === product.id ? { ...item, quantity: objetivo } : item))
+        : [...prev, { ...product, quantity: objetivo }]
+    );
+
+    const agregadas = objetivo - actual;
+    setSnackbar({
+      open: true,
+      severity: agregadas < cantidad ? 'info' : 'success',
+      message: agregadas < cantidad
+        ? `Agregamos ${agregadas} ${agregadas === 1 ? 'unidad' : 'unidades'}: es todo el stock disponible`
+        : 'Producto agregado al carrito',
     });
-    setSnackbar({ open: true, message: 'Producto agregado al carrito' });
   };
 
   const removeFromCart = (id) => {
@@ -44,9 +71,12 @@ export const CartProvider = ({ children }) => {
   };
 
   const updateQuantity = (id, quantity) => {
-    if (quantity < 1) return;
-    setItems((prev) => 
-      prev.map((item) => (item.id === id ? { ...item, quantity } : item))
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, quantity: Math.min(Math.max(quantity, 1), topeDe(item)) }
+          : item
+      )
     );
   };
 

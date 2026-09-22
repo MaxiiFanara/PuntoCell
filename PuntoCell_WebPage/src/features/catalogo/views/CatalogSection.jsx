@@ -1,156 +1,240 @@
+import { useRef } from 'react'
 import {
-  Container,
-  Grid,
-  Typography,
   Box,
-  Fade,
-} from '@mui/material';
+  Button,
+  FormControlLabel,
+  IconButton,
+  InputAdornment,
+  MenuItem,
+  Switch,
+  TextField,
+  Typography,
+} from '@mui/material'
+import SearchIcon from '@mui/icons-material/Search'
+import CloseIcon from '@mui/icons-material/Close'
 
-import ProductCard from '../components/ProductCard';
-import ProductCardSkeleton from '../components/ProductCardSkeleton';
-import CategoryFilter from '../components/CategoryFilter';
+import ProductCard from '../components/ProductCard'
+import ProductCardSkeleton from '../components/ProductCardSkeleton'
+import CategoryFilter from '../components/CategoryFilter'
+import CatalogBreadcrumbs from '../components/CatalogBreadcrumbs'
 
-import { STORE_CONFIG } from '../config/store';
+import { STORE_CONFIG } from '../config/store'
+import { PUBLIC_CONTROL_H } from '../../../theme'
+import { btn, field, muted } from '../../../components/ui/publicStyles'
 
-const { catalog } = STORE_CONFIG;
-import { useTheme } from '@mui/material/styles';
+const { catalog } = STORE_CONFIG
+
+const ORDENES = [
+  { valor: 'relevancia', label: 'Relevancia' },
+  { valor: 'precio-asc', label: 'Menor precio' },
+  { valor: 'precio-desc', label: 'Mayor precio' },
+  { valor: 'nombre', label: 'Nombre (A-Z)' },
+]
+
+// Una sola definición de grilla para el listado y para los esqueletos: si no,
+// el layout salta cuando terminan de cargar los productos.
+const GRILLA = {
+  mt: 4,
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+  gap: 'clamp(1rem, 1.8vw, 1.5rem)',
+  alignItems: 'stretch',
+}
+
+// El switch encendido se llena con la tinta del texto, no con el verde: el verde
+// está reservado al precio, la acción primaria y el anillo de foco.
+const switchTinta = {
+  width: 42,
+  height: 24,
+  p: 0,
+  '& .MuiSwitch-switchBase': {
+    p: '3px',
+    color: 'background.paper',
+    '&.Mui-checked': {
+      transform: 'translateX(18px)',
+      color: 'background.paper',
+      '& + .MuiSwitch-track': { bgcolor: 'text.primary', opacity: 1 },
+    },
+  },
+  '& .MuiSwitch-thumb': { width: 18, height: 18, boxShadow: '0 1px 2px rgba(0,0,0,.2)' },
+  '& .MuiSwitch-track': { borderRadius: 99, bgcolor: 'divider', opacity: 1 },
+}
 
 export default function CatalogSection({
-  catalogRef,
   categories,
-  category,
+  filtros,
+  setSearch,
   setCategory,
+  setSoloStock,
+  setOrden,
+  limpiar,
   filtered,
+  totalCount,
   loading,
 }) {
-  const theme = useTheme();
-  
+  // El botón de limpiar la búsqueda desaparece al usarlo, y con él el foco. Se
+  // devuelve al campo para no dejar al teclado en el body.
+  const buscador = useRef(null)
+
+  const hayFiltros =
+    filtros.search !== '' || filtros.category !== 'Todos' || filtros.soloStock
+
   return (
-    <Container
-      ref={catalogRef}
-      maxWidth="lg"
-      sx={{
-        pb: 12,
-      }}
-    >
-      {/* HEADER */}
+    <>
+      <CatalogBreadcrumbs />
+
+      {/* Cabecera mínima: se entra directo al listado. El contador va a la
+          derecha, alineado por línea base con el título. */}
       <Box
         sx={{
-          mb: 5,
           display: 'flex',
+          alignItems: 'baseline',
           justifyContent: 'space-between',
-          alignItems: 'center',
+          gap: 4,
           flexWrap: 'wrap',
-          gap: 2,
         }}
       >
-        <Box>
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '2rem', md: '3rem' },
-              lineHeight: 1,
-              mb: 1,
-            }}
-          >
-            {catalog.title}
+        <Typography component="h1" variant="d2">
+          {catalog.title}
+        </Typography>
+        {!loading && (
+          <Typography className="num" sx={{ ...muted, fontSize: '.875rem', whiteSpace: 'nowrap' }}>
+            {filtered.length === totalCount
+              ? `${totalCount} productos`
+              : `${filtered.length} de ${totalCount}`}
           </Typography>
+        )}
+      </Box>
 
-          <Typography
-            variant="body1"
-            color="text.secondary"
+      {/* Los filtros no son una caja: un filete arriba, uno abajo y aire. */}
+      <Box
+        component="section"
+        aria-label="Filtros del catálogo"
+        sx={{
+          mt: 4,
+          py: 3,
+          borderTop: 1,
+          borderBottom: 1,
+          borderColor: 'divider',
+          display: 'grid',
+          gap: 2.5,
+        }}
+      >
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5 }}>
+          <TextField
+            inputRef={buscador}
+            placeholder="Buscar por nombre, modelo o categoría"
+            value={filtros.search}
+            onChange={(e) => setSearch(e.target.value)}
+            autoComplete="off"
+            sx={{
+              ...field,
+              flex: '1 1 280px',
+              maxWidth: { sm: 420 },
+              // El placeholder por defecto de MUI es la tinta al 42%: no llega a
+              // 4.5:1 y acá es la única pista de qué busca el campo.
+              '& input::placeholder': { color: 'pc.textMuted', opacity: 1 },
+            }}
+            slotProps={{
+              htmlInput: { 'aria-label': 'Buscar productos' },
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ ...muted, fontSize: 18 }} />
+                  </InputAdornment>
+                ),
+                endAdornment: filtros.search !== '' && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="Limpiar búsqueda"
+                      onClick={() => {
+                        setSearch('')
+                        buscador.current?.focus()
+                      }}
+                      sx={{
+                        ...muted,
+                        width: 30,
+                        height: 30,
+                        borderRadius: '6px',
+                        transition: 'background-color 180ms ease, color 180ms ease, transform 160ms cubic-bezier(.23,1,.32,1)',
+                        '&:active': { transform: 'scale(.94)' },
+                        '@media (hover: hover) and (pointer: fine)': {
+                          '&:hover': { bgcolor: 'pc.surfaceMuted', color: 'text.primary' },
+                        },
+                      }}
+                    >
+                      <CloseIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+
+          <TextField
+            select
+            value={filtros.orden}
+            onChange={(e) => setOrden(e.target.value)}
+            sx={{
+              ...field,
+              width: 190,
+              // El tema fija el alto del Select con `!important` para la densidad
+              // del panel; en la vitrina el control mide 48 como todos los demás.
+              '& .MuiSelect-select': {
+                minHeight: `${PUBLIC_CONTROL_H}px !important`,
+                display: 'flex',
+                alignItems: 'center',
+                fontWeight: 500,
+              },
+            }}
+            slotProps={{ select: { 'aria-label': 'Ordenar productos' } }}
           >
-            {catalog.subtitle}
-          </Typography>
+            {ORDENES.map((o) => (
+              <MenuItem key={o.valor} value={o.valor}>{o.label}</MenuItem>
+            ))}
+          </TextField>
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={filtros.soloStock}
+                onChange={(e) => setSoloStock(e.target.checked)}
+                sx={switchTinta}
+              />
+            }
+            label="Sólo con stock"
+            slotProps={{ typography: { sx: { fontSize: '.9375rem', color: 'text.secondary' } } }}
+            sx={{ height: PUBLIC_CONTROL_H, ml: 0, mr: 0, gap: 1.25 }}
+          />
         </Box>
 
-        <Typography
-          variant="body2"
-          sx={{
-            color: 'text.secondary',
-          }}
-        >
-          {filtered.length} productos
-        </Typography>
+        <CategoryFilter categories={categories} selected={filtros.category} onChange={setCategory} />
       </Box>
 
-      {/* CATEGORÍAS */}
-      <Box sx={{ mb: 5 }}>
-        <CategoryFilter
-          categories={categories}
-          selected={category}
-          onChange={setCategory}
-        />
-      </Box>
-
-      {/* LOADING */}
       {loading ? (
-        // Agregamos alignItems="stretch" aquí
-        <Grid container spacing={theme.custom.grid.spacing} alignItems="stretch">
-          {[...Array(8)].map((_, i) => (
-            <Grid
-              item
-              xs={12} // Cambiado a 12 para que ocupe todo el ancho en celulares
-              sm={6}
-              md={4}
-              lg={3}
-              key={i}
-              sx={{ display: 'flex' }} // Esto permite que el esqueleto se estire
-            >
-              <Box sx={{ width: '100%', display: 'flex' }}>
-                <ProductCardSkeleton />
-              </Box>
-            </Grid>
-          ))}
-        </Grid>
+        <Box sx={GRILLA}>
+          {[...Array(8)].map((_, i) => <ProductCardSkeleton key={i} />)}
+        </Box>
       ) : filtered.length === 0 ? (
-        <Box
-          sx={{
-            textAlign: 'center',
-            py: 12,
-            color: 'text.secondary',
-          }}
-        >
-          <Typography
-            variant="h5"
-            sx={{
-              mb: 1,
-              fontWeight: 600,
-            }}
-          >
-            No encontramos productos
+        // Sin ícono grande: el aire y la tipografía hacen el trabajo.
+        <Box sx={{ py: 'clamp(4rem, 9vw, 7rem)', textAlign: 'center' }}>
+          <Typography component="h2" variant="d3" sx={{ mb: 1.5 }}>
+            {catalog.emptyState.title}
           </Typography>
-
-          <Typography variant="body1">
-            Probá otra búsqueda o categoría.
+          <Typography variant="publicBody" sx={{ ...muted, display: 'block', maxWidth: '42ch', mx: 'auto' }}>
+            {catalog.emptyState.subtitle}
           </Typography>
+          {hayFiltros && (
+            <Button variant="outlined" onClick={limpiar} sx={{ ...btn, mt: 4 }}>
+              Limpiar filtros
+            </Button>
+          )}
         </Box>
       ) : (
-        // Agregamos alignItems="stretch" aquí
-        <Box
-        sx={{
-          display: 'grid',
-          // Aquí definimos exactamente cuántas columnas queremos según la pantalla
-          gridTemplateColumns: {
-            xs: 'repeat(1, 1fr)', // 1 columna en celulares
-            sm: 'repeat(2, 1fr)', // 2 columnas en tablets
-            md: 'repeat(3, 1fr)', // 3 columnas en laptops
-            lg: 'repeat(4, 1fr)', // 4 columnas en PC de escritorio
-          },
-          gap: 3, // El espacio entre las tarjetas (equivalente al spacing={3})
-          alignItems: 'stretch' // Hace que todas las tarjetas midan lo mismo de alto
-        }}
-      >
-        {filtered.map((product, index) => (
-          <Fade in timeout={300 + index * 80} key={product.id}>
-            {/* El div es necesario para que el Fade funcione sin romper el Grid */}
-            <div style={{ display: 'flex', height: '100%' }}> 
-              <ProductCard product={product} />
-            </div>
-          </Fade>
-        ))}
-      </Box>
+        <Box sx={GRILLA}>
+          {filtered.map((product) => <ProductCard key={product.id} product={product} />)}
+        </Box>
       )}
-    </Container>
-  );
+    </>
+  )
 }

@@ -1,21 +1,23 @@
-import { Card, CardContent, CardActions, Skeleton } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { Box, Paper, Skeleton } from '@mui/material'
 
+// Espeja la geometría real de ProductCard: mismo padding, misma pila y el mismo
+// filete arriba de los registros. Si cambia la card, cambia acá, si no el layout
+// salta cuando terminan de cargar los productos.
 export default function ProductCardSkeleton() {
-  const theme = useTheme();
   return (
-    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', bgcolor: theme.palette.background.paper, boxShadow: theme.shadows[1] }}>
-      <Skeleton variant="rectangular" height={320} animation="wave" />
-      <CardContent sx={{ flexGrow: 1, pb: 2, p: 3 }}>
-        <Skeleton variant="text" animation="wave" sx={{ fontSize: '1rem', mb: 0.5 }} />
-        <Skeleton variant="text" animation="wave" sx={{ fontSize: '0.875rem' }} />
-        <Skeleton variant="text" animation="wave" sx={{ fontSize: '0.875rem', width: '60%', mb: 1 }} />
-        <Skeleton variant="text" animation="wave" sx={{ fontSize: '1.2rem', width: '40%' }} />
-      </CardContent>
-      <CardActions sx={{ p: 2, pt: 0, gap: 1, pb: 3 }}>
-        <Skeleton variant="rounded" animation="wave" height={42} sx={{ flexGrow: 1, borderRadius: 3 }} />
-        <Skeleton variant="rounded" animation="wave" width={42} height={42} sx={{ borderRadius: 3 }} />
-      </CardActions>
-    </Card>
-  );
+    <Paper sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 3, borderRadius: 2 }}>
+      <Skeleton variant="text" animation="wave" sx={{ fontSize: '.78rem', width: '38%' }} />
+      <Skeleton variant="text" animation="wave" sx={{ fontSize: '1.0625rem', mt: 0.5 }} />
+      <Skeleton variant="text" animation="wave" sx={{ fontSize: '1.0625rem', width: '65%' }} />
+      <Skeleton variant="text" animation="wave" sx={{ fontSize: '1.375rem', width: '52%', mt: 1.5 }} />
+
+      <Box sx={{ mt: 2, pt: 1.75, borderTop: 1, borderColor: 'divider', display: 'grid', gap: 0.75 }}>
+        <Skeleton variant="text" animation="wave" sx={{ fontSize: '.8125rem' }} />
+        <Skeleton variant="text" animation="wave" sx={{ fontSize: '.8125rem' }} />
+        <Skeleton variant="text" animation="wave" sx={{ fontSize: '.8125rem' }} />
+      </Box>
+
+      <Skeleton variant="text" animation="wave" sx={{ fontSize: '.8125rem', width: '58%', mt: 'auto', pt: 2.5 }} />
+    </Paper>
+  )
 }

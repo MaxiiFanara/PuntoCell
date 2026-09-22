@@ -16,6 +16,7 @@ import dashboardRoutes from '../modules/dashboard/dashboard.routes.js';
 import reportesRoutes from '../modules/reportes/reportes.routes.js';
 import catalogoRoutes from '../modules/catalogo/catalogo.routes.js';
 import auditoriaRoutes from '../modules/auditoria/auditoria.routes.js';
+import pagosRoutes from '../modules/pagos/pagos.routes.js';
 
 export default (container) => {
   const router = Router();
@@ -24,6 +25,8 @@ export default (container) => {
   router.use('/auth', authRoutes(container));
   // Catálogo online: solo lectura, sin datos sensibles (ver catalogo.service.js)
   router.use('/catalogo', catalogoRoutes());
+  // Pagos del catálogo online: público por el mismo motivo que /catalogo.
+  router.use('/pagos', pagosRoutes());
 
   // Rutas privadas
   router.use(requireAuth);

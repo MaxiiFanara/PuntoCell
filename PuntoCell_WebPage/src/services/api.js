@@ -1,6 +1,10 @@
 import { mapVigentePorInventario, precioVigenteEntreListas, idsListasMayoristas, preciosService } from './preciosServices'
 
-export const API_URL = 'http://localhost:3000/api'
+// Mismo origen que el front: en desarrollo Vite reenvía /api a la API (ver el
+// proxy en vite.config.js). Mantenerlo same-origin es lo que hace que la cookie
+// de sesión funcione igual en localhost y detrás de un túnel https.
+// VITE_API_URL solo hace falta en un deploy sin ese proxy delante.
+export const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 // Fetch para rutas protegidas
 export const fetchApi = async (endpoint, options = {}) => {

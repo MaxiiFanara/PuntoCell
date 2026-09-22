@@ -1,55 +1,144 @@
-import { Box, IconButton, Paper, Typography } from '@mui/material';
-import LinkedInIcon from '@mui/icons-material/LinkedIn';
-import GitHubIcon from '@mui/icons-material/GitHub';
+import { Box, IconButton, Tooltip, Typography } from '@mui/material'
+import LinkedInIcon from '@mui/icons-material/LinkedIn'
+import GitHubIcon from '@mui/icons-material/GitHub'
+
+import { section, shell } from '../../../components/ui/publicStyles'
 
 const MIEMBROS = [
-  { name: 'Simón', role: 'Desarrollador Full-Stack', inicial: 'S', linkedin: '#', github: '#' },
-  { name: '[Nombre del Compañero]', role: 'Analista Funcional & QA', inicial: 'C', linkedin: '#', github: '#' },
-];
+  {
+    name: 'Natan Yona',
+    role: 'Desarrollador Fullstack',
+    github: 'https://github.com/NatanYona',
+    linkedin: 'https://www.linkedin.com/in/natan-yona-0961a7141/',
+  },
+  {
+    name: 'Maximiliano Fanara',
+    role: 'Desarrollador Fullstack',
+    github: 'https://github.com/MaxiiFanara',
+    linkedin: 'https://www.linkedin.com/in/maximilianofanara/',
+  },
+  {
+    name: 'Juan Pablo Guerrini',
+    role: 'Analista de Sistemas',
+    github: 'https://github.com/jpguerrini',
+    linkedin: 'https://www.linkedin.com/in/juan-pablo-guerrini-7a641b284/',
+  },
+  {
+    name: 'Juan Pablo Imoberdorf',
+    role: 'Desarrollador Fullstack',
+    github: 'https://github.com/Juan-imo21',
+    linkedin: 'https://www.linkedin.com/in/juan-pablo-imoberdorf-b4315a278/',
+  },
+  // Quinto lugar, todavía sin asignar. Sin enlaces y con el nombre atenuado: se
+  // lee como un renglón a completar, no como una persona.
+  { name: 'Quinto integrante', role: 'Lugar por asignar' },
+]
 
+const enlace = {
+  width: 36,
+  height: 36,
+  border: 1,
+  borderColor: 'divider',
+  borderRadius: '8px',
+  color: 'text.secondary',
+  transition: 'color 180ms ease, border-color 180ms ease, transform 160ms cubic-bezier(.23,1,.32,1)',
+  '&:active': { transform: 'scale(.94)' },
+  '@media (hover: hover) and (pointer: fine)': {
+    '&:hover': { color: 'text.primary', borderColor: 'text.disabled' },
+  },
+}
+
+/**
+ * Índice del equipo: filas con filete, no tarjetas con avatar de iniciales.
+ *
+ * Es el bloque más subordinado de la página y cierra el sitio sin competir con
+ * el producto, así que el título va en la escala chica del display.
+ */
 export default function Team() {
   return (
-    <Box component="section" sx={{ px: 2.5, py: { xs: 8, md: 12 }, bgcolor: 'background.paper', borderTop: 1, borderColor: 'divider' }}>
-      <Box sx={{ maxWidth: 880, mx: 'auto' }}>
+    <Box component="section" sx={section(true)}>
+      <Box sx={shell}>
+        <Typography component="h2" sx={{ typography: 'd3' }}>
+          El equipo detrás del código
+        </Typography>
+        <Typography
+          sx={{ mt: 1.5, maxWidth: '46ch', fontSize: '.875rem', lineHeight: 1.5, color: 'text.secondary' }}
+        >
+          Este ecosistema integra una vitrina comercial conectada en tiempo real a un
+          sistema de administración integral.
+        </Typography>
 
-        <Box sx={{ textAlign: 'center', mb: { xs: 5, md: 7 } }}>
-          <Box sx={{ typography: 'eyebrow', color: 'text.disabled', mb: 1 }}>Proyecto final</Box>
-          <Typography component="h2" sx={{ fontSize: { xs: '1.75rem', md: '2.25rem' }, fontWeight: 600, letterSpacing: '-.03em', textWrap: 'balance' }}>
-            El equipo detrás del código
-          </Typography>
-          <Typography sx={{ maxWidth: 620, mx: 'auto', mt: 1.5, fontSize: '1rem', lineHeight: 1.6, color: 'text.secondary' }}>
-            Este ecosistema integra una vitrina comercial conectada en tiempo real a un
-            sistema de administración integral.
-          </Typography>
-        </Box>
-
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2 }}>
+        <Box sx={{ mt: 5, borderTop: 1, borderColor: 'divider' }}>
           {MIEMBROS.map((m) => (
-            <Paper key={m.name} sx={{ p: 3.5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, textAlign: 'center' }}>
-              <Box sx={{
-                width: 72, height: 72, borderRadius: '50%',
-                bgcolor: 'pc.accentSoft', color: 'primary.main',
-                display: 'grid', placeItems: 'center',
-                fontSize: '1.75rem', fontWeight: 700,
-              }}>
-                {m.inicial}
-              </Box>
-              <Box>
-                <Typography sx={{ fontWeight: 600, fontSize: '1.05rem', letterSpacing: '-.02em' }}>{m.name}</Typography>
-                <Typography sx={{ fontSize: '.84rem', fontWeight: 500, color: 'primary.main' }}>{m.role}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', gap: 0.5 }}>
-                <IconButton component="a" href={m.linkedin} target="_blank" rel="noopener" aria-label={`LinkedIn de ${m.name}`}>
-                  <LinkedInIcon sx={{ fontSize: 18 }} />
-                </IconButton>
-                <IconButton component="a" href={m.github} target="_blank" rel="noopener" aria-label={`GitHub de ${m.name}`}>
-                  <GitHubIcon sx={{ fontSize: 18 }} />
-                </IconButton>
-              </Box>
-            </Paper>
+            <Box
+              key={m.name}
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr auto', sm: 'minmax(0, 26ch) minmax(0, 1fr) auto' },
+                alignItems: 'center',
+                gap: '.2rem 1.5rem',
+                py: '1.15rem',
+                borderBottom: 1,
+                borderColor: 'divider',
+              }}
+            >
+              <Typography
+                sx={{
+                  fontSize: '1rem',
+                  letterSpacing: '-.02em',
+                  ...(m.linkedin
+                    ? { fontWeight: 600 }
+                    : { fontWeight: 500, color: 'text.secondary' }),
+                }}
+              >
+                {m.name}
+              </Typography>
+
+              <Typography sx={{ fontSize: '.875rem', color: 'text.secondary' }}>
+                {m.role}
+              </Typography>
+
+              {m.linkedin && (
+                // En angosto los enlaces ocupan la segunda columna a lo alto de
+                // las dos filas; en ancho son la tercera columna de la fila.
+                <Box
+                  sx={{
+                    display: 'flex',
+                    gap: 0.5,
+                    gridColumn: { xs: 2, sm: 'auto' },
+                    gridRow: { xs: '1 / span 2', sm: 'auto' },
+                  }}
+                >
+                  <Tooltip title={`LinkedIn de ${m.name}`}>
+                    <IconButton
+                      component="a"
+                      href={m.linkedin}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`LinkedIn de ${m.name}`}
+                      sx={enlace}
+                    >
+                      <LinkedInIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={`GitHub de ${m.name}`}>
+                    <IconButton
+                      component="a"
+                      href={m.github}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`GitHub de ${m.name}`}
+                      sx={enlace}
+                    >
+                      <GitHubIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              )}
+            </Box>
           ))}
         </Box>
       </Box>
     </Box>
-  );
+  )
 }

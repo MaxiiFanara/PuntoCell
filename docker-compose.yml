@@ -41,7 +41,7 @@ services:
     environment:
       PORT: 3000
       NODE_ENV: development
-      CORS_ORIGIN: http://localhost:5173
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
       DB_DIALECT: mssql
       DB_HOST: db
       DB_PORT: 1433
@@ -54,6 +54,12 @@ services:
       EMAIL_PORT: 587
       EMAIL_USER: ${EMAIL_USER}
       SMTP_PASS: ${SMTP_PASS}
+      MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN}
+      MP_BACK_URL_BASE: ${MP_BACK_URL_BASE:-http://localhost:5173}
+      MP_WEBHOOK_URL: ${MP_WEBHOOK_URL:-}
+      MP_ID_EMPLEADO: ${MP_ID_EMPLEADO:-}
+      MP_ID_TURNO_CAJA: ${MP_ID_TURNO_CAJA:-}
+      MP_ID_METODO_PAGO: ${MP_ID_METODO_PAGO:-}
     ports:
       - "3000:3000"
     volumes:
@@ -67,6 +73,13 @@ services:
     build:
       context: ./PuntoCell_WebPage
     container_name: puntocell_front
+    environment:
+      # Destino al que Vite reenvía /api (ver el proxy en vite.config.js).
+      # Dentro de Docker la API es el servicio `api`, no localhost.
+      API_PROXY_TARGET: ${API_PROXY_TARGET:-http://api:3000}
+      # Vacío: el front pide a /api, del mismo origen. Solo se completa en un
+      # deploy que no tenga el proxy de Vite delante.
+      VITE_API_URL: ${VITE_API_URL:-}
     ports:
       - "5173:5173"
     volumes:
