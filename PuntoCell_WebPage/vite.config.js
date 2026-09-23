@@ -27,7 +27,7 @@ export default defineConfig({
             // rechazaba la llamada. Este salto lo hace el servidor de Vite, no
             // el navegador, así que se reescribe al origen que la API espera.
             // El navegador sigue aplicando su política entre página y dev server.
-            proxyReq.setHeader('origin', 'http://localhost:5173');
+            proxyReq.setHeader('origin', 'http://localhost:5175');
           });
         },
       },

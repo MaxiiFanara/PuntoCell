@@ -17,8 +17,8 @@ export default class PreciosArticulosService {
 
   async computeFields(payload) {
     const CostoBase = this.round2(payload.CostoBase || 0);
-    const CostosVariables = this.round2(CostoBase * FACTOR_COSTOS_VARIABLES);
-    const CostoReal = this.round2(CostoBase + CostosVariables);
+    const CostoVariables = this.round2(CostoBase * FACTOR_COSTOS_VARIABLES);
+    const CostoReal = this.round2(CostoBase + CostoVariables);
 
     let PorcentajeGanancia = 0;
     if (payload.IdListaPrecio) {
@@ -30,7 +30,7 @@ export default class PreciosArticulosService {
 
     const ValorFinal = this.round2(CostoReal + (CostoReal * (PorcentajeGanancia / 100)));
 
-    return { CostoBase, CostosVariables, CostoReal, PorcentajeGanancia, ValorFinal };
+    return { CostoBase, CostoVariables, CostoReal, PorcentajeGanancia, ValorFinal };
   }
 
   async create(data, ctx = null) {

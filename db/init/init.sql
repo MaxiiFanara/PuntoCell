@@ -312,7 +312,7 @@ CREATE TABLE PrecioArticulo ( -- Precio concreto vigente de un renglón de Inven
     ValorFinal          DECIMAL(18,2) NOT NULL CHECK (ValorFinal >= 0), -- Precio de venta resultante (lo que paga el cliente).
     CostoBase           DECIMAL(18,2) NOT NULL CHECK (CostoBase >= 0), -- Lo que costó comprarlo (viene de Compras).
     CostoVariables      DECIMAL(18,2) NOT NULL CHECK (CostoVariables >= 0), -- Costos indirectos calculados sobre el CostoBase.
-    CostoReal           DECIMAL(18,2) NOT NULL CHECK (CostoReal >= 0), -- CostoBase + CostosVariables.
+    CostoReal           DECIMAL(18,2) NOT NULL CHECK (CostoReal >= 0), -- CostoBase + CostoVariables.
     PorcentajeGanancia  DECIMAL(5,2)  NOT NULL CHECK (PorcentajeGanancia >= 0), -- Copiado de ListaPrecio.PorcentajeRentabilidad al momento de calcular.
     IdListaPrecio       INT           NOT NULL,
     IdInventario        INT           NOT NULL,

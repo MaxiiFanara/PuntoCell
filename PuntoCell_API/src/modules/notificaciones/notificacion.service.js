@@ -164,7 +164,7 @@ export default class NotificacionService {
 
   async enviarEmailRecuperacion(email, nombre, token) {
     // TODO: mover a env.APP.FRONTEND_URL en producción
-    const frontendUrl = 'http://localhost:5173';
+    const frontendUrl = 'http://localhost:5173,http://localhost:5174,http://localhost:5175';
     const resetLink = `${frontendUrl}/reset-password?token=${token}`;
 
     const mailOptions = {

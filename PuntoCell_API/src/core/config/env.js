@@ -44,7 +44,7 @@ export const env = {
   MP: {
     ACCESS_TOKEN: process.env.MP_ACCESS_TOKEN,
     // Base del frontend para las back_urls a las que MP devuelve al comprador.
-    BACK_URL_BASE: process.env.MP_BACK_URL_BASE || 'http://localhost:5173',
+    BACK_URL_BASE: process.env.MP_BACK_URL_BASE || 'http://localhost:5173,http://localhost:5174,http://localhost:5175',
     // URL pública del webhook. En desarrollo queda vacía: MP no puede alcanzar
     // localhost, y el flujo se confirma igual por la back_url.
     WEBHOOK_URL: process.env.MP_WEBHOOK_URL || '',

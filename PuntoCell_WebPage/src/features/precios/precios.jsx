@@ -25,11 +25,11 @@ const fmt = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigit
 // Mismo cálculo que la API (precios-articulos.service.js::computeFields)
 const calcularPrecio = (costoBase, porcentajeRentabilidad) => {
   const CostoBase = Number(costoBase) || 0;
-  const CostosVariables = Number((CostoBase * 0.26).toFixed(2));
-  const CostoReal = Number((CostoBase + CostosVariables).toFixed(2));
+  const CostoVariables = Number((CostoBase * 0.26).toFixed(2));
+  const CostoReal = Number((CostoBase + CostoVariables).toFixed(2));
   const pct = Number(porcentajeRentabilidad) || 0;
   const ValorFinal = Number((CostoReal + CostoReal * (pct / 100)).toFixed(2));
-  return { CostoBase, CostosVariables, CostoReal, PorcentajeGanancia: pct, ValorFinal };
+  return { CostoBase, CostoVariables, CostoReal, PorcentajeGanancia: pct, ValorFinal };
 };
 
 export default function PreciosScreen() {
@@ -394,7 +394,7 @@ function PrecioDialog({ target, lista, onClose, onSaved }) {
 
         <Divider sx={{ my: 2 }}><Chip label="Cálculo" size="small" /></Divider>
         <Grid container spacing={1}>
-          <Fila label="Costos variables (26%)" valor={preview.CostosVariables} dolarGlobal={dolarGlobal} />
+          <Fila label="Costos variables (26%)" valor={preview.CostoVariables} dolarGlobal={dolarGlobal} />
           <Fila label="Costo real" valor={preview.CostoReal} dolarGlobal={dolarGlobal} />
           <Fila label={`Ganancia (${fmt(lista.PorcentajeRentabilidad)}%)`} valor={preview.ValorFinal - preview.CostoReal} dolarGlobal={dolarGlobal} />
           <Grid item xs={12}>

@@ -6,8 +6,8 @@
 //  FechaDesde más reciente con FechaHasta nula o futura.
 //
 //  Cálculo que hace la API (precios-articulos.service.js::computeFields):
-//    CostosVariables = CostoBase * 0.26
-//    CostoReal       = CostoBase + CostosVariables
+//    CostoVariables = CostoBase * 0.26
+//    CostoReal       = CostoBase + CostoVariables
 //    ValorFinal      = CostoReal * (1 + PorcentajeRentabilidadLista / 100)
 // ============================================================
 
