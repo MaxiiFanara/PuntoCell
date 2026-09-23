@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Paper, Select, MenuItem, FormControl } from '@mui/material';
+import { Box, Typography, Paper, Select, MenuItem, FormControl, Autocomplete, TextField } from '@mui/material';
 import { 
   LineChart, 
   BarChart, 
@@ -11,7 +11,8 @@ import KpiCard from '../../../components/ui/KpiCard';
 import { emptyComprasDashboard, loadComprasDashboard, getEvolucionPrecioGraph, getDispersionPreciosGraph } from '../data/dashboardData';
 import DashboardRangeFilter from '../components/DashboardRangeFilter';
 import { useDashboardRange } from '../hooks/useDashboardRange';
-import { getSucursales } from '../../../services/api';
+import { getSucursales, getModelos } from '../../../services/api';
+import { inventarioService } from '../../../services/inventarioServices';
 
 const DashboardCard = ({ title, children, height = 340, rightAction = null }) => (
   <Paper 
@@ -69,9 +70,23 @@ export default function DashboardCompras() {
     return () => { mounted = false; };
   }, [range, seeAll, branchId]);
 
-  const handleProductChange = async (event) => {
-    const selectedId = String(event.target.value);
-    const selectedName = dashboard.listaProductos.find(p => String(p.id) === selectedId)?.nombre || '';
+  const [modelosBuscador, setModelosBuscador] = useState([]);
+
+  useEffect(() => {
+    const fetchModelos = async () => {
+      try {
+        const data = await getModelos(); 
+        setModelosBuscador(data);
+      } catch (e) {
+        console.error("Error cargando modelos", e);
+      }
+    };
+    fetchModelos();
+  }, []);
+
+  const handleProductChange = async (event, newValue) => {
+    const selectedId = newValue ? String(newValue.id || newValue.Id) : '';
+    const selectedName = newValue ? (newValue.nombre || newValue.Nombre || '') : '';
     
     setDashboard(prev => ({
       ...prev,
@@ -79,7 +94,12 @@ export default function DashboardCompras() {
       productoSeleccionadoNombre: selectedName
     }));
 
+    if (!selectedId) return;
+
     try {
+      // ATENCIÓN AL BACKEND: selectedId ahora es el ID del MODELO (Ej: 1 para iPhone 11),
+      // asegúrate de que el backend de estos dos gráficos agrupe usando IdModeloProducto 
+      // y no el IdInventario.
       const [nuevoEvolucion, nuevoDispersion] = await Promise.all([
         getEvolucionPrecioGraph(seeAll ? null : range, selectedId, branchId),
         getDispersionPreciosGraph(seeAll ? null : range, selectedId, branchId)
@@ -90,33 +110,48 @@ export default function DashboardCompras() {
         dispersionPrecios: nuevoDispersion
       });
     } catch (e) {
-      console.error("Error cargando gráficos del producto", e);
+      console.error("Error cargando gráficos del modelo", e);
     }
   };
 
   const { kpis, evolucionCosto, proveedores, inventario, listaProductos, productoSeleccionadoId } = dashboard;
   const { precioProducto, dispersionPrecios } = graficosProducto;
 
+  const modeloSeleccionadoObj = modelosBuscador.find(
+    m => String(m.id || m.Id) === String(productoSeleccionadoId)
+  ) || null;
+
   const ProductoSelector = (
-    <FormControl size="small" sx={{ minWidth: 150 }}>
-      <Select
-        value={productoSeleccionadoId ? String(productoSeleccionadoId) : ''}
+    <FormControl size="small" sx={{ minWidth: 250 }}>
+      <Autocomplete
+        size="small"
+        options={modelosBuscador}
+        getOptionLabel={(option) => option.nombre || option.Nombre || ''}
+        isOptionEqualToValue={(option, value) => 
+          String(option.id || option.Id) === String(value.id || value.Id)
+        }
+        value={modeloSeleccionadoObj}
         onChange={handleProductChange}
-        displayEmpty
-        renderValue={(selected) => {
-          const prod = listaProductos.find(p => String(p.id) === String(selected));
-          return prod ? prod.nombre : 'Seleccionar Producto...';
-        }}
-        sx={{ fontSize: '0.85rem' }}
-      >
-        {listaProductos.map((p) => (
-          <MenuItem key={p.id} value={String(p.id)} sx={{ fontSize: '0.85rem' }}>
-            {p.nombre}
-          </MenuItem>
-        ))}
-      </Select>
+        noOptionsText="No se encontraron modelos"
+        
+        renderOption={(props, option) => (
+          <li {...props} key={option.id || option.Id}>
+            {option.nombre || option.Nombre}
+          </li>
+        )}
+        
+        renderInput={(params) => (
+          <TextField 
+            {...params} 
+            placeholder="Buscar Modelo..." 
+          />
+        )}
+        sx={{ '& .MuiInputBase-root': { fontSize: '0.85rem' } }}
+      />
     </FormControl>
   );
+
+  console.log("Datos para el buscador:", inventario);
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, width: '100%', pb: 10 }}>

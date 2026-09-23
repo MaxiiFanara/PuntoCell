@@ -6,12 +6,6 @@ import { section, shell } from '../../../components/ui/publicStyles'
 
 const MIEMBROS = [
   {
-    name: 'Natan Yona',
-    role: 'Desarrollador Fullstack',
-    github: 'https://github.com/NatanYona',
-    linkedin: 'https://www.linkedin.com/in/natan-yona-0961a7141/',
-  },
-  {
     name: 'Maximiliano Fanara',
     role: 'Desarrollador Fullstack',
     github: 'https://github.com/MaxiiFanara',
@@ -29,9 +23,18 @@ const MIEMBROS = [
     github: 'https://github.com/Juan-imo21',
     linkedin: 'https://www.linkedin.com/in/juan-pablo-imoberdorf-b4315a278/',
   },
-  // Quinto lugar, todavía sin asignar. Sin enlaces y con el nombre atenuado: se
-  // lee como un renglón a completar, no como una persona.
-  { name: 'Quinto integrante', role: 'Lugar por asignar' },
+  {
+    name: 'Simon Sclarandi',
+    role: 'Desarrollador Fullstack',
+    github: 'https://github.com/simonsclarandi',
+    linkedin: 'https://www.linkedin.com/in/simon-sclarandi/',
+  },
+  {
+    name: 'Natan Yona',
+    role: 'Desarrollador Fullstack',
+    github: 'https://github.com/NatanYona',
+    linkedin: 'https://www.linkedin.com/in/natan-yona-0961a7141/',
+  }
 ]
 
 const enlace = {

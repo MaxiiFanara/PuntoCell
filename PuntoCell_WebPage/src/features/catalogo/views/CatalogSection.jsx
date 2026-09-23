@@ -9,6 +9,7 @@ import {
   Switch,
   TextField,
   Typography,
+  Pagination
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import CloseIcon from '@mui/icons-material/Close'
@@ -69,8 +70,12 @@ export default function CatalogSection({
   setOrden,
   limpiar,
   filtered,
+  totalFiltered,
   totalCount,
   loading,
+  page,
+  totalPages,
+  onPageChange
 }) {
   // El botón de limpiar la búsqueda desaparece al usarlo, y con él el foco. Se
   // devuelve al campo para no dejar al teclado en el body.
@@ -99,9 +104,9 @@ export default function CatalogSection({
         </Typography>
         {!loading && (
           <Typography className="num" sx={{ ...muted, fontSize: '.875rem', whiteSpace: 'nowrap' }}>
-            {filtered.length === totalCount
+            {totalFiltered === totalCount
               ? `${totalCount} productos`
-              : `${filtered.length} de ${totalCount}`}
+              : `${totalFiltered} de ${totalCount}`}
           </Typography>
         )}
       </Box>
@@ -231,9 +236,24 @@ export default function CatalogSection({
           )}
         </Box>
       ) : (
-        <Box sx={GRILLA}>
-          {filtered.map((product) => <ProductCard key={product.id} product={product} />)}
-        </Box>
+        <>
+          <Box sx={GRILLA}>
+            {filtered.map((product) => <ProductCard key={product.id} product={product} />)}
+          </Box>
+          
+          {/* Controles de paginación al final de la grilla */}
+          {totalPages > 1 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6, mb: 4 }}>
+              <Pagination 
+                count={totalPages} 
+                page={page} 
+                onChange={onPageChange} 
+                color="primary" 
+                size="large" 
+              />
+            </Box>
+          )}
+        </>
       )}
     </>
   )

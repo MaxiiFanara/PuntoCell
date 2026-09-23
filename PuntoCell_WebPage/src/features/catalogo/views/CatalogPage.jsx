@@ -4,6 +4,7 @@ import CatalogSection from './CatalogSection';
 import { useProducts } from '../context/ProductContext';
 
 const ESTADO_INICIAL = { search: '', category: 'Todos', soloStock: false, orden: 'relevancia' };
+const ITEMS_PER_PAGE = 12;
 
 // Sin stock siempre al fondo, cualquiera sea el orden elegido.
 const porStock = (a, b) => (a.stock === 0) - (b.stock === 0);
@@ -18,8 +19,14 @@ const COMPARADORES = {
 export default function CatalogPage() {
   const { products, getCategories, loading } = useProducts();
   const [filtros, setFiltros] = useState(ESTADO_INICIAL);
+  const [page, setPage] = useState(1);
 
-  const setFiltro = (clave) => (valor) => setFiltros((f) => ({ ...f, [clave]: valor }));
+  const setFiltro = (clave) => (valor) => { setFiltros((f) => ({ ...f, [clave]: valor })); setPage(1); }
+
+  const limpiarFiltros = () => {
+    setFiltros(ESTADO_INICIAL);
+    setPage(1);
+  };
 
   const filtered = useMemo(() => {
     const { search, category, soloStock, orden } = filtros;
@@ -35,6 +42,9 @@ export default function CatalogPage() {
     return matches.sort(COMPARADORES[orden] || porStock);
   }, [products, filtros]);
 
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginatedProducts = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+
   return (
     <CatalogSection
       categories={getCategories()}
@@ -43,10 +53,14 @@ export default function CatalogPage() {
       setCategory={setFiltro('category')}
       setSoloStock={setFiltro('soloStock')}
       setOrden={setFiltro('orden')}
-      limpiar={() => setFiltros(ESTADO_INICIAL)}
-      filtered={filtered}
+      limpiar={limpiarFiltros}
+      filtered={paginatedProducts}
+      totalFiltered={filtered.length}
       totalCount={products.length}
       loading={loading}
+      page={page}
+      totalPages={totalPages}
+      onPageChange={(e, value) => setPage(value)}
     />
   );
 }
