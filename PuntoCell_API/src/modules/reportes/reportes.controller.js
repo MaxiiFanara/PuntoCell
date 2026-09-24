@@ -38,4 +38,22 @@ export default class ReportesController {
       next(err)
     }
   }
+
+  caja = async (req, res, next) => {
+    try {
+      const data = await this.service.getCajaReport(req.query)
+      return res.status(200).json({ status: 'success', data })
+    } catch (err) {
+      next(err)
+    }
+  }
+
+  finanzas = async (req, res, next) => {
+    try {
+      const data = await this.service.getFinanzasReport(req.query)
+      return res.status(200).json({ status: 'success', data })
+    } catch (err) {
+      next(err)
+    }
+  }
 }

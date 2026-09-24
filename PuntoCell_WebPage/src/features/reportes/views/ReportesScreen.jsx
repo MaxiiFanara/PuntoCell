@@ -13,8 +13,7 @@ import dayjs from 'dayjs';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import PageHeader from '../../../components/ui/PageHeader';
-// Importamos el servicio para traer las sucursales reales
-import { getSucursales } from '../../../services/api';
+import { getSucursales, fetchApi } from '../../../services/api';
 
 // ==========================================
 // 1. CONFIGURACIÓN DE REPORTES DISPONIBLES
@@ -54,6 +53,23 @@ const REPORT_MODULES = {
       { id: 'fallas', label: 'Ranking de Fallas' },
       { id: 'tiempos', label: 'Tiempos Promedio' }
     ]
+  },
+  // 🔥 NUEVOS MÓDULOS AGREGADOS 🔥
+  finanzas: {
+    label: 'Finanzas',
+    types: [
+      { id: 'flujo-caja', label: 'Flujo de Caja' },
+      { id: 'rentabilidad', label: 'Rentabilidad Neta' },
+      { id: 'ingresos-egresos', label: 'Ingresos vs Egresos' }
+    ]
+  },
+  caja: {
+    label: 'Caja',
+    types: [
+      { id: 'cierres', label: 'Historial de Cierres' },
+      { id: 'arqueos', label: 'Diferencias de Arqueo' },
+      { id: 'movimientos', label: 'Movimientos Manuales' }
+    ]
   }
 };
 
@@ -84,7 +100,21 @@ const COLUMN_TRANSLATIONS = {
   lastMovement: 'Último Movimiento',
   daysWithoutMovement: 'Días sin Mover',
   unitCost: 'Costo Unit.',
-  avgDays: 'Tiempo Prom. (Días)'
+  avgDays: 'Tiempo Prom. (Días)',
+  
+  // 🔥 Traducciones para Finanzas y Caja 🔥
+  turnId: 'ID Turno',
+  cashier: 'Cajero Responsable',
+  openingDate: 'Apertura',
+  closingDate: 'Cierre',
+  expectedAmount: 'Monto Esperado',
+  actualAmount: 'Monto Real',
+  cashDifference: 'Diferencia (Arqueo)',
+  totalIncome: 'Ingresos Totales',
+  totalExpense: 'Egresos Totales',
+  netProfit: 'Rentabilidad Neta',
+  description: 'Descripción',
+  method: 'Método'
 };
 
 const translateCol = (col) => {
@@ -92,28 +122,20 @@ const translateCol = (col) => {
   return col.replace(/([A-Z])/g, ' $1').trim().toUpperCase(); 
 };
 
-// ==========================================
-// HELPER PARA OCULTAR IDs
-// ==========================================
 const esColumnaVisible = (col) => {
   const lower = col.toLowerCase();
   return lower !== 'id' && !lower.endsWith('id');
 };
 
-// ==========================================
-// HELPER PARA FORMATEAR NÚMEROS Y FECHAS
-// ==========================================
 const formatearValor = (val, colName = '') => {
   if (val === null || val === undefined) return '—';
   
-  // Si es fecha ISO
   if (typeof val === 'string' && val.includes('T') && val.endsWith('Z')) {
     return dayjs(val).format('DD/MM/YYYY HH:mm');
   }
 
-  // Si es un número, aplicamos formato argentino (puntos para miles, comas para decimales)
   if (typeof val === 'number') {
-    const isCurrency = /(monto|total|cost|price|revenue|facturacion|amount)/i.test(colName) && !/(count|quantity|cantidad)/i.test(colName);
+    const isCurrency = /(monto|total|cost|price|revenue|facturacion|amount|income|expense|profit|difference|esperado|real)/i.test(colName) && !/(count|quantity|cantidad)/i.test(colName);
     const formato = val.toLocaleString('es-AR', {
       minimumFractionDigits: Number.isInteger(val) && !isCurrency ? 0 : 2,
       maximumFractionDigits: 2
@@ -137,7 +159,6 @@ export default function ReportesScreen() {
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState([]);
   
-  // Cargar lista de sucursales al montar
   useEffect(() => {
     getSucursales()
       .then((data) => setSucursalesLista(data))
@@ -148,12 +169,8 @@ export default function ReportesScreen() {
     setTipoReporte(REPORT_MODULES[moduloSeleccionado].types[0].id);
   }, [moduloSeleccionado]);
 
-  // Filtramos las columnas válidas basándonos en la primera fila de datos
   const columnasVisibles = reportData.length > 0 ? Object.keys(reportData[0]).filter(esColumnaVisible) : [];
 
-  // ==========================================
-  // LÓGICA DE TOTALES
-  // ==========================================
   const calcularFilaTotales = (datos) => {
     if (!datos.length) return [];
     
@@ -167,9 +184,6 @@ export default function ReportesScreen() {
     });
   };
 
-  // ==========================================
-  // FETCH DE DATOS
-  // ==========================================
   const generarReporte = async () => {
     setLoading(true);
     setReportData([]);
@@ -180,38 +194,32 @@ export default function ReportesScreen() {
         to: fechaHasta.format('YYYY-MM-DD')
       });
 
-      // Si seleccionaron una sucursal, la inyectamos en la consulta
       if (sucursalSeleccionada) {
         params.append('idSucursal', sucursalSeleccionada);
       }
       
-      const url = `http://localhost:3000/api/reportes/${moduloSeleccionado}?${params.toString()}`;
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include' 
-      });
+      const url = `/reportes/${moduloSeleccionado}?${params.toString()}`;
+      const result = await fetchApi(url);
 
-      if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+      let filas = [];
+      if (Array.isArray(result)) filas = result;
+      else if (Array.isArray(result?.data)) filas = result.data;
+      else if (Array.isArray(result?.data?.rows)) filas = result.data.rows;
+      else if (Array.isArray(result?.rows)) filas = result.rows;
 
-      const result = await response.json();
-      if (result && result.data && result.data.rows) {
-        setReportData(result.data.rows);
-      } else {
-        setReportData([]);
+      if (filas.length === 0) {
+        alert(`El reporte se generó con éxito, pero no hay datos registrados para el tipo "${tipoReporte}" en este rango de fechas.`);
       }
+
+      setReportData(filas);
     } catch (error) {
       console.error("Error al generar reporte:", error);
-      alert("Hubo un error al generar el reporte. Revisá la consola.");
+      alert(`Hubo un error al conectar con el servidor: ${error.message || 'La ruta de este reporte aún no existe en el backend.'}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // ==========================================
-  // EXPORTACIONES
-  // ==========================================
   const exportarCSV = () => {
     if (!reportData.length) return alert('No hay datos para exportar.');
     
@@ -221,11 +229,10 @@ export default function ReportesScreen() {
       columnasVisibles.map(translateCol).join(','), 
       ...reportData.map(row => columnasVisibles.map(col => {
         let val = row[col];
-        // En CSV es mejor dejar el número limpio pero con separador decimal estándar si es necesario
         if (typeof val === 'number') val = val.toFixed(2);
         return `"${val !== null ? val : ''}"`;
       }).join(',')),
-      totales.map(val => `"${val.replace(/\$/g, '').trim()}"`).join(',') // Quitamos el $ para que el excel lo lea como número
+      totales.map(val => `"${val.replace(/\$/g, '').trim()}"`).join(',')
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -284,9 +291,6 @@ export default function ReportesScreen() {
     doc.save(`Reporte_${moduloSeleccionado}_${tipoReporte}_${dayjs().format('YYYYMMDD')}.pdf`);
   };
 
-  // ==========================================
-  // RENDERIZADO DINÁMICO
-  // ==========================================
   const renderTableHeaders = () => {
     if (!columnasVisibles.length) return null;
     return (

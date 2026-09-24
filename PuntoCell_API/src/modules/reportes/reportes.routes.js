@@ -11,6 +11,8 @@ export default (container) => {
   router.get('/ventas', reportesController.ventas)
   router.get('/inventario', reportesController.inventario)
   router.get('/reparaciones', reportesController.reparaciones)
+  router.get('/caja', reportesController.caja)
+  router.get('/finanzas', reportesController.finanzas)
 
   return router
 }
