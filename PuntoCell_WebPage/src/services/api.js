@@ -249,6 +249,23 @@ export const agregarRepuestoOrden = (datos) => fetchApi('/reparaciones/repuestos
 export const eliminarRepuestoOrden = (id) => fetchApi(`/reparaciones/repuestos-orden/${id}`, { method: 'DELETE' })
 export const enviarComprobanteEmail = (idOrden, pdfBase64) => fetchApi(`/reparaciones/ordenes-reparacion/${idOrden}/testemail`, { method: 'POST', body: JSON.stringify({ pdfBase64 }) })
 
+export const consultarAsistenteTecnico = async ({ mensaje, contexto, historial, modelo } = {}) => {
+  const payload = {
+    mensaje: typeof mensaje === 'string' ? mensaje.trim() : '',
+  }
+
+  if (contexto !== undefined && contexto !== null) payload.contexto = contexto
+  if (Array.isArray(historial) && historial.length) payload.historial = historial
+  if (typeof modelo === 'string' && modelo.trim()) payload.modelo = modelo.trim()
+
+  const res = await fetchApi('/asistente-tecnico/consultar', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+  return res?.data ?? null
+}
+
 export const getPagosOrden = async (idOrden) => {
   const res = await fetchApi('/reparaciones/pagos-reparacion')
   const todos = res?.data ?? []

@@ -71,11 +71,12 @@ export default function ThemeToggle() {
           aria-label={esOscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternar(); } }}
           sx={(theme) => ({
-            position: 'fixed', bottom: 28, right: 28,
-            // Justo debajo del Drawer (1200) y de los modales: en 1400 quedaba a
-            // la altura de un snackbar y se dibujaba encima del carrito abierto,
-            // tapando el botón de consultar disponibilidad.
-            zIndex: 1199,
+            position: 'fixed',
+            bottom: '112px',
+            right: 28,
+            // Queda siempre por encima del launcher del asistente para que no
+            // compartan la misma franja visual en el borde inferior derecho.
+            zIndex: 1202,
             width: 52, height: 52, borderRadius: '50%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer',
