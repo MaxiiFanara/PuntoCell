@@ -180,7 +180,7 @@ export default function DashboardReparaciones() {
               />
           </DashboardCard> */}
           
-          <DashboardCard title="Matriz: Demanda vs Rentabilidad" height={400}>
+          {/* <DashboardCard title="Matriz: Demanda vs Rentabilidad" height={400}>
             <ScatterChart
                 xAxis={[{ label: '← Baja Demanda | Cantidad de Reparaciones | Alta Demanda →', min: 0 }]}
                 yAxis={[{ label: 'Margen de Rentabilidad (%)' }]}
@@ -194,7 +194,7 @@ export default function DashboardReparaciones() {
                 margin={{ top: 20, bottom: 50, left: 60, right: 20 }}
                 zAxis={[{ data: matriz.map(m => m.z), min: 0, max: maxRevenue }]} 
               />
-          </DashboardCard>
+          </DashboardCard> */}
         </Box>
 
       </Box>

@@ -62,6 +62,8 @@ services:
       MP_ID_EMPLEADO: ${MP_ID_EMPLEADO:-}
       MP_ID_TURNO_CAJA: ${MP_ID_TURNO_CAJA:-}
       MP_ID_METODO_PAGO: ${MP_ID_METODO_PAGO:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL}
     ports:
       - "3002:3000"
     volumes:

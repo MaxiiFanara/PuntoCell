@@ -152,7 +152,7 @@ export default function DashboardVentas() {
           </DashboardCard>
         </Box>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: { xs: 2, md: 3 }, minWidth: 0 }}>
+        {/* <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: { xs: 2, md: 3 }, minWidth: 0 }}>
           <DashboardCard title="Elasticidad Precio vs Demanda" height={420}>
             <ScatterChart
               xAxis={[{ min: 0, max: Math.max(1, ...elasticidad.map((item) => Number(item.x) || 0)), label: 'Precio Cotizado ($)', valueFormatter: currencyFormatter, width: 'auto', tickLabelStyle: { fontSize: 11 } }]}
@@ -167,7 +167,7 @@ export default function DashboardVentas() {
               sx={{ width: '100%', height: '100%' }}
             />
           </DashboardCard>
-        </Box>
+        </Box> */}
       </Box>
     </Box>
   );

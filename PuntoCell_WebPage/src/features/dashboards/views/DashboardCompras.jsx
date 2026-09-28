@@ -8,7 +8,7 @@ import {
 
 import PageHeader from '../../../components/ui/PageHeader';
 import KpiCard from '../../../components/ui/KpiCard';
-import { emptyComprasDashboard, loadComprasDashboard, getEvolucionPrecioGraph, getDispersionPreciosGraph } from '../data/dashboardData';
+import { emptyComprasDashboard, loadComprasDashboard, getEvolucionPrecioGraph, getDispersionPreciosGraph, getAnalisisStockGraph } from '../data/dashboardData';
 import DashboardRangeFilter from '../components/DashboardRangeFilter';
 import { useDashboardRange } from '../hooks/useDashboardRange';
 import { getSucursales, getModelos } from '../../../services/api';
@@ -43,7 +43,8 @@ export default function DashboardCompras() {
   
   const [graficosProducto, setGraficosProducto] = useState({
     precioProducto: emptyComprasDashboard.precioProducto,
-    dispersionPrecios: emptyComprasDashboard.dispersionPrecios
+    dispersionPrecios: emptyComprasDashboard.dispersionPrecios,
+    analisisStock: []
   });
   
   const { range, seeAll, updateFrom, updateTo, toggleSeeAll } = useDashboardRange(30);
@@ -62,7 +63,8 @@ export default function DashboardCompras() {
           setDashboard(data);
           setGraficosProducto({
             precioProducto: data.precioProducto,
-            dispersionPrecios: data.dispersionPrecios
+            dispersionPrecios: data.dispersionPrecios,
+            analisisStock: data.inventario
           });
         }
       })
@@ -102,7 +104,8 @@ export default function DashboardCompras() {
       // y no el IdInventario.
       const [nuevoEvolucion, nuevoDispersion] = await Promise.all([
         getEvolucionPrecioGraph(seeAll ? null : range, selectedId, branchId),
-        getDispersionPreciosGraph(seeAll ? null : range, selectedId, branchId)
+        getDispersionPreciosGraph(seeAll ? null : range, selectedId, branchId),
+        getAnalisisStockGraph(selectedId, branchId, selectedName)
       ]);
       
       setGraficosProducto({
@@ -121,7 +124,7 @@ export default function DashboardCompras() {
     m => String(m.id || m.Id) === String(productoSeleccionadoId)
   ) || null;
 
-  const ProductoSelector = (
+  const renderProductoSelector = () => (
     <FormControl size="small" sx={{ minWidth: 250 }}>
       <Autocomplete
         size="small"
@@ -133,13 +136,11 @@ export default function DashboardCompras() {
         value={modeloSeleccionadoObj}
         onChange={handleProductChange}
         noOptionsText="No se encontraron modelos"
-        
         renderOption={(props, option) => (
           <li {...props} key={option.id || option.Id}>
             {option.nombre || option.Nombre}
           </li>
         )}
-        
         renderInput={(params) => (
           <TextField 
             {...params} 
@@ -201,7 +202,7 @@ export default function DashboardCompras() {
             />
           </DashboardCard>
           
-          <DashboardCard title="Evolución del Precio" rightAction={ProductoSelector}>
+          <DashboardCard title="Evolución del Precio" rightAction={renderProductoSelector()}>
             <LineChart
               xAxis={[{ 
                 data: precioProducto.xAxis.length > 0 ? precioProducto.xAxis.map((_, index) => index + 1) : [1, 2, 3, 4, 5, 6, 7], 
@@ -220,13 +221,13 @@ export default function DashboardCompras() {
         </Box>
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1.5fr' }, gap: { xs: 2, md: 3 } }}>
-          <DashboardCard title="Dispersión de Precios" rightAction={ProductoSelector}>
+          <DashboardCard title="Dispersión de Precios" rightAction={renderProductoSelector()}>
              <ScatterChart
                 xAxis={[{ 
                   min: 0, max: 5, 
                   tickInterval: [1, 2, 3, 4], 
                   valueFormatter: (v) => ['N/A', 'Prov 1', 'Prov 2', 'Prov 3', 'Prov 4'][v] || '',
-                  label: 'Proveedores (Anonimizados)',
+                  label: 'Proveedores',
                   width: 'auto', tickLabelStyle: { fontSize: 11 }
                 }]}
                 yAxis={[{ label: 'Precio Cotizado (U$S)', width: 'auto', tickLabelStyle: { fontSize: 11 }, valueFormatter: (v) => v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }]}
@@ -235,7 +236,7 @@ export default function DashboardCompras() {
               />
           </DashboardCard>
 
-          <DashboardCard title="Análisis de Stock (Actual vs Reposición vs Seguridad)">
+          <DashboardCard title="Análisis de Stock (Actual vs Reposición vs Seguridad)" rightAction={renderProductoSelector()}>
             <BarChart
               xAxis={[{ scaleType: 'band', data: inventario.map(i => i.producto), label: 'Productos', width: 'auto', tickLabelStyle: { fontSize: 11 } }]}
               yAxis={[{ label: 'Cantidad (Unidades)', width: 'auto', tickLabelStyle: { fontSize: 11 } }]}

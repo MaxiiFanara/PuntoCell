@@ -606,3 +606,38 @@ export async function loadFinancieroDashboard(range = null, branchId = '') {
     rentabilidadMarca: (rentMarca?.entries ?? []).map((item) => ({ marca: item.marca ?? item.brand ?? 'Marca', rentabilidad: toNumber(item.margin) })),
   }
 }
+
+// NUEVO: Función para agrupar el stock total de un modelo específico
+export async function getAnalisisStockGraph(productId, branchId = '', productName = '') {
+  if (!productId) return [];
+
+  const [punto, seguridad, inventarios] = await Promise.all([
+    fetchData(`/dashboard/compras/punto-reposicion?${buildQuery({ productoId: productId, idSucursal: branchId || undefined })}`).catch(() => null),
+    fetchData(`/dashboard/compras/stock-seguridad?${buildQuery({ productoId: productId, idSucursal: branchId || undefined })}`).catch(() => null),
+    fetchData('/inventario/inventarios').catch(() => [])
+  ]);
+
+  const pReposicion = toNumber(punto?.reorderPoint ?? punto?.puntoReposicion ?? 0);
+  const sSeguridad = toNumber(seguridad?.safetyStock ?? seguridad?.stockSeguridad ?? 0);
+
+  // Filtramos el inventario para encontrar TODAS las variaciones que pertenecen a este modelo
+  const variaciones = (inventarios || []).filter(inv => {
+    const invBranch = inv.IdSucursal ?? inv.idSucursal;
+    if (branchId && String(invBranch) !== String(branchId)) return false;
+
+    // Buscamos coincidencia exacta con el modelo seleccionado en el dropdown
+    const idMod = inv.articulo?.IdModeloArticulo ?? inv.articulo?.modelo?.Id ?? inv.modelo?.Id ?? inv.IdModeloArticulo ?? inv.IdArticulo;
+    return String(idMod) === String(productId);
+  });
+
+  // SUMAMOS el stock de todas las variaciones para obtener el volumen real del dispositivo
+  const stockTotalDelModelo = variaciones.reduce((sum, inv) => sum + toNumber(inv.Stock ?? inv.stock ?? 0), 0);
+
+  // Devolvemos un único bloque identificado directamente por el nombre del modelo
+  return [{
+    producto: productName || `Modelo ${productId}`, // Ej: "Apple iPhone 13 Pro"
+    stockActual: stockTotalDelModelo, // La suma de todos sus colores/capacidades
+    puntoReposicion: pReposicion,
+    stockSeguridad: sSeguridad
+  }];
+}
