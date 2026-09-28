@@ -1,12 +1,21 @@
 import dotenv from 'dotenv';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Cargamos el .env desde la raíz del proyecto (eliminé el dotenv.config() duplicado)
-dotenv.config({ path: resolve(__dirname, '../../../..', '.env') });
+const candidateEnvPaths = [
+  resolve(__dirname, '../../../../..', '.env'),
+  resolve(__dirname, '../../../..', '.env')
+];
+
+const envPath = candidateEnvPaths.find((candidate) => fs.existsSync(candidate));
+
+if (envPath) {
+  dotenv.config({ path: envPath });
+}
 
 const defaultCorsOrigin = 'http://localhost:5173,http://localhost:5174,http://localhost:5175';
 const corsOriginValue = process.env.CORS_ORIGIN || defaultCorsOrigin;
@@ -42,8 +51,14 @@ export const env = {
     PASS: process.env.SMTP_PASS,
     PORT: parseInt(process.env.EMAIL_PORT || 587, 10),  },
   AI: {
-    GEMINI_API_KEY: process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY || '',
-    GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite'
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
+    OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || '',
+    OPENROUTER_MODELS: (process.env.OPENROUTER_MODELS || '')
+      .split(',')
+      .map((model) => model.trim())
+      .filter(Boolean),
+    OPENROUTER_SITE_URL: process.env.OPENROUTER_SITE_URL || 'http://localhost:5173',
+    OPENROUTER_APP_NAME: process.env.OPENROUTER_APP_NAME || 'PuntoCell'
   },
   MP: {
     ACCESS_TOKEN: process.env.MP_ACCESS_TOKEN,

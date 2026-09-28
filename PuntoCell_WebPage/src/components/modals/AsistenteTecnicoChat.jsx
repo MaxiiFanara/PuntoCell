@@ -154,7 +154,7 @@ export default function AsistenteTecnicoChat({ open, onClose, ordenSeleccionada,
           </Box>
           <Box sx={{ minWidth: 0 }}>
             <Typography sx={{ fontWeight: 800, letterSpacing: '-.02em' }}>Asistente técnico</Typography>
-            <Typography sx={{ fontSize: '.8rem', color: 'text.secondary' }}>Diagnóstico guiado con Gemini</Typography>
+            <Typography sx={{ fontSize: '.8rem', color: 'text.secondary' }}>Diagnóstico guiado con IA</Typography>
           </Box>
         </Box>
         <IconButton onClick={onClose} aria-label="Cerrar chatbot" sx={{ color: 'text.secondary' }}>
@@ -188,7 +188,7 @@ export default function AsistenteTecnicoChat({ open, onClose, ordenSeleccionada,
         {loading && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, color: 'text.secondary' }}>
             <CircularProgress size={18} thickness={5} />
-            <Typography sx={{ fontSize: '.875rem' }}>Consultando a Gemini...</Typography>
+            <Typography sx={{ fontSize: '.875rem' }}>Consultando al asistente...</Typography>
           </Box>
         )}
 
