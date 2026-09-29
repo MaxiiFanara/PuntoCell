@@ -7,7 +7,30 @@ const rangeToWhere = (field, from, to) => ({ [field]: { [Op.between]: [from, to]
 
 const buildVentaIncludes = (idSucursal = null) => ([
   { model: models.TurnoCaja, as: 'turnoCaja', attributes: ['Id', 'IdSucursal'], required: idSucursal !== null, ...(idSucursal !== null ? { where: { IdSucursal: idSucursal } } : {}), include: [{ model: models.Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'], required: false }] },
-  { model: models.DetalleVenta, as: 'detalles', attributes: ['Id', 'Cantidad', 'PrecioUnitario', 'IdArticulo'], required: false, include: [{ model: models.Inventario, as: 'inventario', attributes: ['Id', 'IdArticulo', 'IdSucursal', 'Stock'], required: false, include: [{ model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre', 'IdModeloArticulo'], required: false, include: [{ model: models.ModeloArticulo, as: 'modelo', attributes: ['Id', 'Nombre', 'IdMarcaArticulo', 'IdCategoriaArticulo'], required: false, include: [{ model: models.MarcaArticulo, as: 'marca', attributes: ['Id', 'Nombre'], required: false }, { model: models.CategoriaArticulo, as: 'categoria', attributes: ['Id', 'Nombre'], required: false }] }] }] }] },
+  { 
+    model: models.DetalleVenta, as: 'detalles', attributes: ['Id', 'Cantidad', 'PrecioUnitario', 'IdArticulo'], required: false, 
+    include: [{ 
+      model: models.Inventario, as: 'inventario', attributes: ['Id', 'IdArticulo', 'IdSucursal', 'Stock'], required: false, 
+      include: [
+        { 
+          model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre', 'IdModeloArticulo'], required: false, 
+          include: [{ 
+            model: models.ModeloArticulo, as: 'modelo', attributes: ['Id', 'Nombre', 'IdMarcaArticulo', 'IdCategoriaArticulo'], required: false, 
+            include: [
+              { model: models.MarcaArticulo, as: 'marca', attributes: ['Id', 'Nombre'], required: false }, 
+              { model: models.CategoriaArticulo, as: 'categoria', attributes: ['Id', 'Nombre'], required: false }
+            ] 
+          }] 
+        },
+        // 🔥 AQUÍ PONEMOS EL NOMBRE EXACTO DEL MODELO QUE VIMOS EN TU ARCHIVO
+        {
+          model: models.PrecioArticulo, 
+          as: 'precios', 
+          required: false 
+        }
+      ] 
+    }] 
+  },
   { model: models.PagoVenta, as: 'pagos', attributes: ['Id', 'Monto', 'IdMetodoPago', 'FechaPago'], required: false, include: [{ model: models.MetodoPago, as: 'metodoPago', attributes: ['Id', 'Nombre'], required: false }] },
 ])
 

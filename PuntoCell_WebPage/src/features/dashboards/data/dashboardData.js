@@ -206,6 +206,8 @@ export const emptyVentasDashboard = {
   empleados: [],
   pareto: { productos: [], ventasAbsolutas: [], porcentajeAcumulado: [] },
   elasticidad: [],
+  abc: { grafico: [], topA: [] },     
+  margenes: [],
 }
 
 export const emptyComprasDashboard = {
@@ -253,7 +255,6 @@ export const emptyFinancieroDashboard = {
   rentabilidadMarca: [],
 }
 
-// NUEVO: Agregamos branchId a todas las cargas principales
 export async function loadVentasDashboard(range = null, branchId = '') {
   const range30 = normalizeUiRange(range, 30)
   const range60 = normalizeUiRange(range, 60)
@@ -266,7 +267,7 @@ export async function loadVentasDashboard(range = null, branchId = '') {
   
   const historicoUrl = `/ventas/historico?desde=${encodeURIComponent(range60.from)}&hasta=${encodeURIComponent(range60.to)}${branchId ? `&idSucursal=${branchId}` : ''}`;
 
-  const [summary, evolucion, formaPago, categoria, sucursal, pareto, elasticidad, empleados, historico, finanzas] = await Promise.all([
+  const [summary, evolucion, formaPago, categoria, sucursal, pareto, elasticidad, empleados, historico, finanzas, margenCategoria] = await Promise.all([
     fetchData(`/dashboard/summary${branchId ? `?idSucursal=${branchId}` : ''}`),
     fetchData(`/dashboard/ventas/evolucion?${query30}`),
     fetchData(`/dashboard/ventas/forma-pago?${query30}`),
@@ -277,15 +278,16 @@ export async function loadVentasDashboard(range = null, branchId = '') {
     getEmpleados().catch(() => []),
     fetchData(historicoUrl).catch(() => []),
     fetchData(`/dashboard/finanzas/margen-bruto?${query60}`).catch(() => null),
+    fetchData(`/dashboard/finanzas/margen-categoria?${query60}`).catch(() => null), 
   ])
+
+  console.log("DATOS MARGEN DESDE C#:", margenCategoria);
 
   const ventasTotales = toNumber(pareto?.totalRevenue) || sum(evolucion?.series ?? [], (item) => item.total)
   const ventasCount = toNumber(summary?.ventas?.count) || (historico?.length ?? 0)
   const margenPct = toNumber(finanzas?.margenPct)
 
-  const mapaEmpleados = new Map(
-    (empleados ?? []).map((emp) => [String(emp.id ?? emp.Id), `${emp.nombre ?? emp.Nombre ?? ''} ${emp.apellido ?? emp.Apellido ?? ''}`.trim() || emp.nombre || emp.Nombre || `#${emp.id ?? emp.Id}`])
-  )
+  const mapaEmpleados = new Map((empleados ?? []).map((emp) => [String(emp.id ?? emp.Id), `${emp.nombre ?? emp.Nombre ?? ''} ${emp.apellido ?? emp.Apellido ?? ''}`.trim() || emp.nombre || emp.Nombre || `#${emp.id ?? emp.Id}`]))
   const agregados = new Map()
   for (const venta of historico ?? []) {
     const idEmpleado = String(venta.IdEmpleado ?? venta.idEmpleado ?? venta.empleado?.Id ?? '')
@@ -296,59 +298,75 @@ export async function loadVentasDashboard(range = null, branchId = '') {
     agregados.set(idEmpleado, actual)
   }
 
-  const rankingEmpleados = Array.from(agregados.values())
-    .sort((a, b) => b.ventas - a.ventas)
-    .slice(0, 4)
-    .map((item) => ({
-      nombre: item.nombre,
-      ventas: item.ventas,
-      ticket: item.ventas > 0 ? Math.round(item.total / item.ventas) : 0,
-    }))
+  const rankingEmpleados = Array.from(agregados.values()).sort((a, b) => b.ventas - a.ventas).slice(0, 4).map((item) => ({ nombre: item.nombre, ventas: item.ventas, ticket: item.ventas > 0 ? Math.round(item.total / item.ventas) : 0 }))
 
   const paretoEntries = pareto?.entries ?? [];
   const paretoIds = new Set(paretoEntries.map(p => String(p.id)));
+  const dispersionSeries = (Array.isArray(elasticidad?.entries) ? elasticidad.entries : []).filter(item => paretoIds.has(String(item.id)))
+
+  // 🔥 NUEVO: Construcción de la matriz ABC extrayendo los nombres de los productos
+  let classA = [], classB = [], classC = [];
+  let totalA = 0, totalB = 0, totalC = 0;
   
-  const elasticidadSeries = Array.isArray(elasticidad?.entries) ? elasticidad.entries : []
-  const dispersionSeries = elasticidadSeries.filter(item => paretoIds.has(String(item.id)))
+  for (const item of paretoEntries) {
+    const val = toNumber(item.total);
+    const cum = toNumber(item.cumulativePercentage ?? item.cumulative);
+    const prodName = item.product ?? item.producto ?? 'Producto Desconocido';
+    
+    if (cum <= 80) { totalA += val; classA.push({ nombre: prodName, valor: val }); }
+    else if (cum <= 95) { totalB += val; classB.push({ nombre: prodName, valor: val }); }
+    else { totalC += val; classC.push({ nombre: prodName, valor: val }); }
+  }
+  
+  const totalAbcVentas = totalA + totalB + totalC || 1;
+  const abcVentas = {
+    grafico: [
+      { id: 0, value: Math.round((totalA / totalAbcVentas) * 100), label: 'Clase A (80%)', color: '#12684e' },
+      { id: 1, value: Math.round((totalB / totalAbcVentas) * 100), label: 'Clase B (15%)', color: '#dfa758' },
+      { id: 2, value: Math.round((totalC / totalAbcVentas) * 100), label: 'Clase C (5%)', color: '#a93b32' }
+    ],
+    topA: classA.slice(0, 5) // Mandamos los 5 mejores para la lista
+  };
+
+  // 🔥 NUEVO: Extracción matemática con salvavidas para costos en cero
+  const margenesVentas = (margenCategoria?.entries ?? []).map((item) => {
+    let ingresos = toNumber(item.revenue ?? item.totalVentas ?? item.total ?? 0);
+    let costos = toNumber(item.cost ?? item.costo ?? 0);
+    let ganancia = toNumber(item.margin ?? item.margen ?? item.margenNeto ?? 0);
+    let pct = toNumber(item.marginPct ?? item.margenPct ?? 0);
+
+    // Si el backend no manda "ingresos", lo reconstruimos
+    if (ingresos === 0 && (costos > 0 || ganancia > 0)) {
+        ingresos = costos + ganancia;
+    }
+
+    // SALVAVIDAS: Si el costo llegó en $0, pero el backend SÍ nos mandó un porcentaje 
+    // de margen válido (ej: 40%), forzamos el cálculo de la plata real:
+    if (costos === 0 && pct > 0 && pct < 100 && ingresos > 0) {
+        ganancia = (ingresos * pct) / 100;
+        costos = ingresos - ganancia;
+    }
+
+    return {
+      categoria: item.categoria ?? item.category ?? 'Categoría',
+      ingresos,
+      costos,
+      ganancia,
+      margenPct: ingresos > 0 ? Math.round((ganancia / ingresos) * 100) : 0
+    };
+  }).filter(m => m.ingresos > 0);
 
   return {
-    kpis: {
-      facturacionTotal: Math.round(ventasTotales),
-      ticketPromedio: ventasCount > 0 ? Math.round(ventasTotales / ventasCount) : 0,
-      operaciones: ventasCount,
-      margenPromedio: margenPct,
-    },
-    evolucion: {
-      xAxis: (evolucion?.series ?? []).map((item) => item.period),
-      series: [{ data: (evolucion?.series ?? []).map((item) => toNumber(item.total)), label: 'Ventas (Millones $)' }],
-    },
-    formaPago: (formaPago?.methods ?? []).map((item, index) => ({
-      id: index,
-      value: toNumber(item.total),
-      label: item.method ?? item.metodo ?? `Método ${index + 1}`,
-      color: colorByIndex(index, ['#12684e', '#4cbf93', '#dfa758', '#a39d93']),
-    })),
-    categorias: (categoria?.categories ?? []).map((item) => ({
-      label: item.category ?? item.categoria ?? item.Nombre ?? 'Sin categoría',
-      value: toNumber(item.total),
-    })),
-    sucursales: (sucursal?.branches ?? []).map((item) => ({
-      nombre: item.sucursal ?? item.branch ?? item.Nombre ?? 'Sucursal',
-      facturacion: toNumber(item.revenue),
-      margen: toNumber(item.marginPct ?? item.margin),
-    })),
+    kpis: { facturacionTotal: Math.round(ventasTotales), ticketPromedio: ventasCount > 0 ? Math.round(ventasTotales / ventasCount) : 0, operaciones: ventasCount, margenPromedio: margenPct },
+    evolucion: { xAxis: (evolucion?.series ?? []).map((item) => item.period), series: [{ data: (evolucion?.series ?? []).map((item) => toNumber(item.total)), label: 'Ventas (Millones $)' }] },
+    formaPago: (formaPago?.methods ?? []).map((item, index) => ({ id: index, value: toNumber(item.total), label: item.method ?? item.metodo ?? `Método ${index + 1}`, color: colorByIndex(index, ['#12684e', '#4cbf93', '#dfa758', '#a39d93']) })),
+    categorias: (categoria?.categories ?? []).map((item) => ({ label: item.category ?? item.categoria ?? item.Nombre ?? 'Sin categoría', value: toNumber(item.total) })),
+    sucursales: (sucursal?.branches ?? []).map((item) => ({ nombre: item.sucursal ?? item.branch ?? item.Nombre ?? 'Sucursal', facturacion: toNumber(item.revenue), margen: toNumber(item.marginPct ?? item.margin) })),
     empleados: rankingEmpleados,
-    pareto: {
-      productos: paretoEntries.map((item) => item.product ?? item.producto ?? 'Producto'),
-      ventasAbsolutas: paretoEntries.map((item) => toNumber(item.total)),
-      porcentajeAcumulado: paretoEntries.map((item) => toNumber(item.cumulativePercentage)),
-    },
-    elasticidad: dispersionSeries.map((item, index) => ({
-      x: toNumber(item.baseAvgPrice ?? item.compareAvgPrice ?? item.avgPrice),
-      y: toNumber(item.baseQty ?? item.compareQty ?? item.quantity),
-      id: String(item.id ?? index),
-      nombre: item.product ?? 'Producto'
-    })),
+    pareto: { productos: paretoEntries.map((item) => item.product ?? item.producto ?? 'Producto'), ventasAbsolutas: paretoEntries.map((item) => toNumber(item.total)), porcentajeAcumulado: paretoEntries.map((item) => toNumber(item.cumulativePercentage)) },
+    elasticidad: dispersionSeries.map((item, index) => ({ x: toNumber(item.baseAvgPrice ?? item.compareAvgPrice ?? item.avgPrice), y: toNumber(item.baseQty ?? item.compareQty ?? item.quantity), id: String(item.id ?? index), nombre: item.product ?? 'Producto' })),
+    abc: abcVentas,
+    margenes: margenesVentas,
   }
 }
 

@@ -301,7 +301,12 @@ if (!idClienteAsignado) {
           association: 'dispositivo',
           include: [{ association: 'modelo', attributes: ['Nombre'] }]
         },
-        { association: 'empleado', attributes: ['Nombre', 'Apellido'] }
+        { association: 'empleado', attributes: ['Nombre', 'Apellido'] },
+        {
+          association: 'fallas',
+          through: { attributes: [] },
+          attributes: ['Id', 'Nombre']
+        }
       ],
       order: [['FechaEmision', 'DESC']]
     };

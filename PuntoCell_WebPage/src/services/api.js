@@ -96,53 +96,59 @@ export const resetearContrasena = async (token, nuevaContrasena) => {
   return data
 }
 
-const normalizarOrden = (basic, detalle = null, tiposMap = {}) => ({
-  NumOrden:          basic.Id,
-  FechaEmision:      basic.FechaEmision ? String(basic.FechaEmision).split('T')[0] : null,
-  FechaEntrega:      basic.FechaEntrega ? String(basic.FechaEntrega).split('T')[0] : null,
-  IdEstadoOrden:     basic.IdEstadoOrden,
-  Estado:            basic.estado?.Nombre ?? '',
-  NombreEmpleado:    basic.empleado?.Nombre ?? '',
-  ApellidoEmpleado:  basic.empleado?.Apellido ?? '',
-  IdEmpleado:        basic.IdEmpleado,
-  ModeloDispositivo: detalle?.dispositivo?.modelo?.Nombre ?? basic.dispositivo?.modelo?.Nombre ?? '',
-  MarcaDispositivo:  detalle?.dispositivo?.modelo?.marca?.Nombre ?? '',
-  TipoDispositivo:   tiposMap[detalle?.dispositivo?.modelo?.IdCategoriaArticulo] ?? '',
-  NombreCliente:     detalle?.dispositivo?.cliente?.Nombre ?? '',
-  ApellidoCliente:   detalle?.dispositivo?.cliente?.Apellido ?? '',
-  DNICliente:        detalle?.dispositivo?.cliente?.DNI ?? '',
-  EmailCliente:      detalle?.dispositivo?.cliente?.Email ?? '',
-  CelularCliente:    detalle?.dispositivo?.cliente?.Celular ?? '',
-  Fallas:            (detalle?.fallas ?? []).map(f => f.Nombre),
-  Falla:             detalle?.fallas?.[0]?.Nombre ?? '',
-})
+const normalizarOrden = (orden, tiposMap = {}) => {
+  // Manejamos las rutas anidadas que devuelve Sequelize en una consulta completa
+  const dispositivo = orden.dispositivo ?? orden.DispositivoCliente ?? null;
+  const modelo = dispositivo?.modelo ?? null;
+  const marca = modelo?.marca ?? null;
+  const cliente = dispositivo?.cliente ?? orden.cliente ?? null;
+  const fallas = orden.fallas ?? orden.Fallas ?? [];
+
+  return {
+    NumOrden:          orden.Id ?? orden.id,
+    FechaEmision:      orden.FechaEmision ? String(orden.FechaEmision).split('T')[0] : null,
+    FechaEntrega:      orden.FechaEntrega ? String(orden.FechaEntrega).split('T')[0] : null,
+    IdEstadoOrden:     orden.IdEstadoOrden,
+    Estado:            orden.estado?.Nombre ?? orden.EstadoOrden?.Nombre ?? '',
+    NombreEmpleado:    orden.empleado?.Nombre ?? '',
+    ApellidoEmpleado:  orden.empleado?.Apellido ?? '',
+    IdEmpleado:        orden.IdEmpleado,
+    ModeloDispositivo: modelo?.Nombre ?? '',
+    MarcaDispositivo:  marca?.Nombre ?? '',
+    TipoDispositivo:   tiposMap[modelo?.IdCategoriaArticulo] ?? '',
+    NombreCliente:     cliente?.Nombre ?? '',
+    ApellidoCliente:   cliente?.Apellido ?? '',
+    DNICliente:        cliente?.DNI ?? '',
+    EmailCliente:      cliente?.Email ?? '',
+    CelularCliente:    cliente?.Celular ?? '',
+    Fallas:            fallas.map(f => f.Nombre),
+    Falla:             fallas?.[0]?.Nombre ?? '',
+  };
+};
 
 export const getOrdenes = async () => {
-  const listRes = await fetchApi('/reparaciones/ordenes-reparacion')
-  const basicItems = listRes?.data ?? []
+  // 1. Hacemos UNA SOLA PETICIÓN para traer todas las órdenes
+  const listRes = await fetchApi('/reparaciones/ordenes-reparacion');
+  const ordenes = listRes?.data ?? [];
 
-  const detalles = await Promise.all(
-    basicItems.map(item =>
-      fetchApi(`/reparaciones/ordenes-reparacion/${item.Id}`)
-        .then(r => r?.data ?? null)
-        .catch(() => null)
-    )
-  )
-
+  // 2. Extraemos las categorías de los modelos
   const idCategorias = [...new Set(
-    detalles.map(d => d?.dispositivo?.modelo?.IdCategoriaArticulo).filter(Boolean)
-  )]
+    ordenes.map(o => o.dispositivo?.modelo?.IdCategoriaArticulo ?? o.DispositivoCliente?.modelo?.IdCategoriaArticulo).filter(Boolean)
+  )];
+
+  // 3. Traemos los nombres de las categorías (esto sí es seguro porque son 3 o 4 como mucho: smartphone, tablet, pc)
   const categoriasRes = await Promise.all(
     idCategorias.map(id =>
       fetchApi(`/inventario/categoria-articulos/${id}`)
         .then(r => [id, r?.data?.Nombre ?? ''])
         .catch(() => [id, ''])
     )
-  )
-  const tiposMap = Object.fromEntries(categoriasRes)
+  );
+  const tiposMap = Object.fromEntries(categoriasRes);
 
-  return basicItems.map((basic, i) => normalizarOrden(basic, detalles[i], tiposMap))
-}
+  // 4. Devolvemos las órdenes normalizadas
+  return ordenes.map(orden => normalizarOrden(orden, tiposMap));
+};
 
 export const crearOrden = (datos) => fetchApi('/reparaciones/ordenes-reparacion', { method: 'POST', body: JSON.stringify(datos) })
 export const actualizarOrden = (id, datos) => fetchApi(`/reparaciones/ordenes-reparacion/${id}/estado`, { method: 'PATCH', body: JSON.stringify(datos) })

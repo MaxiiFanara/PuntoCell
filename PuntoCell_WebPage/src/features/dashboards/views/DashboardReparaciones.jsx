@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Paper } from '@mui/material';
+import { Box, Typography, Paper, Stepper, Step, StepLabel, useTheme } from '@mui/material';
 import { 
   LineChart, 
   BarChart, 
@@ -13,12 +13,18 @@ import {
   ChartsGrid
 } from '@mui/x-charts';
 
+import PendingActionsIcon from '@mui/icons-material/PendingActions';
+import BuildIcon from '@mui/icons-material/Build';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import HandshakeIcon from '@mui/icons-material/Handshake';
+import CancelIcon from '@mui/icons-material/Cancel';
+
 import PageHeader from '../../../components/ui/PageHeader';
 import KpiCard from '../../../components/ui/KpiCard';
 import { emptyReparacionesDashboard, loadReparacionesDashboard } from '../data/dashboardData';
 import DashboardRangeFilter from '../components/DashboardRangeFilter';
 import { useDashboardRange } from '../hooks/useDashboardRange';
-import { getSucursales } from '../../../services/api';
+import { getSucursales, getOrdenes } from '../../../services/api';
 
 const DashboardCard = ({ title, children, height = 340 }) => (
   <Paper 
@@ -40,10 +46,15 @@ const DashboardCard = ({ title, children, height = 340 }) => (
 );
 
 export default function DashboardReparaciones() {
+  const theme = useTheme();
   const [dashboard, setDashboard] = useState(emptyReparacionesDashboard);
   const [sucursalesLista, setSucursalesLista] = useState([]);
   const [branchId, setBranchId] = useState('');
   const { range, seeAll, updateFrom, updateTo, toggleSeeAll } = useDashboardRange(30);
+
+  const [estadosActuales, setEstadosActuales] = useState({
+    enEspera: 0, enReparacion: 0, terminado: 0, entregado: 0, anulado: 0
+  });
 
   useEffect(() => {
     getSucursales()
@@ -56,6 +67,24 @@ export default function DashboardReparaciones() {
     loadReparacionesDashboard(seeAll ? null : range, branchId)
       .then((data) => { if (mounted) setDashboard(data); })
       .catch(() => {});
+    
+  
+    getOrdenes()
+      .then((data) => {
+        if (!mounted) return;
+        const filtradas = branchId ? data.filter(o => String(o.IdSucursal) === String(branchId)) : data;
+        const esEstado = (o, nombre) => o.Estado?.toLowerCase() === nombre.toLowerCase();
+        
+        setEstadosActuales({
+          enEspera: filtradas.filter(o => esEstado(o, 'en espera')).length,
+          enReparacion: filtradas.filter(o => esEstado(o, 'en reparación')).length,
+          terminado: filtradas.filter(o => esEstado(o, 'terminado')).length,
+          entregado: filtradas.filter(o => esEstado(o, 'entregado')).length,
+          anulado: filtradas.filter(o => esEstado(o, 'anulado')).length,
+        });
+      })
+      .catch(console.error);
+
     return () => { mounted = false; };
   }, [range, seeAll, branchId]);
 
@@ -66,6 +95,33 @@ export default function DashboardReparaciones() {
   const periodoSeries = periodoXAxis.length === periodoData.length ? periodoData : periodoXAxis.map((_, index) => periodoData[index] ?? 0);
 
   const maxRevenue = Math.max(...matriz.map(m => m.z), 100);
+
+  const pasosFlujo = [
+    { 
+      label: 'En Espera (Recepción)', 
+      valor: estadosActuales.enEspera, 
+      color: theme.palette.text.secondary,
+      icono: <PendingActionsIcon /> 
+    },
+    { 
+      label: 'En Reparación (Taller)', 
+      valor: estadosActuales.enReparacion, 
+      color: '#12684e', // Verde principal
+      icono: <BuildIcon /> 
+    },
+    { 
+      label: 'Terminado (Pendiente Entrega)', 
+      valor: estadosActuales.terminado, 
+      color: '#dfa758', // Dorado
+      icono: <CheckCircleIcon /> 
+    },
+    { 
+      label: 'Entregado (Flujo Completado)', 
+      valor: estadosActuales.entregado, 
+      color: '#4cbf93', // Verde claro
+      icono: <HandshakeIcon /> 
+    }
+  ];
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, width: '100%', pb: 10 }}>
@@ -165,6 +221,52 @@ export default function DashboardReparaciones() {
               margin={{ top: 20, bottom: 50, left: 20, right: 20 }}
             />
           </DashboardCard>
+        </Box>
+
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: { xs: 2, md: 3 } }}>
+          <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: '16px', boxShadow: (t) => t.vars.palette.pc.lift }}>
+            <Typography variant="h6" sx={{ mb: 3, fontWeight: 700, fontSize: '1.05rem', letterSpacing: '-0.01em' }}>
+              Diagrama de Flujo de Reparaciones (En tiempo real)
+            </Typography>
+            
+            <Box sx={{ width: '100%', overflowX: 'auto', pb: 2 }}>
+              <Stepper alternativeLabel sx={{ minWidth: 600 }}>
+                {pasosFlujo.map((paso, index) => (
+                  <Step key={paso.label} active={true}>
+                    <StepLabel 
+                      icon={
+                        <Box sx={{ 
+                          width: 45, height: 45, borderRadius: '50%', display: 'flex', 
+                          alignItems: 'center', justifyContent: 'center', 
+                          bgcolor: `${paso.color}15`, color: paso.color,
+                          border: `2px solid ${paso.color}`
+                        }}>
+                          {paso.icono}
+                        </Box>
+                      }
+                    >
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mt: 1 }}>
+                        {paso.label}
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 800, color: paso.color, mt: 0.5 }}>
+                        {paso.valor}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Órdenes
+                      </Typography>
+                    </StepLabel>
+                  </Step>
+                ))}
+              </Stepper>
+            </Box>
+
+            <Box sx={{ mt: 3, pt: 2, borderTop: '1px dashed', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CancelIcon sx={{ color: '#a93b32', fontSize: 20 }} />
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                <strong>Desviación de Flujo:</strong> Hay <strong style={{color: '#a93b32'}}>{estadosActuales.anulado} órdenes anuladas</strong> que no lograron completar el ciclo.
+              </Typography>
+            </Box>
+          </Paper>
         </Box>
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'auto' }, gap: { xs: 2, md: 3 } }}>

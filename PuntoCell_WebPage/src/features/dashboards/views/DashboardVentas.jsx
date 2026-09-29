@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Paper } from '@mui/material';
-import { LineChart, BarChart, PieChart, ScatterChart, ChartsContainer, BarPlot, LinePlot, ChartsXAxis, ChartsYAxis, ChartsTooltip, ChartsGrid } from '@mui/x-charts';
+import { Box, Typography, Paper, List, ListItem, Divider } from '@mui/material';
+import { LineChart, BarChart, PieChart, ChartsContainer, BarPlot, LinePlot, ChartsXAxis, ChartsYAxis, ChartsTooltip, ChartsGrid } from '@mui/x-charts';
 import dayjs from 'dayjs';
 
 import PageHeader from '../../../components/ui/PageHeader';
@@ -50,7 +50,8 @@ export default function DashboardVentas() {
     return () => { mounted = false; };
   }, [range, seeAll, branchId]);
 
-  const { kpis, evolucion, formaPago, categorias, sucursales, empleados, pareto, elasticidad } = dashboard;
+  // Nos aseguramos de que abc tenga su estructura inicial para que no falle el mapeo
+  const { kpis, evolucion, formaPago, categorias, sucursales, empleados, pareto, abc = { grafico: [], topA: [] }, margenes = [] } = dashboard;
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, width: '100%', pb: 10, boxSizing: 'border-box', minWidth: 0 }}>
@@ -152,22 +153,96 @@ export default function DashboardVentas() {
           </DashboardCard>
         </Box>
 
-        {/* <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: { xs: 2, md: 3 }, minWidth: 0 }}>
-          <DashboardCard title="Elasticidad Precio vs Demanda" height={420}>
-            <ScatterChart
-              xAxis={[{ min: 0, max: Math.max(1, ...elasticidad.map((item) => Number(item.x) || 0)), label: 'Precio Cotizado ($)', valueFormatter: currencyFormatter, width: 'auto', tickLabelStyle: { fontSize: 11 } }]}
-              yAxis={[{ min: 0, max: Math.max(1, ...elasticidad.map((item) => Number(item.y) || 0)), label: 'Demanda (Unidades)', valueFormatter: numberFormatter, width: 'auto', tickLabelStyle: { fontSize: 11 } }]}
-              series={[{
-                data: elasticidad.filter((item) => Number.isFinite(Number(item.x)) && Number.isFinite(Number(item.y))).map((item) => ({ x: Number(item.x), y: Number(item.y), id: item.id, nombre: item.nombre })),
-                color: '#dfa758',
-                markerSize: 8,
-                valueFormatter: (v) => `${v?.nombre ? v.nombre + '\n' : ''}Precio: $${v?.x?.toLocaleString('es-AR')}\nDemanda: ${v?.y?.toLocaleString('es-AR')}`,
-              }]}
-              margin={{ top: 20, bottom: 75, left: 10, right: 40 }}
-              sx={{ width: '100%', height: '100%' }}
-            />
+        {/* --- FILA ACTUALIZADA CON NOMBRES DE PRODUCTOS Y MÁRGENES EN MONEDA --- */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1.5fr' }, gap: { xs: 2, md: 3 }, minWidth: 0 }}>
+          
+          <DashboardCard title="Análisis ABC (Top Productos)" height={420}>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', xl: 'row' }, height: '100%', alignItems: 'center' }}>
+              
+              <Box sx={{ width: { xs: '100%', xl: '45%' }, height: { xs: 180, xl: '100%' } }}>
+                {abc.grafico && abc.grafico.length > 0 ? (
+                  <PieChart
+                    series={[{ 
+                      data: abc.grafico, innerRadius: '40%', outerRadius: '80%', paddingAngle: 4, cornerRadius: 5,
+                      highlightScope: { faded: 'global', highlighted: 'item' },
+                      faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' },
+                    }]}
+                    margin={{ top: 10, bottom: 30, left: 10, right: 10 }}
+                    slotProps={{ legend: { direction: 'row', position: { vertical: 'bottom', horizontal: 'middle' }, padding: 0 } }}
+                  />
+                ) : (
+                  <Box sx={{ display: 'grid', placeItems: 'center', height: '100%', color: 'text.disabled' }}>Sin datos</Box>
+                )}
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', xl: '55%' }, pl: { xl: 2 }, mt: { xs: 2, xl: 0 }, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Typography variant="subtitle2" sx={{ color: '#12684e', fontWeight: 700, borderBottom: '1px solid', borderColor: 'divider', pb: 0.5 }}>
+                  Productos Estrella (Clase A)
+                </Typography>
+                
+                <List dense disablePadding>
+                  {abc.topA && abc.topA.length > 0 ? (
+                    abc.topA.map((prod, idx) => (
+                      <ListItem key={idx} sx={{ px: 0, py: 0.5, display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', pr: 1 }}>
+                          {idx + 1}. {prod.nombre}
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                          ${prod.valor.toLocaleString('es-AR')}
+                        </Typography>
+                      </ListItem>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>No hay productos registrados</Typography>
+                  )}
+                </List>
+              </Box>
+
+            </Box>
           </DashboardCard>
-        </Box> */}
+
+          <DashboardCard title="Rentabilidad por Categoría (Costo vs Ganancia Neta)" height={420}>
+            {margenes && margenes.length > 0 ? (
+              <BarChart
+                layout="horizontal"
+                yAxis={[{ scaleType: 'band', data: margenes.map((m) => m.categoria), label: 'Categorías', width: 'auto', tickLabelStyle: { fontSize: 11 } }]}
+                xAxis={[{ label: 'Monto Facturado ($)', valueFormatter: currencyFormatter, tickLabelStyle: { fontSize: 11 } }]}
+                series={[
+                  { data: margenes.map((m) => m.costos), color: '#a93b32', label: 'Costo (Repuestos/Insumos)', stack: 'total' },
+                  { data: margenes.map((m) => m.ganancia), color: '#12684e', label: 'Ganancia Neta (Limpia)', stack: 'total' }
+                ]}
+                margin={{ top: 10, bottom: 50, left: 10, right: 30 }}
+                sx={{ width: '100%', height: '100%' }}
+              />
+            ) : (
+               <Box sx={{ display: 'grid', placeItems: 'center', height: '100%', color: 'text.disabled' }}>
+                No hay datos de rentabilidad para este período
+              </Box>
+            )}
+          </DashboardCard>
+
+          <DashboardCard title="Margen de Rentabilidad Promedio (%)" height={420}>
+            {margenes && margenes.length > 0 ? (
+              <BarChart
+                layout="horizontal"
+                yAxis={[{ scaleType: 'band', data: margenes.map((m) => m.categoria), label: 'Categorías', width: 'auto', tickLabelStyle: { fontSize: 11 } }]}
+                xAxis={[{ label: 'Margen Neto (%)', valueFormatter: (v) => `${v}%`, max: 100, tickLabelStyle: { fontSize: 11 } }]}
+                series={[{ 
+                  data: margenes.map((m) => m.margenPct), 
+                  color: '#dfa758', // Dorado institucional
+                  label: 'Margen de Ganancia (%)'
+                }]}
+                margin={{ top: 10, bottom: 50, left: 10, right: 30 }}
+                sx={{ width: '100%', height: '100%' }}
+              />
+            ) : (
+               <Box sx={{ display: 'grid', placeItems: 'center', height: '100%', color: 'text.disabled' }}>
+                No hay datos de rentabilidad para este período
+              </Box>
+            )}
+          </DashboardCard>
+
+        </Box>
       </Box>
     </Box>
   );

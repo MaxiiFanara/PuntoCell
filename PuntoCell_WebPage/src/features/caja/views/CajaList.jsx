@@ -202,7 +202,7 @@ export default function CajaList() {
                 <AccountBalanceWallet />
               </Box>
               <Box>
-                <Typography variant="body2" color="text.secondary" fontWeight="bold">Saldo Esperado</Typography>
+                <Typography variant="body2" color="text.secondary" fontWeight="bold">Saldo</Typography>
                 <Typography variant="h6" fontWeight="bold">{currencyFormatter(saldoActual)}</Typography>
               </Box>
             </Paper>

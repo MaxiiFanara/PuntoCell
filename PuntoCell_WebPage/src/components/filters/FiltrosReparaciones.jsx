@@ -5,6 +5,11 @@ import {
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import CloseIcon from '@mui/icons-material/Close'
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+import dayjs from 'dayjs'
+
 import FilterBar, { FilterField } from '../ui/FilterBar'
 import StatusPill from '../ui/StatusPill'
 
@@ -19,13 +24,15 @@ const ESTADOS = [
 ]
 
 const FiltrosReparaciones = ({ filtros, setFiltros, empleados }) => {
-  const handleEstado   = (_, v) => { if (v !== undefined) setFiltros((f) => ({ ...f, estado: v })) }
-  const handleBusqueda = (e) => setFiltros((f) => ({ ...f, busqueda: e.target.value }))
-  const handleEmpleado = (e) => setFiltros((f) => ({ ...f, empleadoId: e.target.value || null }))
-  const limpiar = () => setFiltros({ estado: null, busqueda: '', empleadoId: null })
+  const handleEstado     = (_, v) => { if (v !== undefined) setFiltros((f) => ({ ...f, estado: v })) }
+  const handleBusqueda   = (e) => setFiltros((f) => ({ ...f, busqueda: e.target.value }))
+  const handleEmpleado   = (e) => setFiltros((f) => ({ ...f, empleadoId: e.target.value || null }))
+  const handleFechaDesde = (v) => setFiltros((f) => ({ ...f, fechaDesde: v }))
+  const handleFechaHasta = (v) => setFiltros((f) => ({ ...f, fechaHasta: v }))
 
-  // El estado por defecto (null → "Activas") no cuenta como filtro activo.
-  const hayFiltros = Boolean(filtros.busqueda || filtros.empleadoId || filtros.estado !== null)
+  const limpiar = () => setFiltros({ estado: null, busqueda: '', empleadoId: null, fechaDesde: null, fechaHasta: null })
+
+  const hayFiltros = Boolean(filtros.busqueda || filtros.empleadoId || filtros.estado !== null || filtros.fechaDesde || filtros.fechaHasta)
 
   const chipsActivos = useMemo(() => {
     const activos = []
@@ -33,6 +40,12 @@ const FiltrosReparaciones = ({ filtros, setFiltros, empleados }) => {
     if (filtros.empleadoId) {
       const emp = empleados?.find((e) => String(e.id) === String(filtros.empleadoId))
       activos.push({ campo: 'empleadoId', texto: emp ? `${emp.apellido}, ${emp.nombre}` : 'Empleado' })
+    }
+    if (filtros.fechaDesde) {
+      activos.push({ campo: 'fechaDesde', texto: `Desde: ${dayjs(filtros.fechaDesde).format('DD/MM/YY')}` })
+    }
+    if (filtros.fechaHasta) {
+      activos.push({ campo: 'fechaHasta', texto: `Hasta: ${dayjs(filtros.fechaHasta).format('DD/MM/YY')}` })
     }
     if (filtros.estado !== null) {
       const est = ESTADOS.find((e) => e.value === filtros.estado)
@@ -43,12 +56,12 @@ const FiltrosReparaciones = ({ filtros, setFiltros, empleados }) => {
 
   const quitarChip = (campo) => {
     if (campo === 'estado') setFiltros((f) => ({ ...f, estado: null }))
-    else setFiltros((f) => ({ ...f, [campo]: campo === 'empleadoId' ? null : '' }))
+    else setFiltros((f) => ({ ...f, [campo]: (campo === 'empleadoId' || campo.startsWith('fecha')) ? null : '' }))
   }
 
   return (
     <FilterBar
-      columns="minmax(240px,1.6fr) minmax(180px,1fr)"
+      columns="minmax(220px, 1.5fr) minmax(180px, 1fr) minmax(300px, 1.5fr)"
       chips={chipsActivos.map((c) => (
         <StatusPill
           key={c.campo}
@@ -58,7 +71,6 @@ const FiltrosReparaciones = ({ filtros, setFiltros, empleados }) => {
           meta={
             <IconButton
               size="small"
-              aria-label={`Quitar filtro ${c.campo}`}
               onClick={() => quitarChip(c.campo)}
               sx={{ width: 15, height: 15, p: 0, color: 'inherit', opacity: .7, '&:hover': { opacity: 1 } }}
             >
@@ -72,15 +84,11 @@ const FiltrosReparaciones = ({ filtros, setFiltros, empleados }) => {
       <FilterField label="Buscar">
         <TextField
           placeholder="Cliente, dispositivo, N° orden, falla…"
-          value={filtros.busqueda}
+          value={filtros.busqueda || ''}
           onChange={handleBusqueda}
           fullWidth
           InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
-              </InputAdornment>
-            ),
+            startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment>,
           }}
         />
       </FilterField>
@@ -96,8 +104,29 @@ const FiltrosReparaciones = ({ filtros, setFiltros, empleados }) => {
         </FilterField>
       )}
 
+      <FilterField label="Rango de fechas">
+        <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <DatePicker
+              label="Desde"
+              value={filtros.fechaDesde || null}
+              onChange={handleFechaDesde}
+              format="DD/MM/YYYY"
+              slotProps={{ textField: { size: 'small', fullWidth: true } }}
+            />
+            <DatePicker
+              label="Hasta"
+              value={filtros.fechaHasta || null}
+              onChange={handleFechaHasta}
+              format="DD/MM/YYYY"
+              slotProps={{ textField: { size: 'small', fullWidth: true } }}
+            />
+          </Box>
+        </LocalizationProvider>
+      </FilterField>
+
       <FilterField label="Estado" sx={{ gridColumn: '1 / -1' }}>
-        <ToggleButtonGroup value={filtros.estado} exclusive onChange={handleEstado}>
+        <ToggleButtonGroup value={filtros.estado} exclusive onChange={handleEstado} sx={{ flexWrap: 'wrap' }}>
           {ESTADOS.map(({ value, label }) => (
             <ToggleButton key={String(value)} value={value}>{label}</ToggleButton>
           ))}
