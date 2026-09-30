@@ -46,6 +46,11 @@ export const env = {
   SECURITY: {
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY
   },
+  RECAPTCHA: {
+    SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY || '',
+    // Solo se desactiva con RECAPTCHA_ENABLED=false explícito (pruebas con Postman/curl).
+    ENABLED: process.env.RECAPTCHA_ENABLED !== 'false'
+  },
   SMTP: {
     USER: process.env.EMAIL_USER,
     PASS: process.env.SMTP_PASS,

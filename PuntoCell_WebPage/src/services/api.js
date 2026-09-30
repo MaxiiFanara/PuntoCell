@@ -37,12 +37,12 @@ export const fetchApi = async (endpoint, options = {}) => {
 }
 
 // Auth
-export const loginUsuario = async (identificador, pwd) => {
+export const loginUsuario = async (identificador, pwd, recaptchaToken) => {
   const res = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ Identificador: identificador, Pwd: pwd }),
+    body: JSON.stringify({ Identificador: identificador, Pwd: pwd, RecaptchaToken: recaptchaToken }),
   })
   const data = await res.json()
   if (!res.ok) {

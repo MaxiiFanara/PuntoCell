@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box, Card, CardContent, TextField, Button, Typography,
@@ -10,6 +10,7 @@ import {
 } from '@mui/icons-material'
 import { useAuth } from '../context/AuthContext'
 import { loginUsuario, getSesionActual, mapUsuario } from '../services/api'
+import { crearRecaptchaInvisible, RECAPTCHA_SITE_KEY } from '../services/recaptcha'
 
 // ─── Animaciones CSS + View Transition ────────────────────────────────────────
 const STYLES = `
@@ -81,6 +82,28 @@ export default function LoginPage() {
   const [success,       setSuccess]       = useState(false)
   const [form,          setForm]          = useState({ usuario: '', password: '' })
 
+  // reCAPTCHA invisible: el widget vive dentro de esta página, así el badge
+  // desaparece al salir del login.
+  const recaptchaHostRef = useRef(null)
+  const recaptchaRef     = useRef(null)
+
+  useEffect(() => {
+    if (!RECAPTCHA_SITE_KEY || !recaptchaHostRef.current) return
+    let cancelado = false
+    // Un contenedor nuevo por montaje: reCAPTCHA no permite renderizar dos
+    // veces en el mismo elemento (StrictMode monta/desmonta en desarrollo).
+    const el = document.createElement('div')
+    recaptchaHostRef.current.appendChild(el)
+    crearRecaptchaInvisible(el)
+      .then((widget) => { if (!cancelado) recaptchaRef.current = widget })
+      .catch(() => { /* se informa al usuario recién cuando intenta ingresar */ })
+    return () => {
+      cancelado = true
+      recaptchaRef.current = null
+      el.remove()
+    }
+  }, [])
+
   useEffect(() => {
     if (document.getElementById('pc-login-styles')) return
     const tag = document.createElement('style')
@@ -104,8 +127,27 @@ export default function LoginPage() {
     e.preventDefault()
     if (!form.usuario || !form.password) { setError('Por favor completá todos los campos.'); return }
     setLoading(true); setError('')
+
+    // Validación del cliente OK → recién ahora se invoca el desafío invisible.
+    let recaptchaToken
+    if (RECAPTCHA_SITE_KEY) {
+      if (!recaptchaRef.current) {
+        setError('No se pudo cargar la verificación de seguridad. Revisá tu conexión y recargá la página.')
+        setLoading(false)
+        return
+      }
+      try {
+        recaptchaToken = await recaptchaRef.current.ejecutar()
+      } catch (err) {
+        recaptchaRef.current?.reset()
+        setError(err.message)
+        setLoading(false)
+        return
+      }
+    }
+
     try {
-      const res = await loginUsuario(form.usuario, form.password)
+      const res = await loginUsuario(form.usuario, form.password, recaptchaToken)
       login(mapUsuario(res.data.user))
       setSuccess(true)
     } catch (err) {
@@ -123,6 +165,8 @@ export default function LoginPage() {
         setError('No se pudo conectar con el servidor. Verificá tu conexión.')
       }
     } finally {
+      // El token de reCAPTCHA es de un solo uso: se regenera en el próximo intento.
+      recaptchaRef.current?.reset()
       setLoading(false)
     }
   }
@@ -290,6 +334,10 @@ export default function LoginPage() {
         <Typography className="anim-footer" variant="caption" sx={{ display: 'block', textAlign: 'center', mt: 3, color: 'text.disabled' }}>
           Proyecto final de carrera · Institución Cervantes
         </Typography>
+
+        {/* Host del reCAPTCHA invisible (fuera del form para que el cambio a la
+            vista de éxito no lo desmonte). */}
+        <Box ref={recaptchaHostRef} />
       </Box>
     </Box>
   )
