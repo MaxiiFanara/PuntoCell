@@ -15,6 +15,7 @@ import { createDashboardModule } from '../../modules/dashboard/dashboard.module.
 import { createReportesModule } from '../../modules/reportes/reportes.module.js';
 import { createCajaModule } from '../../modules/caja/caja.module.js';
 import { createAsistenteTecnicoModule } from '../../modules/asistente-tecnico/asistente-tecnico.module.js';
+import { createAsistenteUsuarioModule } from '../../modules/asistente-usuario/asistente-usuario.module.js';
 
 export function createContainer() {
   const usuarioDAO = new UsuarioDAO(models.Usuario);
@@ -35,6 +36,7 @@ export function createContainer() {
     ventas: createVentasModule(auditoriaModule.bitacoraService, cajaModule.cajaService),
     finanzas: createFinanzasModule(auditoriaModule.bitacoraService),
     asistenteTecnico: createAsistenteTecnicoModule(),
+    asistenteUsuario: createAsistenteUsuarioModule(),
     auditoria: auditoriaModule,
     caja: cajaModule
   };

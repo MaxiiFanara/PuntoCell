@@ -11,6 +11,7 @@ import BuildOutlinedIcon from '@mui/icons-material/BuildOutlined'
 import ElectricBoltOutlinedIcon from '@mui/icons-material/ElectricBoltOutlined'
 import PsychologyAltOutlinedIcon from '@mui/icons-material/PsychologyAltOutlined'
 import { consultarAsistenteTecnico } from '../../services/api'
+import MarkdownMessage from '../ui/MarkdownMessage'
 
 const EMPTY_HINT = 'Contale al asistente qué síntomas tiene el equipo, qué probaste y qué necesitás revisar.'
 
@@ -51,11 +52,10 @@ const Bubble = ({ role, children }) => (
         border: 1,
         borderColor: role === 'user' ? 'primary.light' : 'divider',
         bgcolor: role === 'user' ? 'pc.accentSoft' : 'background.paper',
-        whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
       }}
     >
-      <Typography sx={{ fontSize: '.875rem', lineHeight: 1.55 }}>{children}</Typography>
+      <MarkdownMessage text={children} />
     </Paper>
   </Box>
 )

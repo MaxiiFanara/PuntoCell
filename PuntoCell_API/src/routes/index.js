@@ -18,6 +18,7 @@ import catalogoRoutes from '../modules/catalogo/catalogo.routes.js';
 import auditoriaRoutes from '../modules/auditoria/auditoria.routes.js';
 import pagosRoutes from '../modules/pagos/pagos.routes.js';
 import asistenteTecnicoRoutes from '../modules/asistente-tecnico/asistente-tecnico.routes.js';
+import asistenteUsuarioRoutes from '../modules/asistente-usuario/asistente-usuario.routes.js';
 
 export default (container) => {
   const router = Router();
@@ -45,6 +46,7 @@ export default (container) => {
   router.use('/auditoria', auditoriaRoutes(container));
   router.use('/reportes', reportesRoutes(container));
   router.use('/asistente-tecnico', asistenteTecnicoRoutes(container));
+  router.use('/asistente-usuario', asistenteUsuarioRoutes(container));
 
   return router;
 };
