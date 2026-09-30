@@ -313,9 +313,6 @@ export default function CajaList() {
                   {/* Coinciden con los IDs del SQL[cite: 10] */}
                   <MenuItem value={1}>Efectivo</MenuItem>
                   <MenuItem value={3}>Transferencia Bancaria</MenuItem>
-                  <MenuItem value={4}>Tarjeta de Débito</MenuItem>
-                  <MenuItem value={5}>Tarjeta de Crédito</MenuItem>
-                  <MenuItem value={2}>Billetera Virtual (QR/Alias)</MenuItem>
                 </Select>
               </FormControl>
             </Box>
