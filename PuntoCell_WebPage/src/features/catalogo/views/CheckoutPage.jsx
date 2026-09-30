@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box, Typography, Stack, TextField, Button, Divider, Alert, CircularProgress, Paper,
+  Box, Typography, Stack, TextField, Button, Divider, Alert, CircularProgress, Paper, ToggleButtonGroup, ToggleButton
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { useCart } from '../context/CartContext';
 import { formatCurrency } from '../utils/whatsapp';
 import { pagosService } from '../../../services/pagosServices';
+import { ventasService } from '../../../services/ventasServices'; // <--- Importamos el servicio para la cotización
 import { btn, field, muted } from '../../../components/ui/publicStyles';
 
 const MOTIVOS = {
@@ -15,14 +16,10 @@ const MOTIVOS = {
   sin_stock: 'no tiene stock suficiente',
 };
 
-// El ancho y el ritmo vertical los pone el <main> de CatalogoLayout.
 const vacioCentrado = { maxWidth: 680, mx: 'auto' };
 
-/**
- * Campo del formulario con el rótulo arriba en vez del label flotante de MUI.
- * El control de la vitrina mide 48px fijos y el label flotante le come la mitad
- * de la caja; arriba, además, el helper de abajo queda como única nota al pie.
- */
+const formatPesos = (amount) => Math.round(amount).toLocaleString('es-AR');
+
 function Campo({ id, label, ...props }) {
   return (
     <Box>
@@ -38,17 +35,6 @@ function Campo({ id, label, ...props }) {
   );
 }
 
-/**
- * Finalizar compra, en dos caras verticales.
- *
- * Antes era una sola columna angosta: el resumen arriba, el formulario abajo y el
- * total fuera de pantalla justo cuando había que cargar cuatro campos y decidir.
- *
- * Ahora los datos van a la izquierda y el pedido a la derecha, uno al lado del
- * otro: mientras escribís seguís viendo qué estás comprando y cuánto suma. En
- * pantallas chicas no hay ancho para dos caras, así que se apila en el orden en
- * que se decide: primero qué llevás, después tus datos, y al final el pago.
- */
 export default function CheckoutPage() {
   const { items, totalPrice } = useCart();
   const navigate = useNavigate();
@@ -58,21 +44,53 @@ export default function CheckoutPage() {
   const [error, setError] = useState(null);
   const [rechazados, setRechazados] = useState([]);
 
+  // ================= ESTADO DE COTIZACIÓN Y MONEDA =================
+  const [cotizacionDolar, setCotizacionDolar] = useState(null);
+  const [monedaVista, setMonedaVista] = useState('USD'); // 'USD' o 'ARS'
+
+  useEffect(() => {
+    let mounted = true;
+    const cargarDolarSistema = async () => {
+      try {
+        const resCotizaciones = await ventasService.getCotizaciones();
+        let listaCotizaciones = resCotizaciones.data || resCotizaciones || [];
+        if (listaCotizaciones.data && Array.isArray(listaCotizaciones.data)) {
+          listaCotizaciones = listaCotizaciones.data;
+        }
+        
+        const cotizacionesDolar = listaCotizaciones.filter(c =>
+          (c.Clave || c.clave || '').toLowerCase() === 'dolarblue'
+        );
+        
+        const cotizacionReciente = cotizacionesDolar.reduce((masReciente, actual) => {
+          if (!masReciente) return actual;
+          const fechaActual = new Date(actual.CreatedAt || actual.createdAt || 0).getTime();
+          const fechaReciente = new Date(masReciente.CreatedAt || masReciente.createdAt || 0).getTime();
+          if (fechaActual !== fechaReciente) return fechaActual > fechaReciente ? actual : masReciente;
+          return (actual.Id ?? actual.id ?? 0) > (masReciente.Id ?? masReciente.id ?? 0) ? actual : masReciente;
+        }, null);
+
+        if (mounted && cotizacionReciente) {
+          setCotizacionDolar(parseFloat(cotizacionReciente.Valor || cotizacionReciente.valor) || null);
+        }
+      } catch (err) {
+        console.error("Error al obtener cotización en checkout:", err);
+      }
+    };
+    cargarDolarSistema();
+    return () => { mounted = false; };
+  }, []);
+  // =================================================================
+
   const emailValido = /^\S+@\S+\.\S+$/.test(comprador.email);
-  // Se compara por dígitos: el comprador puede escribirlo con puntos.
   const dniValido = /^\d{7,9}$/.test(comprador.dni.replace(/\D/g, ''));
-  // Todos obligatorios: con estos cuatro alcanza para registrar la compra a su
-  // nombre. Si el DNI ya es cliente del local se reusa su ficha y el resto se
-  // ignora; si no, se da de alta con estos datos.
   const nombreValido = comprador.nombre.trim().length >= 3;
   const celularValido = comprador.celular.replace(/\D/g, '').length >= 8;
   const puedePagar =
     items.length > 0 && emailValido && nombreValido && dniValido && celularValido && !enviando;
 
   const cambiar = (campo) => (e) => setComprador((prev) => ({ ...prev, [campo]: e.target.value }));
-
   const nombreDe = (id) => items.find((i) => String(i.id) === String(id))?.name || `Producto ${id}`;
-
   const totalUnidades = items.reduce((n, i) => n + i.quantity, 0);
 
   const pagar = async () => {
@@ -84,7 +102,6 @@ export default function CheckoutPage() {
         items: items.map((i) => ({ id: i.id, cantidad: i.quantity })),
         comprador,
       });
-      // Se sale del sitio: no se limpia el carrito hasta que el pago esté aprobado.
       window.location.href = initPoint;
     } catch (err) {
       if (err.status === 409) setRechazados(err.detalle);
@@ -120,12 +137,26 @@ export default function CheckoutPage() {
         Seguir comprando
       </Button>
 
-      <Typography component="h1" sx={{ typography: 'd2' }}>
-        Finalizar compra
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 2 }}>
+        <Typography component="h1" sx={{ typography: 'd2' }}>
+          Finalizar compra
+        </Typography>
 
-      {/* Los avisos van a lo ancho de las dos caras: si la disponibilidad cambió
-          mientras compraba, eso no puede quedar escondido en una columna. */}
+        {/* Selector visual de moneda */}
+        {cotizacionDolar > 0 && (
+          <ToggleButtonGroup
+            value={monedaVista}
+            exclusive
+            onChange={(e, val) => val && setMonedaVista(val)}
+            size="small"
+            sx={{ bgcolor: 'background.paper', borderRadius: '8px' }}
+          >
+            <ToggleButton value="USD" sx={{ px: 2, fontSize: '0.75rem', fontWeight: 600 }}>Ver en U$S</ToggleButton>
+            <ToggleButton value="ARS" sx={{ px: 2, fontSize: '0.75rem', fontWeight: 600 }}>Ver en $ ARS</ToggleButton>
+          </ToggleButtonGroup>
+        )}
+      </Box>
+
       {rechazados.length > 0 && (
         <Alert severity="warning" sx={{ mt: 3 }}>
           Mientras comprabas cambió la disponibilidad:
@@ -166,51 +197,59 @@ export default function CheckoutPage() {
 
           <Paper sx={{ p: 3, borderRadius: 2 }}>
             <Stack spacing={1.75}>
-              {items.map((item) => (
-                <Box key={item.id} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontSize: '.9375rem', lineHeight: 1.35 }}>
-                      {item.name}
-                    </Typography>
-                    <Typography className="mono" sx={{ ...muted, mt: 0.25, fontSize: '.8125rem' }}>
-                      {item.quantity} × ${formatCurrency(item.price)}
+              {items.map((item) => {
+                const subUsd = item.price * item.quantity;
+                const subArs = cotizacionDolar ? subUsd * cotizacionDolar : 0;
+                
+                return (
+                  <Box key={item.id} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontSize: '.9375rem', lineHeight: 1.35 }}>
+                        {item.name}
+                      </Typography>
+                      <Typography className="mono" sx={{ ...muted, mt: 0.25, fontSize: '.8125rem' }}>
+                        {item.quantity} × {monedaVista === 'USD' ? `U$S ${formatCurrency(item.price)}` : `$ ${formatPesos(item.price * cotizacionDolar)}`}
+                      </Typography>
+                    </Box>
+                    <Typography
+                      className="mono"
+                      sx={{ fontSize: '.9375rem', fontWeight: 500, whiteSpace: 'nowrap' }}
+                    >
+                      {monedaVista === 'USD' ? `U$S ${formatCurrency(subUsd)}` : `$ ${formatPesos(subArs)}`}
                     </Typography>
                   </Box>
-                  <Typography
-                    className="mono"
-                    sx={{ fontSize: '.9375rem', fontWeight: 500, whiteSpace: 'nowrap' }}
-                  >
-                    ${formatCurrency(item.price * item.quantity)}
-                  </Typography>
-                </Box>
-              ))}
+                );
+              })}
             </Stack>
 
             <Divider sx={{ my: 2.5 }} />
 
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 2 }}>
               <Typography sx={{ fontSize: '.9375rem', fontWeight: 600 }}>Total</Typography>
-              <Typography
-                className="mono"
-                sx={{
-                  fontSize: 'clamp(1.5rem, 3vw, 1.875rem)',
-                  fontWeight: 500,
-                  lineHeight: 1,
-                  letterSpacing: '-.025em',
-                  color: 'primary.main',
-                }}
-              >
-                ${formatCurrency(totalPrice)}
-              </Typography>
+              <Box sx={{ textAlign: 'right' }}>
+                <Typography
+                  className="mono"
+                  sx={{
+                    fontSize: 'clamp(1.5rem, 3vw, 1.875rem)',
+                    fontWeight: 500,
+                    lineHeight: 1,
+                    letterSpacing: '-.025em',
+                    color: 'primary.main',
+                  }}
+                >
+                  {monedaVista === 'USD' ? `U$S ${formatCurrency(totalPrice)}` : `$ ${formatPesos(totalPrice * (cotizacionDolar || 1))} ARS`}
+                </Typography>
+                {cotizacionDolar > 0 && monedaVista === 'USD' && (
+                  <Typography className="mono" sx={{ fontSize: '.75rem', color: 'text.disabled', mt: 0.5 }}>
+                    Equivalente: $ {formatPesos(totalPrice * cotizacionDolar)} ARS
+                  </Typography>
+                )}
+              </Box>
             </Box>
           </Paper>
         </Box>
 
-        {/* ---------- cara 2: tus datos ----------
-            En escritorio la grilla la trae a la izquierda y le da las dos filas de
-            alto; en el teléfono cae después del pedido, que es el orden en que se
-            decide. Sin `order` de CSS: el DOM ya está en el orden correcto, y así
-            el teclado recorre lo mismo que ve el ojo. */}
+        {/* ---------- cara 2: tus datos ---------- */}
         <Box sx={{ gridColumn: { md: '1 / 2' }, gridRow: { md: '1 / 3' } }}>
           <Typography component="h2" sx={{ typography: 'd3', mb: 0.75 }}>
             Tus datos
@@ -248,9 +287,7 @@ export default function CheckoutPage() {
           </Stack>
         </Box>
 
-        {/* ---------- el pago ----------
-            Debajo del pedido en escritorio y al final de todo en el teléfono: en
-            los dos casos es lo último que se lee antes de decidir. */}
+        {/* ---------- el pago ---------- */}
         <Box sx={{ gridColumn: { md: '2 / 3' }, gridRow: { md: '2 / 3' } }}>
           <Button
             variant="contained" color="primary" fullWidth
@@ -265,7 +302,7 @@ export default function CheckoutPage() {
             <LockOutlinedIcon sx={{ ...muted, fontSize: 16, mt: '2px', flex: 'none' }} />
             <Typography sx={{ ...muted, fontSize: '.8125rem', lineHeight: 1.5 }}>
               Te vamos a llevar al sitio de Mercado Pago para completar el pago de
-              forma segura.
+              forma segura en Pesos Argentinos (ARS) según la cotización del sistema.
             </Typography>
           </Box>
         </Box>

@@ -60,17 +60,22 @@ export const crearPagosService = ({
       throw err;
     }
 
-    // Se revalida contra el catálogo real en vez de confiar en el carrito: el
-    // localStorage del comprador es editable y mandaría el precio que quiera.
-    // Se reusa CatalogoService para que el precio cobrado sea exactamente el
-    // mismo que muestra la vitrina (misma resolución de lista minorista vigente).
-    // Trae el catálogo entero para validar N ítems. Si el catálogo
-    // crece, filtrar por ids en el propio service del catálogo.
-    // Sin IdSucursal: se valida contra el inventario de todas las sedes, igual
-    // que lo que ve el comprador. Filtrar por una sola hacía que un producto de
-    // la otra sucursal se rechazara como "inexistente" al ir a pagar.
     const { productos } = await catalogoService.getProductosVendibles();
     const porId = new Map(productos.map((p) => [String(p.id), p]));
+
+    // ─── 1. OBTENEMOS LA COTIZACIÓN DEL DÓLAR VIGENTE ───
+    const { Cotizacion } = models || {};
+    let valorCotizacion = 1; // Fallback por seguridad si models no estuviera inyectado
+    
+    if (Cotizacion) {
+      const cotizaciones = await Cotizacion.findAll({ order: [['CreatedAt', 'DESC']] });
+      const cotizacion =
+        cotizaciones.find((c) => (c.Clave || '').toLowerCase().includes('blue')) || cotizaciones[0];
+      if (cotizacion) {
+        valorCotizacion = Number(cotizacion.Valor) || 1;
+      }
+    }
+    // ---------------------------------------------------
 
     const rechazados = [];
     const itemsPreferencia = [];
@@ -89,12 +94,16 @@ export const crearPagosService = ({
         continue;
       }
 
+      // ─── 2. CONVERSIÓN DE USD A ARS PARA MERCADO PAGO ───
+      const precioUnitarioUSD = Number(producto.priceUsd) || 0;
+      const precioUnitarioARS = Number((precioUnitarioUSD * valorCotizacion).toFixed(2));
+
       itemsPreferencia.push({
         id,
         title: producto.name,
         quantity: cantidad,
-        // Precio de la base, en pesos y sin convertir: es lo que muestra el catálogo.
-        unit_price: Number(producto.priceUsd),
+        // Convertimos el precio a pesos utilizando la cotización oficial del sistema
+        unit_price: precioUnitarioARS,
         currency_id: 'ARS',
       });
     }
@@ -112,10 +121,6 @@ export const crearPagosService = ({
         name: comprador.nombre,
         phone: comprador.celular ? { number: String(comprador.celular) } : undefined,
       },
-      // MP devuelve el metadata intacto en el pago. Es la única forma de recuperar
-      // lo que el comprador escribió en el checkout: cuando paga con su cuenta de
-      // Mercado Pago, el payer que vuelve trae first_name, last_name y phone en
-      // null, y el documento que trae es el de la cuenta de MP, no el que cargó.
       metadata: {
         nombre: comprador.nombre || '',
         dni: comprador.dni ? String(comprador.dni).replace(/\D/g, '') : '',
@@ -125,11 +130,7 @@ export const crearPagosService = ({
       back_urls: { success: resultado, pending: resultado, failure: resultado },
     };
 
-    // auto_return exige back_urls https; con localhost, MP rechaza la preferencia
-    // entera. En desarrollo el comprador vuelve con el botón de MP.
     if (backUrlBase.startsWith('https://')) preferencia.auto_return = 'approved';
-
-    // MP no puede alcanzar localhost: sin URL pública no se manda notification_url.
     if (webhookUrl) preferencia.notification_url = webhookUrl;
 
     const pref = await mpClient.crearPreferencia(preferencia);

@@ -1,14 +1,14 @@
 import { STORE_CONFIG } from '../config/store';
 
 /**
- * Formatea números
+ * Formatea números (Configurado globalmente para mostrar 2 decimales obligatorios)
  */
 export const formatCurrency = (amount) =>
   new Intl.NumberFormat(
     STORE_CONFIG.locale,
     {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2, // Antes estaba en 0
+      maximumFractionDigits: 2, // Antes estaba en 0
     }
   ).format(amount);
 
@@ -39,7 +39,8 @@ export const buildWhatsAppLink = (
     return [
       `🪑 *${item.name}*`,
       `Cantidad: ${item.quantity}`,
-      `Subtotal: $${formatCurrency(
+      // Cambiamos $por U$S para que el cliente lo tenga claro en WhatsApp
+      `Subtotal: U$S ${formatCurrency(
         subtotal
       )}`,
     ].join('\n');
@@ -53,7 +54,8 @@ export const buildWhatsAppLink = (
     ...lines.flatMap((line) => [line, '']),
     '──────────────────',
     `🛒 Productos: ${totalItems}`,
-    `💰 *Total: $${formatCurrency(total)}*`,
+    // Cambiamos $por U$S para el total general
+    `💰 *Total: U$S ${formatCurrency(total)}*`,
     ...(paymentId ? ['', `🧾 Pago Mercado Pago: *${paymentId}*`] : []),
     '',
     paymentId
