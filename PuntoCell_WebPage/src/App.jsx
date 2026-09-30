@@ -64,7 +64,7 @@ const App = () => (
   <AuthProvider>
     {/* Único switch de tema del sistema: fuera de <Routes> para que aparezca en
         todas las pantallas, públicas e internas. */}
-    <ThemeToggle />
+    
     <Routes>
       {/* ---------------- PUBLICAS ---------------- */}
       <Route path="/" element={<LandingPage />} />

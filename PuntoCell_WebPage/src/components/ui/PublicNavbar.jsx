@@ -1,25 +1,22 @@
 import { Badge, Box, Button, IconButton, Tooltip, Typography } from '@mui/material'
 import LockPersonIcon from '@mui/icons-material/LockPerson'
 import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined'
+import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined' // ☀️ Ícono modo claro
+import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined'   // 🌙 Ícono modo oscuro
+import { useColorScheme } from '@mui/material/styles'                     // Hook de tema de MUI
 import { Link, useLocation } from 'react-router-dom'
 
 import { useCart } from '../../features/catalogo/context/CartContext'
 import { btn, shell } from './publicStyles'
 
-/**
- * Barra única de la cara pública (landing + catálogo).
- *
- * 72px en vez de los 64 de antes: la vitrina respira más que el panel. El fondo
- * es el de la página con una transparencia y desenfoque, así el contenido pasa
- * por debajo en vez de chocar contra una banda opaca.
- *
- * El botón del carrito se dibuja únicamente donde hay CartProvider: fuera del
- * catálogo `useCart()` devuelve undefined y la barra sigue funcionando.
- */
 export default function PublicNavbar() {
   const { pathname } = useLocation()
   const cart = useCart()
   const enCatalogo = pathname.startsWith('/catalogo')
+
+  // Control de modo oscuro/claro
+  const { mode, setMode } = useColorScheme()
+  const esOscuro = mode === 'dark'
 
   return (
     <Box
@@ -44,8 +41,6 @@ export default function PublicNavbar() {
           aria-label="Punto Cell, inicio"
           sx={{ display: 'flex', alignItems: 'center', gap: 1.25, textDecoration: 'none' }}
         >
-          {/* El monograma va en la tinta del texto, no en verde: el verde está
-              reservado al precio, la acción primaria y el anillo de foco. */}
           <Box
             aria-hidden
             sx={{
@@ -89,6 +84,29 @@ export default function PublicNavbar() {
           >
             Gestión
           </Button>
+
+          {/* Botón de cambio de tema en la barra pública */}
+          <Tooltip title={esOscuro ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}>
+            <IconButton
+              onClick={() => setMode(esOscuro ? 'light' : 'dark')}
+              aria-label="Cambiar modo de color"
+              sx={{
+                border: 1,
+                borderColor: 'divider',
+                borderRadius: '8px',
+                width: 38,
+                height: 38,
+                color: 'text.primary',
+                transition: 'background-color 180ms ease, border-color 180ms ease, transform 160ms cubic-bezier(.23,1,.32,1)',
+                '&:active': { transform: 'scale(.94)' },
+                '@media (hover: hover) and (pointer: fine)': {
+                  '&:hover': { bgcolor: 'pc.surfaceMuted', borderColor: 'text.disabled' },
+                },
+              }}
+            >
+              {esOscuro ? <LightModeOutlinedIcon sx={{ fontSize: 19 }} /> : <DarkModeOutlinedIcon sx={{ fontSize: 19 }} />}
+            </IconButton>
+          </Tooltip>
 
           {cart && (
             <Tooltip title="Tu carrito">
