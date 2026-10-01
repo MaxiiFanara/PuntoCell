@@ -299,7 +299,10 @@ if (!idClienteAsignado) {
         { association: 'estado', attributes: ['Nombre'] },
         {
           association: 'dispositivo',
-          include: [{ association: 'modelo', attributes: ['Nombre'] }]
+          include: [
+            { association: 'modelo', attributes: ['Nombre'] },
+            { association: 'cliente', attributes: ['Nombre', 'Apellido', 'DNI'] }
+          ]
         },
         { association: 'empleado', attributes: ['Nombre', 'Apellido'] },
         {

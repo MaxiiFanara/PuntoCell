@@ -118,7 +118,7 @@ const normalizarOrden = (orden, tiposMap = {}) => {
     TipoDispositivo:   tiposMap[modelo?.IdCategoriaArticulo] ?? '',
     NombreCliente:     cliente?.Nombre ?? '',
     ApellidoCliente:   cliente?.Apellido ?? '',
-    DNICliente:        cliente?.DNI ?? '',
+    DNICliente:        cliente?.DNI ?? cliente?.dni ?? '',
     EmailCliente:      cliente?.Email ?? '',
     CelularCliente:    cliente?.Celular ?? '',
     Fallas:            fallas.map(f => f.Nombre),

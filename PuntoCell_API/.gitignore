@@ -7,3 +7,5 @@ node_modules/
 sistemaViejo/
 
 GUIA_TESTING_ENDPOINTS
+
+.DS_Store
