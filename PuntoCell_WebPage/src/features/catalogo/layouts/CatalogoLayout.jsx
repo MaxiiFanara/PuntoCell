@@ -9,6 +9,7 @@ import PublicNavbar from '../../../components/ui/PublicNavbar';
 import CartDrawer from '../components/CartDrawer';
 import PublicFooter from '../../../components/ui/PublicFooter';
 import WhatsappFloating from '../components/WhatsappFloating';
+import CatalogAssistantChat from '../components/CatalogAssistantChat';
 import { shell } from '../../../components/ui/publicStyles';
 
 // El catálogo hereda el tema único del root (src/theme). No tiene tema propio.
@@ -49,6 +50,7 @@ export default function CatalogoLayout() {
 
           <PublicFooter />
           <WhatsappFloating />
+          <CatalogAssistantChat />
         </Box>
       </CartProvider>
     </ProductProvider>

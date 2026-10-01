@@ -75,10 +75,8 @@ export const isFreeModelSlug = (value) => /:free$/i.test(String(value || '').tri
 export const buildModelCandidates = (modelo = null) => uniqueValues([
   normalizeModelName(modelo),
   normalizeModelName(env.AI.OPENROUTER_MODEL),
-  ...env.AI.OPENROUTER_MODELS
-    .map((model) => normalizeModelName(model))
-    .filter((model) => !isFreeModelSlug(model)),
-  ...DEFAULT_FREE_MODELS.filter((model) => !isFreeModelSlug(model))
+  ...env.AI.OPENROUTER_MODELS.map((model) => normalizeModelName(model)),
+  ...DEFAULT_FREE_MODELS,
 ]);
 
 export const buildRequestHeaders = (apiKey) => ({
@@ -120,7 +118,7 @@ export const extractText = (responseBody) => {
   return null;
 };
 
-const buildRequestBody = ({ systemPrompt, prompt }) => ({
+const buildRequestBody = ({ systemPrompt, prompt, maxTokens = 900 }) => ({
   messages: [
     {
       role: 'system',
@@ -133,10 +131,10 @@ const buildRequestBody = ({ systemPrompt, prompt }) => ({
   ],
   temperature: 0.3,
   top_p: 0.9,
-  max_tokens: 900
+  max_tokens: maxTokens
 });
 
-export const requestOpenRouterCompletion = async ({ apiKey, model, prompt, systemPrompt, timeoutMs }) => {
+export const requestOpenRouterCompletion = async ({ apiKey, model, prompt, systemPrompt, timeoutMs, maxTokens }) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -147,7 +145,7 @@ export const requestOpenRouterCompletion = async ({ apiKey, model, prompt, syste
       signal: controller.signal,
       body: JSON.stringify({
         model,
-        ...buildRequestBody({ systemPrompt, prompt })
+        ...buildRequestBody({ systemPrompt, prompt, maxTokens })
       })
     });
 

@@ -36,6 +36,12 @@ export default class CatalogoService {
         }, {
           association: 'memoria', attributes: ['Capacidad']
         }, {
+          association: 'bateria', attributes: ['Capacidad']
+        }, {
+          association: 'almacenamiento', attributes: ['Capacidad']
+        }, {
+          association: 'estado', attributes: ['Nombre']
+        }, {
           // El inventario es por sucursal: el mismo producto puede existir en las
           // dos sedes como renglones distintos, con su propio stock. El catálogo
           // muestra de cuál viene cada uno para que el comprador lo sepa antes
@@ -102,6 +108,12 @@ export default class CatalogoService {
           esSerializado: !!inv.articulo?.EsSerializado,
           color: inv.color?.Nombre || null,
           memoria: inv.memoria?.Capacidad || null,
+          bateria: inv.bateria?.Capacidad || null,
+          almacenamiento: inv.almacenamiento?.Capacidad || null,
+          estado: inv.estado?.Nombre || null,
+          garantiaMarca: inv.MesesGarantiaMarca || null,
+          garantiaLocal: inv.MesesGarantiaLocal || null,
+          observaciones: inv.Observaciones || null,
           sucursal: inv.sucursal?.Nombre || null,
         };
       })
