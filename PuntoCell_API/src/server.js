@@ -3,6 +3,44 @@ import { createContainer } from './core/container/index.js';
 import createApp from './app.js';
 import { env } from './core/config/env.js';
 
+function scheduleDailyAt2359(task) {
+  let timeoutId = null;
+
+  const scheduleNext = () => {
+    const ahora = new Date();
+    const siguiente = new Date(ahora);
+    siguiente.setHours(23, 59, 0, 0);
+
+    if (siguiente <= ahora) {
+      siguiente.setDate(siguiente.getDate() + 1);
+    }
+
+    const delay = Math.max(1000, siguiente.getTime() - Date.now());
+    timeoutId = setTimeout(run, delay);
+    if (typeof timeoutId.unref === 'function') {
+      timeoutId.unref();
+    }
+  };
+
+  const run = async () => {
+    try {
+      await task();
+    } catch (error) {
+      console.error('❌ Error en la tarea diaria de abandono de reparaciones:', error);
+    } finally {
+      scheduleNext();
+    }
+  };
+
+  run();
+
+  return () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  };
+}
+
 async function startServer() {
   try {
     console.log('⏳ Iniciando servidor PuntoCell...');
@@ -20,6 +58,11 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`✅ Servidor corriendo en el puerto: ${PORT}`);
       console.log(`🚀 Entorno: ${env.APP.NODE_ENV}`);
+    });
+
+    scheduleDailyAt2359(async () => {
+      const resultado = await container.reparaciones.ordenReparacionService.procesarOrdenesAbandonadas();
+      console.log(`🕒 Proceso de abandono completado: ${resultado.procesadas} procesadas, ${resultado.omitidas} omitidas, ${resultado.errores} con error.`);
     });
 
   } catch (error) {

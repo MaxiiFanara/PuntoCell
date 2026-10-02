@@ -73,6 +73,13 @@ export default class NotificacionService {
         cuerpo: 'La orden de reparación fue anulada. Si creés que es un error o tenés dudas, comunicate con nosotros.',
         badge: '🚫 Anulado',
       },
+      6: {
+        asunto: `Orden #${numOrden} — Orden abandonada`,
+        color: '#b45309',
+        titulo: 'Tu equipo fue marcado como abandonado',
+        cuerpo: 'Pasaron 60 días desde que la reparación quedó terminada sin retiro. La orden fue dada de baja y el equipo ingresó a inventario.',
+        badge: '⏳ Abandonado',
+      },
     };
 
     const config = ESTADOS[nuevoEstado];

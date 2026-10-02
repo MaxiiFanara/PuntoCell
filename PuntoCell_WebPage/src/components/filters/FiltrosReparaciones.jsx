@@ -20,6 +20,7 @@ const ESTADOS = [
   { value: 'terminado',     label: 'Terminado' },
   { value: 'entregado',     label: 'Entregado' },
   { value: 'anulado',       label: 'Anulada' },
+  { value: 'abandonado',    label: 'Abandonado' },
   { value: 'todos',         label: 'Todos' },
 ]
 

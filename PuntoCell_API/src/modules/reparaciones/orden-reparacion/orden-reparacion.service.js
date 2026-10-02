@@ -1,5 +1,13 @@
 import { sequelize } from '../../../models/index.js';
 import { auditar } from '../../../core/utils/audit.util.js';
+import { reprecificarInventario, resolverListasPrecioCategoria } from '../../../core/utils/precios.util.js';
+
+const ESTADO_TERMINADO = 3;
+const ESTADO_ABANDONADO = 6;
+const NOMBRE_ESTADO_ABANDONADO = 'Abandonado';
+const NOMBRE_PROVEEDOR_CANJE = 'canje de clientes';
+const DIAS_ABANDONO = 60;
+const DIAS_GARANTIA_LOCAL_POR_DEFECTO = 30;
 
 export default class OrdenReparacionService {
   constructor(
@@ -20,6 +28,234 @@ export default class OrdenReparacionService {
     this.notificacionService = notificacionService;
     this.bitacoraService = bitacoraService;
     this.cajaService = cajaService;
+  }
+
+  async procesarOrdenesAbandonadas({ diasInactividad = DIAS_ABANDONO, garantiaLocalDias = DIAS_GARANTIA_LOCAL_POR_DEFECTO, ctx = null } = {}) {
+    const models = sequelize.models;
+    const ahora = new Date();
+    const corte = new Date(ahora);
+    corte.setHours(0, 0, 0, 0);
+    corte.setDate(corte.getDate() - diasInactividad);
+
+    const estadoAbandonadoExistente = await models.EstadoOrden.findOne({
+      where: sequelize.where(sequelize.fn('LOWER', sequelize.col('Nombre')), NOMBRE_ESTADO_ABANDONADO.toLowerCase())
+    });
+
+    const estadoAbandonado = estadoAbandonadoExistente || await models.EstadoOrden.create({ Nombre: NOMBRE_ESTADO_ABANDONADO });
+
+    const proveedorCanje = await models.Proveedor.findOne({
+      where: sequelize.where(sequelize.fn('LOWER', sequelize.col('Nombre')), NOMBRE_PROVEEDOR_CANJE)
+    }) || await models.Proveedor.create({
+      Nombre: NOMBRE_PROVEEDOR_CANJE,
+      Activo: true
+    });
+
+    const ordenesTerminadas = await this.ordenReparacionDAO.model.findAll({
+      where: { IdEstadoOrden: ESTADO_TERMINADO },
+      include: [
+        {
+          association: 'dispositivo',
+          include: [{ association: 'cliente', attributes: ['Nombre', 'Email'] }]
+        },
+        { association: 'empleado', attributes: ['Id', 'Nombre', 'Apellido', 'IdSucursal'] },
+        {
+          association: 'seguimientos',
+          attributes: ['Id', 'FechaModificacion', 'IdEstadoOrden'],
+          required: false
+        }
+      ],
+      order: [['Id', 'ASC']]
+    });
+
+    const resumen = { procesadas: 0, omitidas: 0, errores: 0 };
+
+    for (const orden of ordenesTerminadas) {
+      const seguimientosTerminados = (orden.seguimientos || [])
+        .filter((seguimiento) => Number(seguimiento.IdEstadoOrden) === ESTADO_TERMINADO)
+        .sort((a, b) => new Date(b.FechaModificacion) - new Date(a.FechaModificacion));
+
+      const fechaTerminado = seguimientosTerminados[0]?.FechaModificacion ? new Date(seguimientosTerminados[0].FechaModificacion) : null;
+      if (!fechaTerminado) {
+        resumen.omitidas += 1;
+        continue;
+      }
+
+      const fechaTerminadoDia = new Date(fechaTerminado);
+      fechaTerminadoDia.setHours(0, 0, 0, 0);
+      if (fechaTerminadoDia > corte) {
+        resumen.omitidas += 1;
+        continue;
+      }
+
+      const transaction = await sequelize.transaction();
+      try {
+        const ordenBloqueada = await this.ordenReparacionDAO.model.findByPk(orden.Id, {
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+          include: [
+            {
+              association: 'dispositivo',
+              include: [{ association: 'cliente', attributes: ['Nombre', 'Email'] }]
+            },
+            { association: 'empleado', attributes: ['Id', 'Nombre', 'Apellido', 'IdSucursal'] },
+            {
+              association: 'seguimientos',
+              attributes: ['Id', 'FechaModificacion', 'IdEstadoOrden'],
+              required: false
+            }
+          ]
+        });
+
+        if (!ordenBloqueada || Number(ordenBloqueada.IdEstadoOrden) !== ESTADO_TERMINADO) {
+          await transaction.rollback();
+          resumen.omitidas += 1;
+          continue;
+        }
+
+        const seguimientosBloqueados = (ordenBloqueada.seguimientos || [])
+          .filter((seguimiento) => Number(seguimiento.IdEstadoOrden) === ESTADO_TERMINADO)
+          .sort((a, b) => new Date(b.FechaModificacion) - new Date(a.FechaModificacion));
+
+        const fechaTerminadoBloqueada = seguimientosBloqueados[0]?.FechaModificacion ? new Date(seguimientosBloqueados[0].FechaModificacion) : null;
+        if (!fechaTerminadoBloqueada) {
+          await transaction.rollback();
+          resumen.omitidas += 1;
+          continue;
+        }
+
+        const fechaTerminadoBloqueadaDia = new Date(fechaTerminadoBloqueada);
+        fechaTerminadoBloqueadaDia.setHours(0, 0, 0, 0);
+        if (fechaTerminadoBloqueadaDia > corte) {
+          await transaction.rollback();
+          resumen.omitidas += 1;
+          continue;
+        }
+
+        const dispositivo = ordenBloqueada.dispositivo;
+        const empleado = ordenBloqueada.empleado;
+        const sucursalId = Number(empleado?.IdSucursal || 0);
+        if (!dispositivo) {
+          throw new Error(`La orden #${ordenBloqueada.Id} no tiene dispositivo asociado.`);
+        }
+        if (!sucursalId) {
+          throw new Error(`La orden #${ordenBloqueada.Id} no tiene sucursal asociada en el empleado responsable.`);
+        }
+
+        const articulo = await models.Articulo.findOne({
+          where: {
+            IdModeloArticulo: dispositivo.IdModeloArticulo,
+            EsVendible: true,
+            Activo: true
+          },
+          order: [['Id', 'ASC']],
+          transaction
+        });
+
+        if (!articulo) {
+          throw new Error(`No se encontró un Articulo vendible para el modelo ${dispositivo.IdModeloArticulo} de la orden #${ordenBloqueada.Id}.`);
+        }
+
+        const modeloArticulo = await models.ModeloArticulo.findByPk(articulo.IdModeloArticulo, { transaction });
+        if (!modeloArticulo) {
+          throw new Error(`No se encontró el ModeloArticulo asociado al articulo ${articulo.Id} de la orden #${ordenBloqueada.Id}.`);
+        }
+
+        const garantiaLocal = new Date(ahora);
+        garantiaLocal.setDate(garantiaLocal.getDate() + garantiaLocalDias);
+
+        const observaciones = `Ingreso automático por abandono de reparación #${ordenBloqueada.Id}`;
+        const costoBase = Math.max(1, Number(ordenBloqueada.TotalReparacion || ordenBloqueada.CostoRepuestos || 0));
+
+        let inventario = null;
+        if (dispositivo.IMEI) {
+          inventario = await models.Inventario.findOne({
+            where: { IMEI: dispositivo.IMEI },
+            transaction,
+            lock: transaction.LOCK.UPDATE
+          });
+        }
+
+        if (inventario) {
+          await inventario.update({
+            IdArticulo: articulo.Id,
+            Stock: 1,
+            IdEstadoInventario: 1,
+            IdSucursal: sucursalId,
+            IdProveedor: proveedorCanje.Id,
+            MesesGarantiaLocal: garantiaLocal,
+            Observaciones: observaciones,
+            CreatedAt: inventario.CreatedAt || ahora
+          }, { transaction });
+        } else {
+          inventario = await models.Inventario.create({
+            IMEI: dispositivo.IMEI || null,
+            Stock: 1,
+            CreatedAt: ahora,
+            MesesGarantiaMarca: null,
+            MesesGarantiaLocal: garantiaLocal,
+            Observaciones: observaciones,
+            IdSucursal: sucursalId,
+            IdArticulo: articulo.Id,
+            IdEstadoInventario: 1,
+            IdProveedor: proveedorCanje.Id,
+            IdColor: dispositivo.IdColor || null,
+            IdMemoria: dispositivo.IdMemoria || null,
+            IdBateria: dispositivo.IdBateria || null,
+            IdAlmacenamiento: dispositivo.IdAlmacenamiento || null
+          }, { transaction });
+        }
+
+        const listas = await resolverListasPrecioCategoria(sequelize, modeloArticulo.IdCategoriaArticulo, transaction);
+        await reprecificarInventario(sequelize, {
+          IdInventario: inventario.Id,
+          CostoBase: costoBase,
+          listas
+        }, transaction);
+
+        await models.MovimientoStock.create({
+          Fecha: ahora,
+          TipoMovimiento: 'Ingreso por Abandono de Reparación',
+          Cantidad: 1,
+          Observaciones: observaciones,
+          IdInventario: inventario.Id,
+          IdEmpleado: ordenBloqueada.IdEmpleado
+        }, { transaction });
+
+        await ordenBloqueada.update({ IdEstadoOrden: estadoAbandonado.Id }, { transaction });
+
+        await models.SeguimientoOrden.create({
+          FechaModificacion: ahora,
+          ObservacionTecnico: observaciones,
+          IdOrdenReparacion: ordenBloqueada.Id,
+          IdEmpleado: ordenBloqueada.IdEmpleado,
+          IdEstadoOrden: estadoAbandonado.Id
+        }, { transaction });
+
+        await transaction.commit();
+        resumen.procesadas += 1;
+
+        await auditar(
+          this.bitacoraService,
+          ctx ?? { IdEmpleado: ordenBloqueada.IdEmpleado, IdSucursal: sucursalId },
+          `Marcó la orden de reparación #${ordenBloqueada.Id} como abandonada y la reingresó al inventario`,
+          `Inventario ${inventario.Id} · IMEI ${dispositivo.IMEI || 'N/D'}`
+        ).catch(() => {});
+
+        const email = ordenBloqueada.dispositivo?.cliente?.Email;
+        const nombre = ordenBloqueada.dispositivo?.cliente?.Nombre ?? 'Cliente';
+        if (email) {
+          this.notificacionService
+            .enviarCambioEstado(email, nombre, ordenBloqueada.Id, estadoAbandonado.Id)
+            .catch((err) => console.error(`❌ No se pudo notificar el abandono de la orden #${ordenBloqueada.Id}:`, err.message));
+        }
+      } catch (error) {
+        await transaction.rollback();
+        resumen.errores += 1;
+        console.error(`❌ Error al procesar la orden abandonada #${orden.Id}:`, error.message);
+      }
+    }
+
+    return resumen;
   }
 
   async create(datosPaquete, idEmpleadoSesion, ctx = null) {
@@ -155,7 +391,7 @@ if (!idClienteAsignado) {
           throw err;
         }
       } else {
-        const transiciones = { 1: [2, 5], 2: [3, 5], 3: [4], 4: [], 5: [] };
+        const transiciones = { 1: [2, 5], 2: [3, 5], 3: [4, 6], 4: [], 5: [], 6: [] };
         if (!(transiciones[estadoActual] || []).includes(nuevoEstado)) {
           const err = new Error(`Transición inválida de estado ${estadoActual} a ${nuevoEstado}.`);
           err.statusCode = 400;
@@ -249,6 +485,12 @@ if (!idClienteAsignado) {
           FechaEntrega: sequelize.fn('SYSDATETIME')
         }, { transaction: t });
 
+      // ABANDONADO (6)
+      } else if (nuevoEstado === 6) {
+        await orden.update({
+          IdEstadoOrden: 6
+        }, { transaction: t });
+
       // EN REPARACIÓN (2) u otros
       } else {
         await orden.update({ IdEstadoOrden: nuevoEstado }, { transaction: t });
@@ -265,7 +507,7 @@ if (!idClienteAsignado) {
 
       await t.commit();
 
-      const estados = { 1: 'En espera', 2: 'En reparación', 3: 'Terminado', 4: 'Entregado', 5: 'Anulado' };
+      const estados = { 1: 'En espera', 2: 'En reparación', 3: 'Terminado', 4: 'Entregado', 5: 'Anulado', 6: 'Abandonado' };
       await auditar(this.bitacoraService, ctx ?? { IdEmpleado: idEmpleadoSesion },
         `Cambió la orden de reparación #${idOrden} a estado "${estados[nuevoEstado] ?? nuevoEstado}"`,
         ObservacionTecnico || 'Actualización de estado');

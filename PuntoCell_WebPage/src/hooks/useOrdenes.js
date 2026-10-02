@@ -30,6 +30,7 @@ export const useOrdenes = () => {
         terminado:      data.filter(o => esEstado(o, 'terminado')).length,
         entregado:      data.filter(o => esEstado(o, 'entregado')).length,
         anulado:        data.filter(o => esEstado(o, 'anulado')).length,
+        abandonado:     data.filter(o => esEstado(o, 'abandonado')).length,
       })
     } catch (err) {
       setError(err.message)
@@ -43,7 +44,7 @@ export const useOrdenes = () => {
   // ─── Filtrado derivado ───────────────────────────────────────────────────────
   const ordenesFiltradas = ordenes.filter((o) => {
     // Filtro por Estado
-    if (filtros.estado === null && o.Estado?.toLowerCase() === 'anulado') return false
+    if (filtros.estado === null && ['anulado', 'abandonado'].includes(o.Estado?.toLowerCase())) return false
     if (filtros.estado && filtros.estado !== 'todos') {
       if (o.Estado?.toLowerCase() !== filtros.estado.toLowerCase()) return false
     }

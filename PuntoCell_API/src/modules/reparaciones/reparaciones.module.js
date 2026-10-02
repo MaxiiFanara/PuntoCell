@@ -90,5 +90,6 @@ export function createReparacionesModule(usuarioDAO, bitacoraService = null, caj
     seguimientoOrdenController,
     pagoReparacionController,
     repuestoOrdenController
+    , ordenReparacionService
   };
 }
