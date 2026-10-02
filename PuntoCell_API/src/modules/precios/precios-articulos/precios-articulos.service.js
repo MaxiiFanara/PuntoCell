@@ -1,5 +1,4 @@
 import { auditar } from '../../../core/utils/audit.util.js';
-import { FACTOR_COSTOS_VARIABLES } from '../../../core/utils/precios.util.js';
 
 export default class PreciosArticulosService {
   constructor(preciosArticulosDAO, listaPreciosService, bitacoraService = null) {
@@ -17,17 +16,20 @@ export default class PreciosArticulosService {
 
   async computeFields(payload) {
     const CostoBase = this.round2(payload.CostoBase || 0);
-    const CostoVariables = this.round2(CostoBase * FACTOR_COSTOS_VARIABLES);
-    const CostoReal = this.round2(CostoBase + CostoVariables);
 
     let PorcentajeGanancia = 0;
+    let factorCv = 0.26; // Fallback
+    
     if (payload.IdListaPrecio) {
       const lista = await this.listaPreciosService.getById(payload.IdListaPrecio);
       if (lista) {
         PorcentajeGanancia = Number(lista.PorcentajeRentabilidad || 0);
+        factorCv = Number(lista.FactorCostosVariables || 26) / 100;
       }
     }
 
+    const CostoVariables = this.round2(CostoBase * factorCv);
+    const CostoReal = this.round2(CostoBase + CostoVariables);
     const ValorFinal = this.round2(CostoReal + (CostoReal * (PorcentajeGanancia / 100)));
 
     return { CostoBase, CostoVariables, CostoReal, PorcentajeGanancia, ValorFinal };
@@ -61,5 +63,49 @@ export default class PreciosArticulosService {
     const eliminado = await this.preciosArticulosDAO.remove(id);
     await auditar(this.bitacoraService, ctx, `Eliminó el precio de artículo #${id}`, `Baja de precio de artículo`);
     return eliminado;
+  }
+
+  async bulkUpdate(payload, ctx = null) {
+    const sequelize = this.preciosArticulosDAO.model.sequelize;
+    const t = await sequelize.transaction();
+    try {
+      const { resolverListasPrecioCategoria, reprecificarInventario } = await import('../../../core/utils/precios.util.js');
+      
+      let actualizados = 0;
+      for (const update of payload.updates) {
+        const inv = await sequelize.models.Inventario.findByPk(update.IdInventario, {
+          include: [{
+            model: sequelize.models.Articulo,
+            as: 'articulo',
+            include: [{ model: sequelize.models.ModeloArticulo, as: 'modelo' }]
+          }],
+          transaction: t
+        });
+
+        if (!inv) continue;
+
+        const idCat = inv.articulo?.modelo?.IdCategoriaArticulo;
+        const listas = await resolverListasPrecioCategoria(sequelize, idCat, t);
+        
+        await reprecificarInventario(sequelize, {
+          IdInventario: update.IdInventario,
+          CostoBase: update.CostoBase,
+          listas
+        }, t);
+        
+        actualizados++;
+      }
+      
+      await t.commit();
+      
+      await auditar(this.bitacoraService, ctx, 
+        `Actualización masiva de costos base`, 
+        `Se repreciaron ${actualizados} productos en base al CSV importado`);
+        
+      return { actualizados };
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
   }
 }

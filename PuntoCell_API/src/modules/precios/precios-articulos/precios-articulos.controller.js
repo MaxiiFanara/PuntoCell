@@ -7,4 +7,5 @@ export default class PreciosArticulosController {
   create = async (req, res, next) => { try { const data = await this.service.create(req.body, ctxDe(req)); return res.status(201).json({ status: 'success', data }); } catch (err) { next(err); } };
   update = async (req, res, next) => { try { const data = await this.service.update(req.params.id, req.body, ctxDe(req)); return res.status(200).json({ status: 'success', data }); } catch (err) { next(err); } };
   remove = async (req, res, next) => { try { await this.service.remove(req.params.id, ctxDe(req)); return res.status(200).json({ status: 'success', data: { message: 'Precio-articulo eliminado correctamente' } }); } catch (err) { next(err); } };
+  bulkUpdate = async (req, res, next) => { try { const data = await this.service.bulkUpdate(req.body, ctxDe(req)); return res.status(200).json({ status: 'success', data }); } catch (err) { next(err); } };
 }
