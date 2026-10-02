@@ -82,6 +82,14 @@ export const preciosService = {
 
   eliminarPrecio: (id) =>
     fetchApi(`/precios/precios-articulos/${id}`, { method: 'DELETE' }),
+
+  actualizarPreciosMasivo: async (updates) => {
+    const res = await fetchApi('/precios/precios-articulos/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ updates }),
+    });
+    return res?.data ?? res;
+  },
 };
 
 // ---------------------------------------------------------------------------

@@ -23,9 +23,10 @@ import { useVenta } from '../punto-venta/context/VentaContext';
 const fmt = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // Mismo cálculo que la API (precios-articulos.service.js::computeFields)
-const calcularPrecio = (costoBase, porcentajeRentabilidad) => {
+const calcularPrecio = (costoBase, porcentajeRentabilidad, factorCv = 26) => {
   const CostoBase = Number(costoBase) || 0;
-  const CostoVariables = Number((CostoBase * 0.26).toFixed(2));
+  const factor = Number(factorCv) / 100;
+  const CostoVariables = Number((CostoBase * factor).toFixed(2));
   const CostoReal = Number((CostoBase + CostoVariables).toFixed(2));
   const pct = Number(porcentajeRentabilidad) || 0;
   const ValorFinal = Number((CostoReal + CostoReal * (pct / 100)).toFixed(2));
@@ -42,10 +43,12 @@ export default function PreciosScreen() {
   const [categorias, setCategorias] = useState([]);
   const [inventario, setInventario] = useState([]);
   const [preciosMap, setPreciosMap] = useState({});
+  const [todosLosPrecios, setTodosLosPrecios] = useState([]);
   const [cargando, setCargando] = useState(true);
 
   const [listaEditar, setListaEditar] = useState(null); // objeto o { nuevo:true }
   const [precioTarget, setPrecioTarget] = useState(null); // { inv, lista }
+  const [historialTarget, setHistorialTarget] = useState(null); // inv object
 
   const cargarTodo = useCallback(async () => {
     setCargando(true);
@@ -59,6 +62,7 @@ export default function PreciosScreen() {
       setListas(ls || []);
       setCategorias(Array.isArray(cats) ? cats : (cats?.data || []));
       setInventario(Array.isArray(inv) ? inv : (inv?.data || []));
+      setTodosLosPrecios(precios || []);
       setPreciosMap(mapVigentePorInventario(precios));
     } catch (e) {
       console.error('Error cargando precios:', e);
@@ -69,22 +73,117 @@ export default function PreciosScreen() {
   }, []);
 
   useEffect(() => { cargarTodo(); }, [cargarTodo]);
+  const [listaSel, setListaSel] = useState(LISTA_MINORISTA_ID);
 
-  const pagListas = usePaginacion(listas);
 
-  // Actualizador de Precio: Categoría ASC → Nombre ASC.
-  const inventarioOrdenado = useMemo(() => {
+  // --- Filtros ---
+  const [search, setSearch] = useState('');
+  const [filtroCategoria, setFiltroCategoria] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('todos'); // 'todos', 'con_precio', 'sin_precio'
+
+  // Actualizador de Precio: Filtrado y Ordenado (Categoría ASC → Nombre ASC).
+  const inventarioFiltradoYOrdenado = useMemo(() => {
+    let filtrado = inventario;
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      filtrado = filtrado.filter(inv => 
+        (inv.articulo?.Nombre || '').toLowerCase().includes(q) ||
+        (inv.IMEI || '').toLowerCase().includes(q) ||
+        String(inv.Id ?? inv.id).includes(q)
+      );
+    }
+
+    if (filtroCategoria !== '') {
+      filtrado = filtrado.filter(inv => inv.articulo?.modelo?.IdCategoriaArticulo === filtroCategoria);
+    }
+
+    if (filtroEstado !== 'todos') {
+      filtrado = filtrado.filter(inv => {
+        const id = inv.Id ?? inv.id;
+        const tienePrecio = !!preciosMap[id]?.[listaSel];
+        return filtroEstado === 'con_precio' ? tienePrecio : !tienePrecio;
+      });
+    }
+
     const catNombre = (idCat) => categorias.find((c) => (c.Id ?? c.id) === idCat)?.Nombre || '';
-    return [...inventario].sort((a, b) => {
+    return filtrado.sort((a, b) => {
       const cmpCat = catNombre(a.articulo?.modelo?.IdCategoriaArticulo)
         .localeCompare(catNombre(b.articulo?.modelo?.IdCategoriaArticulo), 'es', { sensitivity: 'base' });
       if (cmpCat !== 0) return cmpCat;
       return (a.articulo?.Nombre || '').localeCompare(b.articulo?.Nombre || '', 'es', { sensitivity: 'base' });
-    });
-  }, [inventario, categorias]);
-  const pagInv = usePaginacion(inventarioOrdenado);
 
-  const [listaSel, setListaSel] = useState(LISTA_MINORISTA_ID);
+    });
+  }, [inventario, categorias, search, filtroCategoria, filtroEstado, preciosMap, listaSel]);
+  const pagInv = usePaginacion(inventarioFiltradoYOrdenado);
+
+
+  const exportarCSV = () => {
+    let csv = 'IdInventario,Producto,IMEI,CostoBaseActualUSD\n';
+    inventarioFiltradoYOrdenado.forEach(inv => {
+      const id = inv.Id ?? inv.id;
+      // Resolvemos el precio base buscando en la lista 1 (o la primera que encontremos)
+      // ya que el costo base es igual para todas las listas de un mismo renglón.
+      const p = preciosMap[id]?.[LISTA_MINORISTA_ID] || Object.values(preciosMap[id] || {})[0];
+      const costo = p ? p.CostoBase : 0;
+      const nombreLimpio = (inv.articulo?.Nombre || '').replace(/"/g, '""');
+      csv += `${id},"${nombreLimpio}",${inv.IMEI || ''},${costo}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'precios_base_inventario.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importarCSV = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const text = evt.target.result;
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      const updates = [];
+      // Saltar la fila de cabecera
+      for (let i = 1; i < lines.length; i++) {
+        // Separa por comas respetando comillas dobles (regex simple)
+        const row = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+        if (row.length < 2) continue;
+        
+        const idInv = parseInt(row[0]);
+        // El último valor siempre debe ser el costo
+        const costoStr = row[row.length - 1].replace(/"/g, '');
+        const costo = parseFloat(costoStr);
+        
+        if (!isNaN(idInv) && !isNaN(costo)) {
+           updates.push({ IdInventario: idInv, CostoBase: costo });
+        }
+      }
+      
+      if (updates.length === 0) return alert('No se encontraron datos válidos en el CSV. Asegúrate de que el formato sea correcto.');
+      
+      if (window.confirm(`¿Actualizar los costos base de ${updates.length} productos y recalcular todos sus precios de venta?`)) {
+        setCargando(true);
+        try {
+          await preciosService.actualizarPreciosMasivo(updates);
+          await cargarTodo();
+          alert('Precios actualizados con éxito.');
+        } catch (error) {
+          alert('Error al actualizar masivamente: ' + (error.message || ''));
+        } finally {
+          setCargando(false);
+        }
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = null; // Reset input
+  };
+
+  const pagListas = usePaginacion(listas);
+  
+
   const listaSelObj = useMemo(
     () => listas.find((l) => (l.Id ?? l.id) === listaSel),
     [listas, listaSel]
@@ -112,7 +211,7 @@ export default function PreciosScreen() {
       <Card>
         <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
           <Tabs value={tab} onChange={(e, v) => setTab(v)}>
-            <Tab label="Listas de Precios" sx={{ textTransform: 'none' }} />
+            <Tab label="Precios por Categoría" sx={{ textTransform: 'none' }} />
             <Tab label="Precios por Producto" sx={{ textTransform: 'none' }} />
           </Tabs>
         </Box>
@@ -122,8 +221,7 @@ export default function PreciosScreen() {
           <Box sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="body2" color="text.secondary">
-                Cada lista define un <b>% de rentabilidad</b>. El precio de venta se calcula como
-                CostoReal (CostoBase × 1.26) × (1 + % / 100).
+                Cada lista define un <b>% de rentabilidad</b> y un <b>% de costos variables</b> (impuestos, comisiones). El precio final se calcula sumando los costos y aplicando la ganancia.
               </Typography>
               <Button variant="contained" startIcon={<AddIcon sx={{ fontSize: '16px !important' }} />} onClick={() => setListaEditar({ nuevo: true })}>
                 Registrar Lista
@@ -137,6 +235,7 @@ export default function PreciosScreen() {
                     <TableCell>#</TableCell>
                     <TableCell>Nombre</TableCell>
                     <TableCell align="center">% Rentabilidad</TableCell>
+                    <TableCell align="center">% Costos Var.</TableCell>
                     <TableCell>Categoría</TableCell>
                     <TableCell align="center">Estado</TableCell>
                     <TableCell align="right" />
@@ -151,6 +250,9 @@ export default function PreciosScreen() {
                         <TableCell sx={{ fontWeight: 600 }}>{l.Nombre}</TableCell>
                         <TableCell align="center">
                           <StatusPill tone="flat" label={`${fmt(l.PorcentajeRentabilidad)} %`} />
+                        </TableCell>
+                        <TableCell align="center">
+                          <StatusPill tone="flat" label={`${fmt(l.FactorCostosVariables ?? 26)} %`} />
                         </TableCell>
                         <TableCell>{l.IdCategoriaProducto ? nombreCategoria(l.IdCategoriaProducto) : 'Genérica'}</TableCell>
                         <TableCell align="center">
@@ -181,19 +283,45 @@ export default function PreciosScreen() {
         {/* ---------- TAB 1: PRECIOS POR PRODUCTO ---------- */}
         {tab === 1 && (
           <Box sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
-              <TextField select size="small" label="Lista de precios" value={listaSel}
-                onChange={(e) => setListaSel(Number(e.target.value))} sx={{ minWidth: 260 }}>
-                {listas.map((l) => (
-                  <MenuItem key={l.Id ?? l.id} value={l.Id ?? l.id}>
-                    {l.Nombre} ({fmt(l.PorcentajeRentabilidad)} %)
-                  </MenuItem>
-                ))}
-              </TextField>
-              <Typography variant="body2" color="text.secondary">
-                {inventario.length} productos vendibles
-              </Typography>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap', flex: 1 }}>
+                <TextField select size="small" label="Lista de precios" value={listaSel}
+                  onChange={(e) => setListaSel(Number(e.target.value))} sx={{ minWidth: 260 }}>
+                  {listas.map((l) => (
+                    <MenuItem key={l.Id ?? l.id} value={l.Id ?? l.id}>
+                      {l.Nombre} ({fmt(l.PorcentajeRentabilidad)} %)
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField size="small" label="Buscar producto o IMEI" value={search}
+                  onChange={(e) => setSearch(e.target.value)} sx={{ minWidth: 200, flex: 1 }} />
+                <TextField select size="small" label="Categoría" value={filtroCategoria}
+                  onChange={(e) => setFiltroCategoria(e.target.value)} sx={{ minWidth: 150 }}>
+                  <MenuItem value="">Todas</MenuItem>
+                  {categorias.map(c => <MenuItem key={c.Id ?? c.id} value={c.Id ?? c.id}>{c.Nombre}</MenuItem>)}
+                </TextField>
+                <TextField select size="small" label="Estado" value={filtroEstado}
+                  onChange={(e) => setFiltroEstado(e.target.value)} sx={{ minWidth: 130 }}>
+                  <MenuItem value="todos">Todos</MenuItem>
+                  <MenuItem value="con_precio">Con precio</MenuItem>
+                  <MenuItem value="sin_precio">Sin precio</MenuItem>
+                </TextField>
+              </Box>
+              
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button variant="outlined" size="small" onClick={exportarCSV}>
+                  Exportar CSV
+                </Button>
+                <Button variant="contained" size="small" component="label">
+                  Importar CSV
+                  <input type="file" hidden accept=".csv" onChange={importarCSV} />
+                </Button>
+              </Box>
             </Box>
+            
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Mostrando {inventarioFiltradoYOrdenado.length} productos
+            </Typography>
 
             <Box sx={{ overflowX: 'auto' }}>
               <Table size="small">
@@ -230,10 +358,16 @@ export default function PreciosScreen() {
                           {p?.FechaDesde ? String(p.FechaDesde).slice(0, 10) : '—'}
                         </TableCell>
                         <TableCell align="right">
-                          <Button size="small" variant="outlined"
-                            onClick={() => setPrecioTarget({ inv, precioActual: p })}>
-                            {p ? 'Actualizar' : 'Fijar precio'}
-                          </Button>
+                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                            <Button size="small" variant="outlined"
+                              onClick={() => setPrecioTarget({ inv, precioActual: p })}>
+                              {p ? 'Actualizar' : 'Fijar precio'}
+                            </Button>
+                            <Button size="small" color="secondary" variant="text"
+                              onClick={() => setHistorialTarget(inv)}>
+                              Historial
+                            </Button>
+                          </Box>
                         </TableCell>
                       </TableRow>
                     );
@@ -264,6 +398,15 @@ export default function PreciosScreen() {
           onSaved={() => { setPrecioTarget(null); cargarTodo(); }}
         />
       )}
+
+      {historialTarget && (
+        <HistorialDialog
+          inv={historialTarget}
+          todosLosPrecios={todosLosPrecios}
+          listas={listas}
+          onClose={() => setHistorialTarget(null)}
+        />
+      )}
     </Box>
   );
 }
@@ -274,6 +417,7 @@ function ListaDialog({ lista, categorias, onClose, onSaved }) {
   const [form, setForm] = useState({
     Nombre: lista.Nombre || '',
     PorcentajeRentabilidad: lista.PorcentajeRentabilidad ?? 30,
+    FactorCostosVariables: lista.FactorCostosVariables ?? 26,
     IdCategoriaProducto: lista.IdCategoriaProducto ?? '',
     Activo: lista.Activo ?? true,
   });
@@ -286,6 +430,7 @@ function ListaDialog({ lista, categorias, onClose, onSaved }) {
       const payload = {
         Nombre: form.Nombre.trim(),
         PorcentajeRentabilidad: Number(form.PorcentajeRentabilidad) || 0,
+        FactorCostosVariables: Number(form.FactorCostosVariables) || 0,
         IdCategoriaProducto: form.IdCategoriaProducto === '' ? null : Number(form.IdCategoriaProducto),
         Activo: !!form.Activo,
       };
@@ -307,14 +452,20 @@ function ListaDialog({ lista, categorias, onClose, onSaved }) {
       </DialogTitle>
       <DialogContent sx={{ pt: 3 }}>
         <Grid container spacing={2} sx={{ mt: 0 }}>
-          <Grid item xs={12} sm={7}>
+          <Grid item xs={12} sm={4}>
             <TextField label="Nombre" fullWidth size="small" value={form.Nombre}
               onChange={(e) => setForm({ ...form, Nombre: e.target.value })} placeholder="Ej: Mayorista" />
           </Grid>
-          <Grid item xs={12} sm={5}>
+          <Grid item xs={12} sm={4}>
             <TextField label="% Rentabilidad" type="number" fullWidth size="small"
               value={form.PorcentajeRentabilidad}
               onChange={(e) => setForm({ ...form, PorcentajeRentabilidad: e.target.value })}
+              InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }} />
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField label="% Costos Var." type="number" fullWidth size="small"
+              value={form.FactorCostosVariables}
+              onChange={(e) => setForm({ ...form, FactorCostosVariables: e.target.value })}
               InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }} />
           </Grid>
           <Grid item xs={12}>
@@ -353,7 +504,7 @@ function PrecioDialog({ target, lista, onClose, onSaved }) {
   const [costoBase, setCostoBase] = useState(precioActual ? String(precioActual.CostoBase) : '');
   const [guardando, setGuardando] = useState(false);
 
-  const preview = calcularPrecio(costoBase, lista.PorcentajeRentabilidad);
+  const preview = calcularPrecio(costoBase, lista.PorcentajeRentabilidad, lista.FactorCostosVariables);
 
   const guardar = async () => {
     if (!costoBase || Number(costoBase) <= 0) return alert('Ingresá un costo base válido.');
@@ -394,7 +545,7 @@ function PrecioDialog({ target, lista, onClose, onSaved }) {
 
         <Divider sx={{ my: 2 }}><Chip label="Cálculo" size="small" /></Divider>
         <Grid container spacing={1}>
-          <Fila label="Costos variables (26%)" valor={preview.CostoVariables} dolarGlobal={dolarGlobal} />
+          <Fila label={`Costos variables (${fmt(lista.FactorCostosVariables ?? 26)}%)`} valor={preview.CostoVariables} dolarGlobal={dolarGlobal} />
           <Fila label="Costo real" valor={preview.CostoReal} dolarGlobal={dolarGlobal} />
           <Fila label={`Ganancia (${fmt(lista.PorcentajeRentabilidad)}%)`} valor={preview.ValorFinal - preview.CostoReal} dolarGlobal={dolarGlobal} />
           <Grid item xs={12}>
@@ -423,5 +574,83 @@ function Fila({ label, valor, dolarGlobal }) {
         <Money ars={valor * dolarGlobal} usd={valor} size="sm" />
       </Box>
     </Grid>
+  );
+}
+
+
+// ============================================================
+function HistorialDialog({ inv, todosLosPrecios, listas, onClose }) {
+  const { dolarGlobal } = useVenta();
+  const idInventario = inv.Id ?? inv.id;
+  
+  const historial = useMemo(() => {
+    return todosLosPrecios
+      .filter(p => p.IdInventario === idInventario)
+      .sort((a, b) => new Date(b.FechaDesde) - new Date(a.FechaDesde));
+  }, [todosLosPrecios, idInventario]);
+
+  const nombreLista = (id) => listas.find(l => (l.Id ?? l.id) === id)?.Nombre || `Lista #${id}`;
+
+  return (
+    <Dialog open onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        Historial de Precios · {inv.articulo?.Nombre || `Inventario #${idInventario}`}
+        <IconButton onClick={onClose} size="small" aria-label="Cerrar"><CloseIcon sx={{ fontSize: 17 }} /></IconButton>
+      </DialogTitle>
+      <DialogContent sx={{ pt: 1 }}>
+        {historial.length === 0 ? (
+          <Typography color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
+            No hay registros de precios para este producto.
+          </Typography>
+        ) : (
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Fecha Desde</TableCell>
+                <TableCell>Fecha Hasta</TableCell>
+                <TableCell>Lista</TableCell>
+                <TableCell align="right">Costo Base</TableCell>
+                <TableCell align="right">Ganancia</TableCell>
+                <TableCell align="right">Valor Final</TableCell>
+                <TableCell align="center">Estado</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {historial.map((p) => {
+                const vigente = !p.FechaHasta || new Date(p.FechaHasta).getTime() > Date.now();
+                return (
+                  <TableRow key={p.Id ?? p.id} hover sx={{ opacity: vigente ? 1 : 0.6 }}>
+                    <TableCell className="mono" sx={{ fontSize: 12 }}>
+                      {new Date(p.FechaDesde).toLocaleString('es-AR')}
+                    </TableCell>
+                    <TableCell className="mono" sx={{ fontSize: 12 }}>
+                      {p.FechaHasta ? new Date(p.FechaHasta).toLocaleString('es-AR') : '—'}
+                    </TableCell>
+                    <TableCell>
+                      {nombreLista(p.IdListaPrecio)}
+                    </TableCell>
+                    <TableCell align="right">
+                      <Money ars={p.CostoBase * dolarGlobal} usd={p.CostoBase} size="sm" />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography variant="body2">{fmt(p.PorcentajeGanancia)} %</Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Money ars={p.ValorFinal * dolarGlobal} usd={p.ValorFinal} size="sm" />
+                    </TableCell>
+                    <TableCell align="center">
+                      <StatusPill tone={vigente ? 'ok' : 'flat'} label={vigente ? 'Vigente' : 'Cerrado'} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} variant="contained">Cerrar</Button>
+      </DialogActions>
+    </Dialog>
   );
 }
