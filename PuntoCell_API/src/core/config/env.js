@@ -28,7 +28,10 @@ export const env = {
   APP: {
     PORT: process.env.PORT || 3000,
     NODE_ENV: process.env.NODE_ENV || 'development',
-    CORS_ORIGIN: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins
+    CORS_ORIGIN: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
+    // URL base del front para los links de los mails (reset de contraseña). Si no se
+    // define PUBLIC_FRONT_URL se usa el primer origen CORS (nunca la lista completa).
+    FRONTEND_URL: (process.env.PUBLIC_FRONT_URL || corsOrigins[0] || '').replace(/\/+$/, '')
   },
   DB: {
     DIALECT: process.env.DB_DIALECT || 'mssql',
@@ -53,11 +56,6 @@ export const env = {
   },
   SECURITY: {
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY
-  },
-  RECAPTCHA: {
-    SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY || '',
-    // Solo se desactiva con RECAPTCHA_ENABLED=false explícito (pruebas con Postman/curl).
-    ENABLED: process.env.RECAPTCHA_ENABLED !== 'false'
   },
   SMTP: {
     USER: process.env.EMAIL_USER,

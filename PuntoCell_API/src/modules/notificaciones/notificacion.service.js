@@ -3,10 +3,13 @@ import { env } from '../../core/config/env.js';
 
 export default class NotificacionService {
   constructor() {
+    // Puerto 465 = SSL directo (secure:true); 587 = STARTTLS (secure:false). Antes se
+    // forzaba secure:true también con 587 (docker-compose), y el handshake TLS fallaba.
+    const port = env.SMTP.PORT || 465;
     this.transporter = nodemailer.createTransport({
-      service: 'gmail',
-      port: env.SMTP.PORT || 465,
-      secure: true,
+      host: 'smtp.gmail.com',
+      port,
+      secure: port === 465,
       auth: {
         user: env.SMTP.USER,
         pass: env.SMTP.PASS, 
@@ -163,8 +166,7 @@ export default class NotificacionService {
   }
 
   async enviarEmailRecuperacion(email, nombre, token) {
-    // TODO: mover a env.APP.FRONTEND_URL en producción
-    const frontendUrl = 'http://localhost:5173,http://localhost:5174,http://localhost:5175';
+    const frontendUrl = env.APP.FRONTEND_URL;
     const resetLink = `${frontendUrl}/reset-password?token=${token}`;
 
     const mailOptions = {

@@ -10,11 +10,7 @@ import {
 } from '@mui/icons-material'
 import { useAuth } from '../context/AuthContext'
 import { loginUsuario, getSesionActual, mapUsuario } from '../services/api'
-<<<<<<< Updated upstream
-import { crearRecaptchaInvisible, RECAPTCHA_SITE_KEY } from '../services/recaptcha'
-=======
 import RecaptchaWidget, { recaptchaConfigurado } from '../components/ui/RecaptchaWidget'
->>>>>>> Stashed changes
 
 // ─── Animaciones CSS + View Transition ────────────────────────────────────────
 const STYLES = `
@@ -68,7 +64,7 @@ const STYLES = `
   }
 `
 
-const TEST_USER = { usuario: 'admin', password: 'PuntoCell2026!' }
+const TEST_USER = { usuario: 'mfanara', password: 'talleres123456' }
 
 export default function LoginPage() {
   const { usuario, login } = useAuth()
@@ -87,27 +83,6 @@ export default function LoginPage() {
   const [form,          setForm]          = useState({ usuario: '', password: '' })
   const recaptchaRef = useRef(null)
 
-  // reCAPTCHA invisible: el widget vive dentro de esta página, así el badge
-  // desaparece al salir del login.
-  const recaptchaHostRef = useRef(null)
-  const recaptchaRef     = useRef(null)
-
-  useEffect(() => {
-    if (!RECAPTCHA_SITE_KEY || !recaptchaHostRef.current) return
-    let cancelado = false
-    // Un contenedor nuevo por montaje: reCAPTCHA no permite renderizar dos
-    // veces en el mismo elemento (StrictMode monta/desmonta en desarrollo).
-    const el = document.createElement('div')
-    recaptchaHostRef.current.appendChild(el)
-    crearRecaptchaInvisible(el)
-      .then((widget) => { if (!cancelado) recaptchaRef.current = widget })
-      .catch(() => { /* se informa al usuario recién cuando intenta ingresar */ })
-    return () => {
-      cancelado = true
-      recaptchaRef.current = null
-      el.remove()
-    }
-  }, [])
 
   useEffect(() => {
     if (document.getElementById('pc-login-styles')) return
@@ -135,23 +110,6 @@ export default function LoginPage() {
     if (recaptchaConfigurado && !recaptchaToken) { setError('Completá el captcha para continuar.'); return }
     setLoading(true); setError('')
 
-    // Validación del cliente OK → recién ahora se invoca el desafío invisible.
-    let recaptchaToken
-    if (RECAPTCHA_SITE_KEY) {
-      if (!recaptchaRef.current) {
-        setError('No se pudo cargar la verificación de seguridad. Revisá tu conexión y recargá la página.')
-        setLoading(false)
-        return
-      }
-      try {
-        recaptchaToken = await recaptchaRef.current.ejecutar()
-      } catch (err) {
-        recaptchaRef.current?.reset()
-        setError(err.message)
-        setLoading(false)
-        return
-      }
-    }
 
     try {
       const res = await loginUsuario(form.usuario, form.password, recaptchaToken)
@@ -172,11 +130,7 @@ export default function LoginPage() {
         setError('No se pudo conectar con el servidor. Verificá tu conexión.')
       }
     } finally {
-<<<<<<< Updated upstream
-      // El token de reCAPTCHA es de un solo uso: se regenera en el próximo intento.
-=======
       // El token es de un solo uso: tras cualquier intento hay que pedir uno nuevo.
->>>>>>> Stashed changes
       recaptchaRef.current?.reset()
       setLoading(false)
     }
@@ -264,7 +218,7 @@ export default function LoginPage() {
                       Usuario de prueba:
                     </Typography>
                     <Typography className="mono" variant="caption" sx={{ color: 'text.secondary', fontSize: '0.78rem' }}>
-                      admin / PuntoCell2026!
+                      {TEST_USER.usuario} / {TEST_USER.password}
                     </Typography>
                     <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 600, fontSize: '0.72rem', ml: 'auto' }}>
                       Completar →
@@ -352,9 +306,6 @@ export default function LoginPage() {
           Proyecto final de carrera · Institución Cervantes
         </Typography>
 
-        {/* Host del reCAPTCHA invisible (fuera del form para que el cambio a la
-            vista de éxito no lo desmonte). */}
-        <Box ref={recaptchaHostRef} />
       </Box>
     </Box>
   )

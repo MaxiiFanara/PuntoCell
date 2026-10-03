@@ -42,6 +42,7 @@ services:
     container_name: puntocell_api_dashboard
     environment:
       PORT: 3000
+      PUBLIC_FRONT_URL: ${PUBLIC_FRONT_URL:-http://localhost:5175}
       PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:3002}
       PUBLIC_DB_PORT: ${PUBLIC_DB_PORT:-1435}
       NODE_ENV: development
@@ -64,7 +65,6 @@ services:
       MP_ID_EMPLEADO: ${MP_ID_EMPLEADO:-}
       MP_ID_TURNO_CAJA: ${MP_ID_TURNO_CAJA:-}
       MP_ID_METODO_PAGO: ${MP_ID_METODO_PAGO:-}
-      RECAPTCHA_ENABLED: ${RECAPTCHA_ENABLED:-false}
       RECAPTCHA_API_KEY: ${RECAPTCHA_API_KEY:-}
       RECAPTCHA_PROJECT_ID: ${RECAPTCHA_PROJECT_ID:-}
       RECAPTCHA_SITE_KEY: ${RECAPTCHA_SITE_KEY:-}
@@ -74,7 +74,6 @@ services:
       OPENROUTER_MODELS: ${OPENROUTER_MODELS}
       OPENROUTER_SITE_URL: ${OPENROUTER_SITE_URL}
       OPENROUTER_APP_NAME: ${OPENROUTER_APP_NAME}
-      RECAPTCHA_SECRET_KEY: ${RECAPTCHA_SECRET_KEY}
       RECAPTCHA_ENABLED: ${RECAPTCHA_ENABLED:-true}
     ports:
       - "3002:3000"
@@ -94,7 +93,6 @@ services:
       PUBLIC_FRONT_URL: ${PUBLIC_FRONT_URL:-http://localhost:5175}
       API_PROXY_TARGET: ${API_PROXY_TARGET:-http://api-dashboard:3000}
       VITE_API_URL: ${VITE_API_URL:-}
-      VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
     ports:
       - "5175:5173"
     volumes:

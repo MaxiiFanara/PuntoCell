@@ -37,11 +37,7 @@ export const fetchApi = async (endpoint, options = {}) => {
 }
 
 // Auth
-<<<<<<< Updated upstream
-export const loginUsuario = async (identificador, pwd, recaptchaToken) => {
-=======
 export const loginUsuario = async (identificador, pwd, recaptchaToken = '') => {
->>>>>>> Stashed changes
   const res = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

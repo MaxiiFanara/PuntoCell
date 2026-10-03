@@ -1,12 +1,11 @@
 import { env } from '../../core/config/env.js';
 import { registerAudit } from '../../core/utils/audit.util.js';
+import { createAssessment, RECAPTCHA_LOGIN_ACTION } from './recaptcha.service.js';
 
-const SITEVERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify';
-const TIMEOUT_MS = 5000;
-
-// Verifica el token de reCAPTCHA invisible (v2) que el front manda en
-// req.body.RecaptchaToken. Corre antes del login para que los bots no lleguen
-// a consultar la DB ni a comparar con bcrypt. Ante cualquier duda, rechaza.
+// Verifica el token de reCAPTCHA Enterprise que el front manda en req.body.RecaptchaToken.
+// Corre antes del login para que los bots no lleguen a consultar la DB ni a comparar con
+// bcrypt. Ante cualquier duda rechaza, y deja constancia del bloqueo en la bitácora.
+// Con RECAPTCHA_ENABLED distinto de 'true' no hace nada.
 export function createVerifyRecaptcha(bitacoraService = null) {
   const rechazar = async (req, res, status, message, detalle) => {
     await registerAudit(bitacoraService, {
@@ -20,36 +19,28 @@ export function createVerifyRecaptcha(bitacoraService = null) {
   return async (req, res, next) => {
     if (!env.RECAPTCHA.ENABLED) return next();
 
-    if (!env.RECAPTCHA.SECRET_KEY) {
-      console.error('reCAPTCHA: falta RECAPTCHA_SECRET_KEY en el .env');
+    const { API_KEY, PROJECT_ID, SITE_KEY, MIN_SCORE } = env.RECAPTCHA;
+    if (!API_KEY || !PROJECT_ID || !SITE_KEY) {
+      console.error('reCAPTCHA habilitado pero faltan variables de entorno (API_KEY, PROJECT_ID o SITE_KEY).');
       return res.status(500).json({ status: 'error', message: 'Verificación reCAPTCHA no configurada' });
     }
 
     const token = req.body?.RecaptchaToken;
     if (!token) {
-      return rechazar(req, res, 400, 'Verificación reCAPTCHA fallida', 'Intento de login sin token reCAPTCHA');
+      return rechazar(req, res, 403, 'Completá el captcha para continuar.', 'Intento de login sin token reCAPTCHA');
     }
 
-    let resultado;
+    let score;
     try {
-      const params = new URLSearchParams({ secret: env.RECAPTCHA.SECRET_KEY, response: token });
-      if (req.ip) params.append('remoteip', req.ip);
-
-      const resp = await fetch(SITEVERIFY_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params,
-        signal: AbortSignal.timeout(TIMEOUT_MS)
-      });
-      resultado = await resp.json();
+      score = await createAssessment({ token, recaptchaAction: RECAPTCHA_LOGIN_ACTION });
     } catch (err) {
-      console.error('reCAPTCHA: error consultando siteverify:', err.message);
+      console.error('reCAPTCHA: error consultando CreateAssessment:', err.message);
       return res.status(503).json({ status: 'error', message: 'No se pudo verificar reCAPTCHA. Intentá nuevamente.' });
     }
 
-    if (!resultado?.success) {
-      const codigos = (resultado?.['error-codes'] || []).join(', ') || 'sin detalle';
-      return rechazar(req, res, 400, 'Verificación reCAPTCHA fallida', `reCAPTCHA rechazado (${codigos})`);
+    if (score === null || score < MIN_SCORE) {
+      return rechazar(req, res, 403, 'No se pudo verificar el captcha. Intentá nuevamente.',
+        `reCAPTCHA rechazado (puntaje: ${score ?? 'token inválido'})`);
     }
 
     // El token ya cumplió su función: no lo propagamos al controller.
