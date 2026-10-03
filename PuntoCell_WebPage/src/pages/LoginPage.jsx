@@ -10,7 +10,11 @@ import {
 } from '@mui/icons-material'
 import { useAuth } from '../context/AuthContext'
 import { loginUsuario, getSesionActual, mapUsuario } from '../services/api'
+<<<<<<< Updated upstream
 import { crearRecaptchaInvisible, RECAPTCHA_SITE_KEY } from '../services/recaptcha'
+=======
+import RecaptchaWidget, { recaptchaConfigurado } from '../components/ui/RecaptchaWidget'
+>>>>>>> Stashed changes
 
 // ─── Animaciones CSS + View Transition ────────────────────────────────────────
 const STYLES = `
@@ -81,6 +85,7 @@ export default function LoginPage() {
   const [error,         setError]         = useState('')
   const [success,       setSuccess]       = useState(false)
   const [form,          setForm]          = useState({ usuario: '', password: '' })
+  const recaptchaRef = useRef(null)
 
   // reCAPTCHA invisible: el widget vive dentro de esta página, así el badge
   // desaparece al salir del login.
@@ -126,6 +131,8 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.usuario || !form.password) { setError('Por favor completá todos los campos.'); return }
+    const recaptchaToken = recaptchaRef.current?.getToken() || ''
+    if (recaptchaConfigurado && !recaptchaToken) { setError('Completá el captcha para continuar.'); return }
     setLoading(true); setError('')
 
     // Validación del cliente OK → recién ahora se invoca el desafío invisible.
@@ -165,7 +172,11 @@ export default function LoginPage() {
         setError('No se pudo conectar con el servidor. Verificá tu conexión.')
       }
     } finally {
+<<<<<<< Updated upstream
       // El token de reCAPTCHA es de un solo uso: se regenera en el próximo intento.
+=======
+      // El token es de un solo uso: tras cualquier intento hay que pedir uno nuevo.
+>>>>>>> Stashed changes
       recaptchaRef.current?.reset()
       setLoading(false)
     }
@@ -310,6 +321,12 @@ export default function LoginPage() {
                       ¿Olvidaste tu contraseña?
                     </Typography>
                   </Box>
+
+                  {recaptchaConfigurado && (
+                    <Box className="f5" sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+                      <RecaptchaWidget ref={recaptchaRef} action="LOGIN" />
+                    </Box>
+                  )}
 
                   <Box className="f6">
                     <Button type="submit" variant="contained" size="large" fullWidth disabled={loading}

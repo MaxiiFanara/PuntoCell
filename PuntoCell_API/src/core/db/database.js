@@ -45,7 +45,9 @@ class Database {
   async connect() {
     try {
       await this.sequelize.authenticate();
-      console.log('✅ Conexión a SQL Server establecida correctamente.');
+      const publicPort = process.env.PUBLIC_DB_PORT;
+      const externo = publicPort ? ` (acceso externo: localhost:${publicPort})` : '';
+      console.log(`✅ Conexión a SQL Server establecida correctamente: ${process.env.DB_HOST}:${process.env.DB_PORT}${externo}`);
     } catch (error) {
       console.error('❌ Error al conectar con la base de datos:', error.message);
       process.exit(1);

@@ -42,6 +42,8 @@ services:
     container_name: puntocell_api_dashboard
     environment:
       PORT: 3000
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:3002}
+      PUBLIC_DB_PORT: ${PUBLIC_DB_PORT:-1435}
       NODE_ENV: development
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5175}
       DB_DIALECT: mssql
@@ -62,6 +64,11 @@ services:
       MP_ID_EMPLEADO: ${MP_ID_EMPLEADO:-}
       MP_ID_TURNO_CAJA: ${MP_ID_TURNO_CAJA:-}
       MP_ID_METODO_PAGO: ${MP_ID_METODO_PAGO:-}
+      RECAPTCHA_ENABLED: ${RECAPTCHA_ENABLED:-false}
+      RECAPTCHA_API_KEY: ${RECAPTCHA_API_KEY:-}
+      RECAPTCHA_PROJECT_ID: ${RECAPTCHA_PROJECT_ID:-}
+      RECAPTCHA_SITE_KEY: ${RECAPTCHA_SITE_KEY:-}
+      RECAPTCHA_MIN_SCORE: ${RECAPTCHA_MIN_SCORE:-0.5}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL}
       OPENROUTER_MODELS: ${OPENROUTER_MODELS}
@@ -83,6 +90,8 @@ services:
       context: ./PuntoCell_WebPage
     container_name: puntocell_front_dashboard
     environment:
+      VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
+      PUBLIC_FRONT_URL: ${PUBLIC_FRONT_URL:-http://localhost:5175}
       API_PROXY_TARGET: ${API_PROXY_TARGET:-http://api-dashboard:3000}
       VITE_API_URL: ${VITE_API_URL:-}
       VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}

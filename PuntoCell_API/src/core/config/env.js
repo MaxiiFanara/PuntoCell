@@ -43,6 +43,14 @@ export const env = {
     SECRET: process.env.JWT_SECRET,
     EXPIRES_IN: process.env.JWT_EXPIRES_IN || '1d'
   },
+  RECAPTCHA: {
+    // El captcha solo se exige si RECAPTCHA_ENABLED=true (apagado por defecto).
+    ENABLED: process.env.RECAPTCHA_ENABLED === 'true',
+    API_KEY: process.env.RECAPTCHA_API_KEY,
+    PROJECT_ID: process.env.RECAPTCHA_PROJECT_ID,
+    SITE_KEY: process.env.RECAPTCHA_SITE_KEY,
+    MIN_SCORE: Number(process.env.RECAPTCHA_MIN_SCORE) || 0.5
+  },
   SECURITY: {
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY
   },

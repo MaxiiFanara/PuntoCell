@@ -18,7 +18,8 @@ async function startServer() {
     // 4. Encendido del servidor
     const PORT = env.APP.PORT;
     app.listen(PORT, () => {
-      console.log(`✅ Servidor corriendo en el puerto: ${PORT}`);
+      const publicUrl = process.env.PUBLIC_API_URL;
+      console.log(`✅ Servidor corriendo en el puerto: ${PORT}${publicUrl ? ` (acceso externo: ${publicUrl})` : ''}`);
       console.log(`🚀 Entorno: ${env.APP.NODE_ENV}`);
     });
 
