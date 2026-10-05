@@ -1,12 +1,21 @@
 import dotenv from 'dotenv';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Cargamos el .env desde la raíz del proyecto (eliminé el dotenv.config() duplicado)
-dotenv.config({ path: resolve(__dirname, '../../../..', '.env') });
+const candidateEnvPaths = [
+  resolve(__dirname, '../../../../..', '.env'),
+  resolve(__dirname, '../../../..', '.env')
+];
+
+const envPath = candidateEnvPaths.find((candidate) => fs.existsSync(candidate));
+
+if (envPath) {
+  dotenv.config({ path: envPath });
+}
 
 const defaultCorsOrigin = 'http://localhost:5173,http://localhost:5174,http://localhost:5175';
 const corsOriginValue = process.env.CORS_ORIGIN || defaultCorsOrigin;
@@ -40,5 +49,27 @@ export const env = {
   SMTP: {
     USER: process.env.EMAIL_USER,
     PASS: process.env.SMTP_PASS,
-    PORT: parseInt(process.env.EMAIL_PORT || 587, 10),  }
+    PORT: parseInt(process.env.EMAIL_PORT || 587, 10),  },
+  AI: {
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
+    OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || '',
+    OPENROUTER_MODELS: (process.env.OPENROUTER_MODELS || '')
+      .split(',')
+      .map((model) => model.trim())
+      .filter(Boolean),
+    OPENROUTER_SITE_URL: process.env.OPENROUTER_SITE_URL || 'http://localhost:5173',
+    OPENROUTER_APP_NAME: process.env.OPENROUTER_APP_NAME || 'PuntoCell'
+  },
+  MP: {
+    ACCESS_TOKEN: process.env.MP_ACCESS_TOKEN,
+    // Base del frontend para las back_urls a las que MP devuelve al comprador.
+    BACK_URL_BASE: process.env.MP_BACK_URL_BASE || 'http://localhost:5173,http://localhost:5174,http://localhost:5175',
+    // URL pública del webhook. En desarrollo queda vacía: MP no puede alcanzar
+    // localhost, y el flujo se confirma igual por la back_url.
+    WEBHOOK_URL: process.env.MP_WEBHOOK_URL || '',
+    // Identidad de las ventas online (ver scripts/seed-tienda-online.sql).
+    ID_EMPLEADO: Number(process.env.MP_ID_EMPLEADO) || null,
+    ID_TURNO_CAJA: Number(process.env.MP_ID_TURNO_CAJA) || null,
+    ID_METODO_PAGO: Number(process.env.MP_ID_METODO_PAGO) || null,
+  }
 };

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { Snackbar, Alert } from '@mui/material';
 import { ventasService } from "../../../services/ventasServices";
 import { inventarioService } from "../../../services/inventarioServices";
 import { fetchApi } from "../../../services/api";
@@ -10,10 +11,21 @@ import { useAuth } from '../../../context/AuthContext';
 const VentaContext = createContext();
 
 export const VentaProvider = ({ children }) => {
-    // idSucursal viene del usuario logueado (antes quedaba hardcodeado en Sucursal 1)
     const { usuario } = useAuth();
     const idSucursal = usuario?.sucursal ?? null;
     const [nombreSucursal, setNombreSucursal] = useState('');
+
+    // Estado global para notificaciones estéticas (Toasts)
+    const [toast, setToast] = useState({ open: false, mensaje: '', severity: 'warning' });
+
+    const mostrarAlerta = (mensaje, severity = 'warning') => {
+        setToast({ open: true, mensaje, severity });
+    };
+
+    const handleCerrarToast = (event, reason) => {
+        if (reason === 'clickaway') return;
+        setToast(prev => ({ ...prev, open: false }));
+    };
 
     useEffect(() => {
         if (!idSucursal) return;
@@ -31,8 +43,6 @@ export const VentaProvider = ({ children }) => {
     const [esMayorista, setEsMayorista] = useState(false);
     const [bonificacion, setBonificacion] = useState(0);
 
-    // Precios del modelo nuevo (ListaPrecio + PrecioArticulo). Se cargan y se resuelven
-    // client-side por renglón de Inventario, contra cualquier lista vigente.
     const [preciosMap, setPreciosMap] = useState({});
     const [listasMayoristas, setListasMayoristas] = useState([]);
 
@@ -51,7 +61,6 @@ export const VentaProvider = ({ children }) => {
 
     useEffect(() => { recargarPrecios(); }, [recargarPrecios]);
 
-    // Precio de venta vigente (minorista/mayorista) + costo real de un renglón de Inventario.
     const resolverPrecios = useCallback(
         (idInventario) => resolverPrecioInventario(preciosMap, idInventario, listasMayoristas),
         [preciosMap, listasMayoristas]
@@ -77,8 +86,7 @@ export const VentaProvider = ({ children }) => {
                 if (listaCotizaciones.data && Array.isArray(listaCotizaciones.data)) {
                     listaCotizaciones = listaCotizaciones.data;
                 }
-                // Cotizacion es historial append-only: nos quedamos con la más reciente
-                // (CreatedAt, Id como desempate), no con la primera que matchee.
+                
                 const cotizacionesDolar = listaCotizaciones.filter(c =>
                     (c.Clave || c.clave || '').toLowerCase() === 'dolarblue'
                 );
@@ -96,7 +104,6 @@ export const VentaProvider = ({ children }) => {
                 }
 
                 const metodosFormateados = listaMetodos.map(m => {
-                    // Si Sequelize manda el objeto crudo, los datos están adentro de dataValues
                     const obj = m.dataValues || m; 
                     return {
                         value: obj.Id ?? obj.id ?? Math.random(),
@@ -119,8 +126,6 @@ export const VentaProvider = ({ children }) => {
         cargarConfiguracion();
     }, []);
     
-    // Registra un nuevo valor de dólar y lo refleja al instante en todo lo que
-    // depende de datosConfig.valorDolar (navbar, historial, inventario, punto de venta).
     const actualizarCotizacion = async (nuevoValor) => {
         const valor = Number(nuevoValor);
         if (isNaN(valor) || valor <= 0) throw new Error('Ingresá un valor de dólar válido.');
@@ -133,10 +138,6 @@ export const VentaProvider = ({ children }) => {
         return valor;
     };
 
-    // Recuperar estado previo (Persistencia local). El cliente y el carrito se validan
-    // contra el backend: un `pdv_estado` viejo puede referenciar un cliente o un renglón
-    // de inventario que ya no existen (ej. tras reinicializar la base) y eso reventaba
-    // la venta con un error de FK.
     useEffect(() => {
         const guardado = localStorage.getItem('pdv_estado');
         if (!guardado) return;
@@ -150,7 +151,6 @@ export const VentaProvider = ({ children }) => {
         }
         if (estado.esMayorista) setEsMayorista(estado.esMayorista);
 
-        // Cliente: solo se restaura si sigue existiendo.
         if (estado.cliente?.id) {
             fetchApi(`/usuarios/${estado.cliente.id}`)
                 .then((res) => {
@@ -161,7 +161,6 @@ export const VentaProvider = ({ children }) => {
                 .catch(() => setCliente(null));
         }
 
-        // Carrito: solo se restauran los renglones cuyo Inventario sigue con stock.
         if (Array.isArray(estado.carrito) && estado.carrito.length) {
             inventarioService.getAll({ IdSucursal: usuario?.sucursal })
                 .then((items) => {
@@ -176,7 +175,6 @@ export const VentaProvider = ({ children }) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Guardar estado (Persistencia local)
     useEffect(() => {
         localStorage.setItem('pdv_estado', JSON.stringify({
             carrito,
@@ -185,23 +183,20 @@ export const VentaProvider = ({ children }) => {
         }));
     }, [carrito, cliente, esMayorista]);
 
-    // Totales
     const totalVenta = carrito.reduce((sum, item) => sum + item.Subtotal, 0);
     const totalAjustado = totalVenta - bonificacion;
-    // Costo real total (para Venta.TotalCosto) — del PrecioArticulo vigente
     const totalCosto = carrito.reduce((sum, item) => sum + (item.CostoReal || 0) * item.Cantidad, 0);
 
     const agregarAlCarrito = (producto) => {
-        const idInventario = producto.Id; // Id de la fila de stock
+        const idInventario = producto.Id; 
         const idArticulo = producto.IdArticulo;
         const stockDisponible = producto.Stock || 0;
 
         const nombreStr = producto.articulo?.Nombre || producto.NombreProducto || 'Producto';
-        // Precio del modelo nuevo: PrecioArticulo vigente por lista (minorista/mayorista)
         const { minorista: precioBase, mayorista: precioMayor, costoReal } = resolverPrecios(idInventario);
 
         if (precioBase <= 0 && precioMayor <= 0) {
-            alert('⚠️ Este producto no tiene un precio de venta vigente cargado. Definilo en la pantalla de Precios.');
+            mostrarAlerta('Este producto no tiene un precio de venta vigente cargado. Definilo en la pantalla de Precios.', 'error');
             return;
         }
 
@@ -209,7 +204,7 @@ export const VentaProvider = ({ children }) => {
         const cantActual = existente ? existente.Cantidad : 0;
 
         if (cantActual + 1 > stockDisponible) {
-            alert(`⚠️ No hay suficiente stock. Disponibles: ${stockDisponible}`);
+            mostrarAlerta(`No hay suficiente stock. Disponibles: ${stockDisponible}`, 'warning');
             return;
         }
 
@@ -241,8 +236,6 @@ export const VentaProvider = ({ children }) => {
         }
     };
 
-    // Al cambiar mayorista/minorista (o al llegar/actualizarse los precios), re-resuelve
-    // el precio de cada renglón del carrito desde la lista de precios real, en vivo.
     useEffect(() => {
         setCarrito(prev => prev.map(item => {
             const { minorista, mayorista, costoReal } = resolverPrecios(item.IdInventario);
@@ -287,9 +280,27 @@ export const VentaProvider = ({ children }) => {
             totalVenta, totalAjustado, totalCosto,
             preciosMap, listasMayoristas, resolverPrecios, recargarPrecios,
             agregarAlCarrito, eliminarDelCarrito, vaciarTodo,
-            toggleMayorista: setEsMayorista
+            toggleMayorista: setEsMayorista,
+            mostrarAlerta // Exportado para usar en ProductoSearch o cualquier otro componente
         }}>
             {children}
+
+            <Snackbar
+                open={toast.open}
+                autoHideDuration={4000}
+                onClose={handleCerrarToast}
+                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+                sx={{ zIndex: 9999 }}
+            >
+                <Alert 
+                    onClose={handleCerrarToast} 
+                    severity={toast.severity} 
+                    variant="filled" 
+                    sx={{ width: '100%', boxShadow: 3, fontWeight: 500 }}
+                >
+                    {toast.mensaje}
+                </Alert>
+            </Snackbar>
         </VentaContext.Provider>
     );
 };

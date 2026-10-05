@@ -71,7 +71,12 @@ export default function ThemeToggle() {
           aria-label={esOscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternar(); } }}
           sx={(theme) => ({
-            position: 'fixed', bottom: 28, right: 28, zIndex: 1400,
+            position: 'fixed',
+            bottom: '112px',
+            right: 28,
+            // Queda siempre por encima del launcher del asistente para que no
+            // compartan la misma franja visual en el borde inferior derecho.
+            zIndex: 1202,
             width: 52, height: 52, borderRadius: '50%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer',

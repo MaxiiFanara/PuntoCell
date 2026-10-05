@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Box, Typography, Paper, Button, Select, MenuItem, 
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableFooter,
-  CircularProgress
+  CircularProgress, FormControl
 } from '@mui/material';
 import { Download, FileDownload, PictureAsPdf } from '@mui/icons-material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -13,6 +13,7 @@ import dayjs from 'dayjs';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import PageHeader from '../../../components/ui/PageHeader';
+import { getSucursales, fetchApi } from '../../../services/api';
 
 // ==========================================
 // 1. CONFIGURACIÓN DE REPORTES DISPONIBLES
@@ -52,6 +53,23 @@ const REPORT_MODULES = {
       { id: 'fallas', label: 'Ranking de Fallas' },
       { id: 'tiempos', label: 'Tiempos Promedio' }
     ]
+  },
+  // 🔥 NUEVOS MÓDULOS AGREGADOS 🔥
+  finanzas: {
+    label: 'Finanzas',
+    types: [
+      { id: 'flujo-caja', label: 'Flujo de Caja' },
+      { id: 'rentabilidad', label: 'Rentabilidad Neta' },
+      { id: 'ingresos-egresos', label: 'Ingresos vs Egresos' }
+    ]
+  },
+  caja: {
+    label: 'Caja',
+    types: [
+      { id: 'cierres', label: 'Historial de Cierres' },
+      { id: 'arqueos', label: 'Diferencias de Arqueo' },
+      { id: 'movimientos', label: 'Movimientos Manuales' }
+    ]
   }
 };
 
@@ -70,8 +88,8 @@ const COLUMN_TRANSLATIONS = {
   customerId: 'ID Cliente',
   customer: 'Cliente',
   status: 'Estado',
-  totalAmount: 'Monto Total ($)',
-  totalCost: 'Costo Total ($)',
+  totalAmount: 'Monto Total',
+  totalCost: 'Costo Total',
   detailsCount: 'Cant. Detalles',
   paymentMethods: 'Medios de Pago',
   totalCount: 'Operaciones',
@@ -81,19 +99,59 @@ const COLUMN_TRANSLATIONS = {
   stock: 'Stock Actual',
   lastMovement: 'Último Movimiento',
   daysWithoutMovement: 'Días sin Mover',
-  unitCost: 'Costo Unit. ($)',
-  avgDays: 'Tiempo Prom. (Días)'
+  unitCost: 'Costo Unit.',
+  avgDays: 'Tiempo Prom. (Días)',
+  
+  // 🔥 Traducciones para Finanzas y Caja 🔥
+  turnId: 'ID Turno',
+  cashier: 'Cajero Responsable',
+  openingDate: 'Apertura',
+  closingDate: 'Cierre',
+  expectedAmount: 'Monto Esperado',
+  actualAmount: 'Monto Real',
+  cashDifference: 'Diferencia (Arqueo)',
+  totalIncome: 'Ingresos Totales',
+  totalExpense: 'Egresos Totales',
+  netProfit: 'Rentabilidad Neta',
+  description: 'Descripción',
+  method: 'Método'
 };
 
-// Función helper para traducir (si no existe, separa el camelCase)
 const translateCol = (col) => {
   if (COLUMN_TRANSLATIONS[col]) return COLUMN_TRANSLATIONS[col];
   return col.replace(/([A-Z])/g, ' $1').trim().toUpperCase(); 
 };
 
+const esColumnaVisible = (col) => {
+  const lower = col.toLowerCase();
+  return lower !== 'id' && !lower.endsWith('id');
+};
+
+const formatearValor = (val, colName = '') => {
+  if (val === null || val === undefined) return '—';
+  
+  if (typeof val === 'string' && val.includes('T') && val.endsWith('Z')) {
+    return dayjs(val).format('DD/MM/YYYY HH:mm');
+  }
+
+  if (typeof val === 'number') {
+    const isCurrency = /(monto|total|cost|price|revenue|facturacion|amount|income|expense|profit|difference|esperado|real)/i.test(colName) && !/(count|quantity|cantidad)/i.test(colName);
+    const formato = val.toLocaleString('es-AR', {
+      minimumFractionDigits: Number.isInteger(val) && !isCurrency ? 0 : 2,
+      maximumFractionDigits: 2
+    });
+    return isCurrency ? `$ ${formato}` : formato;
+  }
+  
+  return String(val);
+};
+
 export default function ReportesScreen() {
   const [moduloSeleccionado, setModuloSeleccionado] = useState('ventas');
   const [tipoReporte, setTipoReporte] = useState('facturacion');
+  
+  const [sucursalesLista, setSucursalesLista] = useState([]);
+  const [sucursalSeleccionada, setSucursalSeleccionada] = useState('');
   
   const [fechaDesde, setFechaDesde] = useState(dayjs().subtract(30, 'day'));
   const [fechaHasta, setFechaHasta] = useState(dayjs());
@@ -102,30 +160,30 @@ export default function ReportesScreen() {
   const [reportData, setReportData] = useState([]);
   
   useEffect(() => {
+    getSucursales()
+      .then((data) => setSucursalesLista(data))
+      .catch((err) => console.error("Error al cargar sucursales en reportes:", err));
+  }, []);
+
+  useEffect(() => {
     setTipoReporte(REPORT_MODULES[moduloSeleccionado].types[0].id);
   }, [moduloSeleccionado]);
 
-  // ==========================================
-  // LÓGICA DE TOTALES (Reutilizable)
-  // ==========================================
+  const columnasVisibles = reportData.length > 0 ? Object.keys(reportData[0]).filter(esColumnaVisible) : [];
+
   const calcularFilaTotales = (datos) => {
     if (!datos.length) return [];
-    const headers = Object.keys(datos[0]);
     
-    return headers.map((col, index) => {
+    return columnasVisibles.map((col, index) => {
       if (index === 0) return 'TOTALES';
-      const isId = col.toLowerCase().endsWith('id') || col.toLowerCase() === 'id';
-      if (typeof datos[0][col] === 'number' && !isId) {
+      if (typeof datos[0][col] === 'number') {
         const sum = datos.reduce((acc, row) => acc + (Number(row[col]) || 0), 0);
-        return Number.isInteger(sum) ? sum : Number(sum.toFixed(2));
+        return formatearValor(sum, col);
       }
-      return '-';
+      return '—';
     });
   };
 
-  // ==========================================
-  // FETCH DE DATOS
-  // ==========================================
   const generarReporte = async () => {
     setLoading(true);
     setReportData([]);
@@ -134,45 +192,47 @@ export default function ReportesScreen() {
         reportType: tipoReporte,
         from: fechaDesde.format('YYYY-MM-DD'),
         to: fechaHasta.format('YYYY-MM-DD')
-      }).toString();
-      
-      const url = `http://localhost:3000/api/reportes/${moduloSeleccionado}?${params}`;
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include' 
       });
 
-      if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
-
-      const result = await response.json();
-      if (result && result.data && result.data.rows) {
-        setReportData(result.data.rows);
-      } else {
-        setReportData([]);
+      if (sucursalSeleccionada) {
+        params.append('idSucursal', sucursalSeleccionada);
       }
+      
+      const url = `/reportes/${moduloSeleccionado}?${params.toString()}`;
+      const result = await fetchApi(url);
+
+      let filas = [];
+      if (Array.isArray(result)) filas = result;
+      else if (Array.isArray(result?.data)) filas = result.data;
+      else if (Array.isArray(result?.data?.rows)) filas = result.data.rows;
+      else if (Array.isArray(result?.rows)) filas = result.rows;
+
+      if (filas.length === 0) {
+        alert(`El reporte se generó con éxito, pero no hay datos registrados para el tipo "${tipoReporte}" en este rango de fechas.`);
+      }
+
+      setReportData(filas);
     } catch (error) {
       console.error("Error al generar reporte:", error);
-      alert("Hubo un error al generar el reporte. Revisá la consola.");
+      alert(`Hubo un error al conectar con el servidor: ${error.message || 'La ruta de este reporte aún no existe en el backend.'}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // ==========================================
-  // EXPORTACIONES
-  // ==========================================
   const exportarCSV = () => {
     if (!reportData.length) return alert('No hay datos para exportar.');
     
-    const headers = Object.keys(reportData[0]);
     const totales = calcularFilaTotales(reportData);
 
     const csvContent = [
-      headers.map(translateCol).join(','), // Traducir cabeceras en CSV
-      ...reportData.map(row => headers.map(header => `"${row[header] !== null ? row[header] : ''}"`).join(',')),
-      totales.map(val => `"${val}"`).join(',')
+      columnasVisibles.map(translateCol).join(','), 
+      ...reportData.map(row => columnasVisibles.map(col => {
+        let val = row[col];
+        if (typeof val === 'number') val = val.toFixed(2);
+        return `"${val !== null ? val : ''}"`;
+      }).join(',')),
+      totales.map(val => `"${val.replace(/\$/g, '').trim()}"`).join(',')
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -189,32 +249,30 @@ export default function ReportesScreen() {
     const tituloModulo = REPORT_MODULES[moduloSeleccionado].label;
     const tituloReporte = REPORT_MODULES[moduloSeleccionado].types.find(t => t.id === tipoReporte)?.label;
     
+    const nombreSucursal = sucursalSeleccionada 
+      ? sucursalesLista.find(s => String(s.id) === String(sucursalSeleccionada))?.nombre 
+      : 'Todas las Sucursales Consolidadas';
+    
     doc.setFontSize(16);
     doc.setTextColor(18, 104, 78);
     doc.text(`Punto Cell - Reporte de ${tituloModulo}`, 14, 15);
     
     doc.setFontSize(11);
     doc.setTextColor(100);
-    doc.text(`Análisis: ${tituloReporte}`, 14, 23);
-    doc.text(`Período: ${fechaDesde.format('DD/MM/YYYY')} al ${fechaHasta.format('DD/MM/YYYY')}`, 14, 29);
-    doc.text(`Generado el: ${dayjs().format('DD/MM/YYYY HH:mm')}`, 14, 35);
+    doc.text(`Reporte: ${tituloReporte}`, 14, 23);
+    doc.text(`Sucursal: ${nombreSucursal}`, 14, 29); 
+    doc.text(`Período: ${fechaDesde.format('DD/MM/YYYY')} al ${fechaHasta.format('DD/MM/YYYY')}`, 14, 35);
+    doc.text(`Generado el: ${dayjs().format('DD/MM/YYYY HH:mm')}`, 14, 41);
 
-    // Traducir cabeceras en PDF
-    const head = [Object.keys(reportData[0]).map(translateCol)];
+    const head = [columnasVisibles.map(translateCol)];
     
-    const body = reportData.map(row => Object.values(row).map(val => {
-      if (typeof val === 'number' && !Number.isInteger(val)) return val.toFixed(2);
-      if (val === null || val === undefined) return '-';
-      // Formatear fechas si vienen en formato ISO
-      if (typeof val === 'string' && val.includes('T') && val.endsWith('Z')) return dayjs(val).format('DD/MM/YYYY');
-      return String(val);
-    }));
+    const body = reportData.map(row => columnasVisibles.map(col => formatearValor(row[col], col)));
 
     const totales = calcularFilaTotales(reportData);
-    body.push(totales.map(String));
+    body.push(totales);
 
     autoTable(doc, {
-      startY: 42,
+      startY: 48,
       head: head,
       body: body,
       theme: 'striped',
@@ -233,14 +291,11 @@ export default function ReportesScreen() {
     doc.save(`Reporte_${moduloSeleccionado}_${tipoReporte}_${dayjs().format('YYYYMMDD')}.pdf`);
   };
 
-  // ==========================================
-  // RENDERIZADO DINÁMICO
-  // ==========================================
   const renderTableHeaders = () => {
-    if (!reportData.length) return null;
+    if (!columnasVisibles.length) return null;
     return (
       <TableRow>
-        {Object.keys(reportData[0]).map((col) => (
+        {columnasVisibles.map((col) => (
           <TableCell key={col} sx={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem', color: 'text.secondary' }}>
             {translateCol(col)}
           </TableCell>
@@ -253,13 +308,11 @@ export default function ReportesScreen() {
     if (!reportData.length) return null;
     return reportData.map((row, index) => (
       <TableRow key={index} hover>
-        {Object.keys(row).map((col) => {
-          let val = row[col];
-          if (typeof val === 'number' && !Number.isInteger(val)) val = val.toFixed(2);
-          // Si es una fecha ISO, la formateamos para que quede bonita
-          if (typeof val === 'string' && val.includes('T') && val.endsWith('Z')) val = dayjs(val).format('DD/MM/YYYY HH:mm');
-          return <TableCell key={col}>{val !== null ? val : '—'}</TableCell>;
-        })}
+        {columnasVisibles.map((col) => (
+          <TableCell key={col}>
+            {formatearValor(row[col], col)}
+          </TableCell>
+        ))}
       </TableRow>
     ));
   };
@@ -277,7 +330,7 @@ export default function ReportesScreen() {
               sx={{ 
                 position: 'sticky', bottom: 0, bgcolor: 'pc.surfaceMuted', 
                 fontWeight: 800, borderTop: '2px solid', borderColor: 'divider',
-                color: val !== '-' ? 'primary.main' : 'text.primary'
+                color: val !== '—' && val !== 'TOTALES' ? 'primary.main' : 'text.primary'
               }}
             >
               {val}
@@ -312,6 +365,22 @@ export default function ReportesScreen() {
           <Typography variant="subtitle1" fontWeight="bold">Configuración del Reporte</Typography>
           
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight="bold" sx={{ textTransform: 'uppercase' }}>Sucursal</Typography>
+            <FormControl size="small" fullWidth>
+              <Select
+                value={sucursalSeleccionada}
+                onChange={(e) => setSucursalSeleccionada(e.target.value)}
+                displayEmpty
+              >
+                <MenuItem value="" sx={{ fontStyle: 'italic' }}>Todas las sucursales</MenuItem>
+                {sucursalesLista.map(s => (
+                  <MenuItem key={s.id} value={s.id}>{s.nombre}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Typography variant="caption" color="text.secondary" fontWeight="bold" sx={{ textTransform: 'uppercase' }}>Módulo</Typography>
             <Select size="small" value={moduloSeleccionado} onChange={(e) => setModuloSeleccionado(e.target.value)}>
               {Object.entries(REPORT_MODULES).map(([key, mod]) => <MenuItem key={key} value={key}>{mod.label}</MenuItem>)}
@@ -327,9 +396,9 @@ export default function ReportesScreen() {
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Typography variant="caption" color="text.secondary" fontWeight="bold" sx={{ textTransform: 'uppercase' }}>Rango de Fechas</Typography>
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <DatePicker label="Desde" value={fechaDesde} onChange={(newValue) => setFechaDesde(newValue)} slotProps={{ textField: { size: 'small', fullWidth: true } }} />
-              <DatePicker label="Hasta" value={fechaHasta} onChange={(newValue) => setFechaHasta(newValue)} slotProps={{ textField: { size: 'small', fullWidth: true } }} />
+            <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+              <DatePicker label="Desde" value={fechaDesde} onChange={(newValue) => setFechaDesde(newValue)} format="DD/MM/YYYY" slotProps={{ textField: { size: 'small', fullWidth: true } }} />
+              <DatePicker label="Hasta" value={fechaHasta} onChange={(newValue) => setFechaHasta(newValue)} format="DD/MM/YYYY" slotProps={{ textField: { size: 'small', fullWidth: true } }} />
             </LocalizationProvider>
           </Box>
 

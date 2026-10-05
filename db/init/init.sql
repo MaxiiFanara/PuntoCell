@@ -1,11 +1,24 @@
 USE master; -- Nos posicionamos en la base de datos maestra del sistema para poder crear una nueva.
 GO -- Ejecuta el lote de instrucciones anterior antes de continuar.
 
-CREATE DATABASE PuntoCellDesarrollo; -- Crea la estructura física y lógica de la base de datos del proyecto.
+-- Guarda de idempotencia: permite reejecutar el script contra un servidor donde la base
+-- ya exista (redeploy, contenedor reiniciado) sin abortar por "database already exists".
+-- Sintaxis soportada tanto en SQL Server on-prem/Docker como en AWS RDS for SQL Server.
+IF DB_ID(N'PuntoCellDesarrollo') IS NULL
+BEGIN
+    CREATE DATABASE PuntoCellDesarrollo; -- Crea la estructura física y lógica de la base de datos del proyecto.
+END
 GO -- Asegura que la BD esté completamente creada antes de intentar usarla.
 
 USE PuntoCellDesarrollo; -- Cambiamos el contexto a nuestra nueva base de datos para empezar a crear tablas.
 GO -- Confirma el cambio de contexto.
+
+-- XACT_ABORT ON es session-level y persiste a través de todos los batches (GO) que siga
+-- ejecutando esta misma conexión/sesión de sqlcmd: cualquier error de tiempo de ejecución
+-- aborta y revierte automáticamente la transacción explícita abierta más abajo, en lugar
+-- de dejar la base a medio cargar. No afecta al DDL que sigue (se ejecuta en autocommit).
+SET XACT_ABORT ON;
+GO
 
 -----------------------
 --- TABLAS GLOBALES ---
@@ -100,14 +113,14 @@ GO
 -------------------------------------
 
 CREATE TABLE Bitacora ( -- El "Gran Hermano". Registra todas las operaciones críticas del personal.
-    Id         INT            PRIMARY KEY IDENTITY,
-    Detalle    NVARCHAR(MAX)  NULL, -- Información adicional (Ej: JSON con los datos borrados).
-    IpAddress  NVARCHAR(50)   NULL, -- Desde qué computadora se hizo, por seguridad.
-    Fecha      DATETIME2      NOT NULL DEFAULT SYSDATETIME(), -- Momento exacto.
-    IdEmpleado INT            NULL, -- Quién fue. NULL para acciones previas al login (ej. "Login fallido" con identificador inexistente).
-    IdSucursal INT            NULL, -- Dónde estaba logueado. NULL si la acción no tiene sesión asociada.
-    Accion     NVARCHAR(150)  NOT NULL, -- Qué pasó, en texto: el backend lo arma manualmente (ej. "Usuario admin inició sesión", "Login fallido para juan").
-    CONSTRAINT FK_Bitacora_Empleado FOREIGN KEY (IdEmpleado) REFERENCES Usuario (Id),
+    Id         INT           PRIMARY KEY IDENTITY,
+    Accion     NVARCHAR(150) NOT NULL, -- logueo exitoso, registrar compra, etc.
+    Detalle    NVARCHAR(MAX) NULL, -- Información adicional (Ej: JSON con los datos borrados).
+    IpAddress  NVARCHAR(50)  NULL, -- Desde qué computadora se hizo, por seguridad.
+    Fecha      DATETIME2     NOT NULL DEFAULT SYSDATETIME(), -- Momento exacto.
+    IdEmpleado INT           NULL, -- Quién fue.
+    IdSucursal INT           NULL, -- Dónde estaba logueado.
+    CONSTRAINT FK_Bitacora_Empleado FOREIGN KEY (IdEmpleado) REFERENCES Usuario (Id), 
     CONSTRAINT FK_Bitacora_Sucursal FOREIGN KEY (IdSucursal) REFERENCES Sucursal (Id)
 );
 GO
@@ -138,8 +151,10 @@ CREATE TABLE MovimientoCaja ( -- Registra cada billete que entra o sale del caj�
     Descripcion        NVARCHAR(200)  NOT NULL, -- Justificación ("Retiro para comprar artículos de limpieza").
     IdTurnoCaja        INT            NOT NULL, -- Caja de qué sucursal se afectó.
     IdEmpleado         INT            NOT NULL, -- Quién sacó o puso la plata.
-    CONSTRAINT FK_MovCaja_Turno    FOREIGN KEY (IdTurnoCaja) REFERENCES TurnoCaja (Id), 
-    CONSTRAINT FK_MovCaja_Empleado FOREIGN KEY (IdEmpleado)  REFERENCES Usuario (Id)
+    IdMetodoPago       INT            NOT NULL,
+    CONSTRAINT FK_MovCaja_Turno    FOREIGN KEY (IdTurnoCaja)   REFERENCES TurnoCaja (Id), 
+    CONSTRAINT FK_MovCaja_Empleado FOREIGN KEY (IdEmpleado)    REFERENCES Usuario (Id),
+    CONSTRAINT FK_MovCaja_MetPago  FOREIGN KEY (IdMetodoPago)  REFERENCES MetodoPago (Id)
 );
 GO
 
@@ -179,20 +194,20 @@ CREATE TABLE Producto (
     EsVendible           BIT           NOT NULL,
     EsRepuesto           BIT           NOT NULL,
     Activo               BIT           NOT NULL,
-    CreatedAt   DATETIME2     NOT NULL DEFAULT SYSDATETIME(),
+    CreatedAt            DATETIME2     NOT NULL DEFAULT SYSDATETIME(),
     IdModeloProducto     INT           NOT NULL,
     CONSTRAINT FK_Producto_Modelo     FOREIGN KEY (IdModeloProducto)     REFERENCES ModeloProducto (Id)
 );
 GO
 
 CREATE TABLE Proveedor ( -- Quienes nos suministran el stock de artículos o repuestos.
-    Id          INT           PRIMARY KEY IDENTITY,
-    Nombre      NVARCHAR(100) NOT NULL UNIQUE,
-    Email       NVARCHAR(100) NULL, -- UNIQUE real vía índice filtrado más abajo (ver UQ_Proveedor_Email)
-    Celular     NVARCHAR(20)  NULL, -- UNIQUE real vía índice filtrado más abajo (ver UQ_Proveedor_Celular)
-    Activo      BIT           NOT NULL DEFAULT 1,
+    Id          INT           PRIMARY KEY IDENTITY, 
+    Nombre      NVARCHAR(100) NOT NULL UNIQUE, 
+    Email       NVARCHAR(100) NULL, 
+    Celular     NVARCHAR(20)  NULL, 
+    Activo      BIT           NOT NULL DEFAULT 1, 
     IdLocalidad INT           NULL,
-    CONSTRAINT FK_Proveedor_Localidad FOREIGN KEY (IdLocalidad) REFERENCES Localidad (Id)
+    CONSTRAINT FK_Proveedor_Localidad FOREIGN KEY (IdLocalidad) REFERENCES Localidad (Id) 
 );
 GO
 
@@ -237,9 +252,9 @@ CREATE TABLE EstadoInventario ( -- Define si el stock es Nuevo, Usado (Reacondic
 );
 GO
 
-CREATE TABLE Inventario ( -- Representa la cantidad FÍSICA actual de un producto en una sucursal específica. El costo/precio de venta vive en PrecioArticulo (ver más abajo), con historial.
+CREATE TABLE Inventario ( -- Representa la cantidad FÍSICA actual de un producto en una sucursal específica.
     Id                 INT            PRIMARY KEY IDENTITY,
-    IMEI                VARCHAR(50)    NULL, -- Único entre equipos serializados; ver índice único filtrado más abajo.
+    IMEI               VARCHAR(50)    NULL, -- Único entre equipos serializados; ver índice único filtrado más abajo.
     Stock              INT            NOT NULL DEFAULT 0 CHECK (Stock >= 0), -- Unidades disponibles actualmente en esta sucursal.
     CreatedAt          DATETIME2      NOT NULL DEFAULT SYSDATETIME(), -- Cuándo ingresó este lote.
     MesesGarantiaMarca DATETIME2      NULL,
@@ -291,18 +306,18 @@ CREATE TABLE ListaPrecio ( -- Regla de formación de precio por categoría de pr
 GO
 
 CREATE TABLE PrecioArticulo ( -- Precio concreto vigente de un renglón de Inventario, aplicando una ListaPrecio. Con historial: nunca se pisa un registro, se cierra su vigencia (FechaHasta) y se crea uno nuevo.
-    Id                 INT            PRIMARY KEY IDENTITY,
-    IdInventario       INT            NOT NULL,
-    IdListaPrecio      INT            NOT NULL,
-    ValorFinal         DECIMAL(18, 2) NOT NULL CHECK (ValorFinal >= 0), -- Precio de venta resultante (lo que paga el cliente).
-    CostoBase          DECIMAL(18, 2) NOT NULL CHECK (CostoBase >= 0), -- Lo que costó comprarlo (viene de Compras).
-    CostosVariables    DECIMAL(18, 2) NOT NULL CHECK (CostosVariables >= 0), -- Costos indirectos calculados sobre el CostoBase.
-    CostoReal          DECIMAL(18, 2) NOT NULL CHECK (CostoReal >= 0), -- CostoBase + CostosVariables.
-    PorcentajeGanancia DECIMAL(5, 2)  NOT NULL CHECK (PorcentajeGanancia >= 0), -- Copiado de ListaPrecio.PorcentajeRentabilidad al momento de calcular.
-    FechaDesde         DATETIME2      NOT NULL DEFAULT SYSDATETIME(),
-    FechaHasta         DATETIME2      NULL, -- NULL = vigencia actual.
-    CONSTRAINT FK_PrecioArticulo_Inventario  FOREIGN KEY (IdInventario)  REFERENCES Inventario (Id),
-    CONSTRAINT FK_PrecioArticulo_ListaPrecio FOREIGN KEY (IdListaPrecio) REFERENCES ListaPrecio (Id)
+    Id                  INT           PRIMARY KEY IDENTITY,
+    FechaDesde          DATETIME2     NOT NULL DEFAULT SYSDATETIME(),
+    FechaHasta          DATETIME2     NULL DEFAULT SYSDATETIME(), -- NULL = vigencia actual.
+    ValorFinal          DECIMAL(18,2) NOT NULL CHECK (ValorFinal >= 0), -- Precio de venta resultante (lo que paga el cliente).
+    CostoBase           DECIMAL(18,2) NOT NULL CHECK (CostoBase >= 0), -- Lo que costó comprarlo (viene de Compras).
+    CostoVariables      DECIMAL(18,2) NOT NULL CHECK (CostoVariables >= 0), -- Costos indirectos calculados sobre el CostoBase.
+    CostoReal           DECIMAL(18,2) NOT NULL CHECK (CostoReal >= 0), -- CostoBase + CostoVariables.
+    PorcentajeGanancia  DECIMAL(5,2)  NOT NULL CHECK (PorcentajeGanancia >= 0), -- Copiado de ListaPrecio.PorcentajeRentabilidad al momento de calcular.
+    IdListaPrecio       INT           NOT NULL,
+    IdInventario        INT           NOT NULL,
+    CONSTRAINT FK_PrecioArticulo_ListPrecio   FOREIGN KEY (IdListaPrecio)  REFERENCES ListaPrecio (Id),
+    CONSTRAINT FK_PrecioArticulo_Invetario    FOREIGN KEY (IdInventario)   REFERENCES Inventario  (Id)
 );
 GO
 
@@ -362,7 +377,7 @@ CREATE TABLE DetalleCompra (-- El renglón de lo que compramos
     PrecioCostoUnitario DECIMAL(18, 2) NOT NULL CHECK(PrecioCostoUnitario >= 0), 
     IdCompra            INT            NOT NULL, 
     IdInventario        INT            NOT NULL, 
-    CONSTRAINT FK_DetalleC_Compra        FOREIGN KEY (IdCompra)   REFERENCES Compra (Id), 
+    CONSTRAINT FK_DetalleC_Compra          FOREIGN KEY (IdCompra)   REFERENCES Compra (Id), 
     CONSTRAINT FK_DetalleC_Inventario      FOREIGN KEY (IdInventario) REFERENCES Inventario (Id),
     CONSTRAINT UQ_DetalleCompra_Inventario UNIQUE (IdCompra, IdInventario)
 );
@@ -378,6 +393,22 @@ CREATE TABLE PagoCompra ( -- Pagos financieros por Compras a Proveedores (Salida
     CONSTRAINT FK_PagoC_Compra  FOREIGN KEY (IdCompra)     REFERENCES Compra (Id), 
     CONSTRAINT FK_PagoC_Metodo  FOREIGN KEY (IdMetodoPago) REFERENCES MetodoPago (Id), 
     CONSTRAINT FK_PagoC_Turno   FOREIGN KEY (IdTurnoCaja)  REFERENCES TurnoCaja (Id)
+);
+GO
+
+CREATE TABLE CuentaCorrienteProveedor ( -- Historial cronológico de deuda con cada proveedor (Debe = nueva deuda, Haber = pago que la cancela).
+    Id               INT            PRIMARY KEY IDENTITY,
+    FechaMovimiento  DATETIME2      NOT NULL DEFAULT SYSDATETIME(),
+    Concepto         NVARCHAR(100)  NOT NULL, -- Valores fijos que arma el backend (ej. "Factura de Compra", "Pago a cuenta/total"), nunca texto libre del frontend.
+    Debe             DECIMAL(18, 2) NOT NULL DEFAULT 0, -- Lo que compraste (Suma tu deuda)
+    Haber            DECIMAL(18, 2) NOT NULL DEFAULT 0, -- Lo que pagaste (Resta tu deuda)
+    SaldoAcumulado   DECIMAL(18, 2) NOT NULL, -- Saldo del proveedor después de aplicar este movimiento; lo calcula el backend, nunca se recibe del frontend.
+    IdCompra         INT            NULL, -- Si el movimiento fue por una compra
+    IdProveedor      INT            NOT NULL,
+    IdPagoCompra     INT            NULL, -- Si el movimiento fue por un pago
+    CONSTRAINT FK_CCProv_Compra     FOREIGN KEY (IdCompra)  REFERENCES Compra (Id),
+    CONSTRAINT FK_CCProv_Proveedor  FOREIGN KEY (IdProveedor)  REFERENCES Proveedor (Id),
+    CONSTRAINT FK_CCProv_PagoCompra FOREIGN KEY (IdPagoCompra)  REFERENCES PagoCompra (Id)
 );
 GO
 
@@ -405,22 +436,6 @@ CREATE TABLE DetalleDevolucionCompra ( -- Los artículos exactos que mandamos de
     CONSTRAINT FK_DetDevCompra_Inventario     FOREIGN KEY (IdInventario)       REFERENCES Inventario (Id),
     CONSTRAINT FK_DetDevCompra_MovStock       FOREIGN KEY (IdMovimientoStock)  REFERENCES MovimientoStock (Id),
     CONSTRAINT UQ_DetalleDevCompra_Inventario UNIQUE (IdDevolucionCompra, IdInventario)
-);
-GO
-
-CREATE TABLE CuentaCorrienteProveedor ( -- Historial cronológico de deuda con cada proveedor (Debe = nueva deuda, Haber = pago que la cancela).
-    Id              INT            PRIMARY KEY IDENTITY,
-    IdProveedor     INT            NOT NULL,
-    FechaMovimiento DATETIME2      NOT NULL DEFAULT SYSDATETIME(),
-    Concepto        NVARCHAR(100)  NOT NULL, -- Valores fijos que arma el backend (ej. "Factura de Compra", "Pago a cuenta/total"), nunca texto libre del frontend.
-    Debe            DECIMAL(18, 2) NOT NULL DEFAULT 0,
-    Haber           DECIMAL(18, 2) NOT NULL DEFAULT 0,
-    SaldoAcumulado  DECIMAL(18, 2) NOT NULL, -- Saldo del proveedor después de aplicar este movimiento; lo calcula el backend, nunca se recibe del frontend.
-    IdCompra        INT            NULL,
-    IdPagoCompra    INT            NULL,
-    CONSTRAINT FK_CCProv_Proveedor  FOREIGN KEY (IdProveedor)  REFERENCES Proveedor (Id),
-    CONSTRAINT FK_CCProv_Compra     FOREIGN KEY (IdCompra)     REFERENCES Compra (Id),
-    CONSTRAINT FK_CCProv_PagoCompra FOREIGN KEY (IdPagoCompra) REFERENCES PagoCompra (Id)
 );
 GO
 
@@ -627,11 +642,11 @@ CREATE TABLE OrdenFalla ( -- Relación muchos a muchos: Un ingreso puede tener m
 GO
 
 CREATE TABLE RepuestoOrden ( -- Repuestos usados en el taller
-    Id                INT PRIMARY KEY IDENTITY,
-    Cantidad          INT NOT NULL DEFAULT 1 CHECK(Cantidad > 0),
+    Id                INT            PRIMARY KEY IDENTITY,
+    Cantidad          INT            NOT NULL DEFAULT 1 CHECK(Cantidad > 0),
     PrecioCobrado     DECIMAL(18, 2) NOT NULL CHECK(PrecioCobrado >= 0), -- A cuánto se le cobra el repuesto al cliente
-    IdOrdenReparacion INT NOT NULL,
-    IdInventario      INT NOT NULL, -- El repuesto físico
+    IdOrdenReparacion INT            NOT NULL,
+    IdInventario      INT            NOT NULL, -- El repuesto físico
     CONSTRAINT FK_Repuesto_Orden      FOREIGN KEY (IdOrdenReparacion) REFERENCES OrdenReparacion (Id),
     CONSTRAINT FK_Repuesto_Inventario FOREIGN KEY (IdInventario)      REFERENCES Inventario (Id),
     CONSTRAINT UQ_RepuestoOrden_Unico UNIQUE (IdOrdenReparacion, IdInventario)
@@ -639,12 +654,12 @@ CREATE TABLE RepuestoOrden ( -- Repuestos usados en el taller
 GO
 
 CREATE TABLE SeguimientoOrden ( -- Trazabilidad: Historial de estados por los que pasa el equipo.
-    Id                INT            PRIMARY KEY IDENTITY, 
-    FechaModificacion DATETIME2      NOT NULL DEFAULT SYSDATETIME(), -- Momento del cambio de estado.
-    ObservacionTecnico NVARCHAR(MAX) NULL, -- Notas del técnico: "Placa sulfatada, no tiene arreglo".
-    IdOrdenReparacion INT            NOT NULL, 
-    IdEmpleado        INT            NOT NULL, 
-    IdEstadoOrden     INT            NOT NULL, -- A qué estado cambió
+    Id                 INT            PRIMARY KEY IDENTITY, 
+    FechaModificacion  DATETIME2      NOT NULL DEFAULT SYSDATETIME(), -- Momento del cambio de estado.
+    ObservacionTecnico NVARCHAR(MAX)  NULL, -- Notas del técnico: "Placa sulfatada, no tiene arreglo".
+    IdOrdenReparacion  INT            NOT NULL, 
+    IdEmpleado         INT            NOT NULL, 
+    IdEstadoOrden      INT            NOT NULL, -- A qué estado cambió
     CONSTRAINT FK_Seguimiento_Orden    FOREIGN KEY (IdOrdenReparacion) REFERENCES OrdenReparacion (Id), 
     CONSTRAINT FK_Seguimiento_Empleado FOREIGN KEY (IdEmpleado)        REFERENCES Usuario (Id),
     CONSTRAINT FK_Seguimiento_Estado   FOREIGN KEY (IdEstadoOrden)     REFERENCES EstadoOrden (Id)
@@ -682,7 +697,7 @@ GO
 -- lo contrario. Cualquier equivalente en ARS se calcula en el momento de mostrar, con la
 -- cotización vigente, nunca acá.
 GO
-CREATE VIEW vw_Inventario_PuntoCell AS
+CREATE OR ALTER VIEW vw_Inventario_PuntoCell AS
 SELECT
     i.Id                            AS IdInventario,
     s.Nombre                        AS Sucursal,
@@ -712,7 +727,7 @@ GO
 
 -- 2. VISTA DE RESUMEN DE VENTAS (Ideal para el Dashboard del dueño)
 -- Muestra el total recaudado y la ganancia neta por venta, cruzando datos de caja y empleados.
-CREATE VIEW vw_Resumen_Ventas AS
+CREATE OR ALTER VIEW vw_Resumen_Ventas AS
 SELECT 
     v.Id                              AS NroVenta,
     CAST(v.Fecha AS DATE)             AS FechaVenta,
@@ -733,7 +748,7 @@ GO
 
 -- 3. VISTA DE ESTADO DEL TALLER (Ideal para medir tiempos y ganancias de reparaciones)
 -- Permite ver rápidamente cuántos equipos hay, en qué estado y cuánto dinero representan.
-CREATE VIEW vw_Estado_Taller AS
+CREATE OR ALTER VIEW vw_Estado_Taller AS
 SELECT 
     o.Id                              AS NroOrden,
     CAST(o.FechaEmision AS DATE)      AS FechaIngreso,
@@ -774,9 +789,7 @@ GO
 --    agrupando por marca es directo (no hay doble conteo).
 --    Solo cuenta órdenes Entregadas.
 -- ---------------------------------------------------------------------
-IF OBJECT_ID('vw_Metricas_MarcaReparada', 'V') IS NOT NULL DROP VIEW vw_Metricas_MarcaReparada;
-GO
-CREATE VIEW vw_Metricas_MarcaReparada AS
+CREATE OR ALTER VIEW vw_Metricas_MarcaReparada AS
 SELECT
     ma.Id                AS IdMarca,
     ma.Nombre            AS Marca,
@@ -795,9 +808,7 @@ GO
 --    Incluye Categoria + Marca para que la etiqueta sea legible.
 --    Solo cuenta órdenes Entregadas.
 -- ---------------------------------------------------------------------
-IF OBJECT_ID('vw_Metricas_DispositivoReparado', 'V') IS NOT NULL DROP VIEW vw_Metricas_DispositivoReparado;
-GO
-CREATE VIEW vw_Metricas_DispositivoReparado AS
+CREATE OR ALTER VIEW vw_Metricas_DispositivoReparado AS
 SELECT
     mo.Id                          AS IdModelo,
     cp.Nombre                      AS Categoria,
@@ -823,9 +834,7 @@ GO
 --    inventarios (distinta sucursal / estado).
 --    Solo cuenta repuestos de órdenes Entregadas.
 -- ---------------------------------------------------------------------
-IF OBJECT_ID('vw_Metricas_RepuestoUsado', 'V') IS NOT NULL DROP VIEW vw_Metricas_RepuestoUsado;
-GO
-CREATE VIEW vw_Metricas_RepuestoUsado AS
+CREATE OR ALTER VIEW vw_Metricas_RepuestoUsado AS
 SELECT
     p.Id                                 AS IdArticulo,
     p.Nombre                             AS Repuesto,
@@ -847,9 +856,7 @@ GO
 --    DEMANDA de ingreso (qué problema llega más, sin importar el
 --    resultado), cambiá el filtro a  eo.Nombre <> 'Anulada'.
 -- ---------------------------------------------------------------------
-IF OBJECT_ID('vw_Metricas_FallaRepetida', 'V') IS NOT NULL DROP VIEW vw_Metricas_FallaRepetida;
-GO
-CREATE VIEW vw_Metricas_FallaRepetida AS
+CREATE OR ALTER VIEW vw_Metricas_FallaRepetida AS
 SELECT
     f.Id            AS IdFalla,
     f.Nombre        AS Falla,
@@ -877,9 +884,7 @@ GO
 --    El LEFT JOIN contempla órdenes sin repuestos (solo mano de obra):
 --    en ese caso Costo = 0. Un repuesto sin PrecioArticulo vigente aporta costo 0.
 -- ---------------------------------------------------------------------
-IF OBJECT_ID('vw_Finanzas_Reparaciones', 'V') IS NOT NULL DROP VIEW vw_Finanzas_Reparaciones;
-GO
-CREATE VIEW vw_Finanzas_Reparaciones AS
+CREATE OR ALTER VIEW vw_Finanzas_Reparaciones AS
 SELECT
     o.Id                                               AS NroOrden,
     CAST(o.FechaEmision AS DATE)                       AS FechaIngreso,
@@ -909,9 +914,7 @@ WHERE eo.Nombre = 'Entregado';
 GO
 
 -- 5b) FINANZAS - resumen (una sola fila: ingreso, costo, ganancia)
-IF OBJECT_ID('vw_Finanzas_Resumen', 'V') IS NOT NULL DROP VIEW vw_Finanzas_Resumen;
-GO
-CREATE VIEW vw_Finanzas_Resumen AS
+CREATE OR ALTER VIEW vw_Finanzas_Resumen AS
 SELECT
     ISNULL(SUM(Ingreso),  0) AS TotalIngresos,
     ISNULL(SUM(Costo),    0) AS TotalCostos,
@@ -923,9 +926,7 @@ GO
 -- 6) DASHBOARD - una sola fila con todos los KPIs (all-time)
 --    Ideal para las "tarjetas" del panel: un solo SELECT.
 -- ---------------------------------------------------------------------
-IF OBJECT_ID('vw_Dashboard_Metricas', 'V') IS NOT NULL DROP VIEW vw_Dashboard_Metricas;
-GO
-CREATE VIEW vw_Dashboard_Metricas AS
+CREATE OR ALTER VIEW vw_Dashboard_Metricas AS
 SELECT
     (SELECT TOP 1 Marca               FROM vw_Metricas_MarcaReparada      ORDER BY CantidadReparaciones DESC) AS MarcaMasReparada,
     (SELECT TOP 1 CantidadReparaciones FROM vw_Metricas_MarcaReparada     ORDER BY CantidadReparaciones DESC) AS MarcaCantidad,
@@ -945,6 +946,13 @@ GO
 --- INSERTS BASE ---
 --------------------
 
+-- Toda la carga de datos (catálogos + operaciones de negocio) corre dentro de UNA sola
+-- transacción explícita. Los GO que siguen solo separan batches (necesario para que las
+-- DECLARE @variable más abajo tengan alcance de batch); no cierran la transacción, que
+-- sigue abierta en la misma sesión de sqlcmd hasta el COMMIT al final del archivo. Con
+-- XACT_ABORT ON (seteado arriba), cualquier error revierte TODO lo cargado hasta ese punto.
+BEGIN TRANSACTION SeedData;
+GO
 
 -- 1. Localidades (Id 1 = La Calera DEFAULT)
 -- Guardado con IF NOT EXISTS: ver comentario en el INSERT de Sucursal más abajo sobre por qué
@@ -961,6 +969,7 @@ INSERT INTO Localidad (Nombre) VALUES
 GO
 
 -- 2. Métodos de Pago
+IF NOT EXISTS (SELECT 1 FROM MetodoPago)
 INSERT INTO MetodoPago (Nombre) VALUES
 ('efectivo'),
 ('billetera virtual (qr/alias)'),
@@ -981,20 +990,22 @@ GO
 -- el mismo volumen (p. ej. se reinicia el contenedor db-init), este INSERT se ejecutaba de
 -- nuevo y duplicaba las sucursales (no hay UNIQUE en Sucursal.Nombre).
 IF NOT EXISTS (SELECT 1 FROM Sucursal)
-INSERT INTO Sucursal (Nombre, Calle, Numero, Telefono, Activa, IdLocalidad) VALUES
-('La Calera Centro', '', '', '', 1, 1),
-('La Calera Stoecklin', '', '', '', 1, 1);
+INSERT INTO Sucursal (Nombre, Calle, Numero, Telefono, Activa, IdLocalidad) VALUES 
+('La Calera Centro', 'C. Manuel Belgrano', '425', '03513873973', 1, 1),
+('La Calera Stoecklin', 'Antinio Sucre', '700', '03518647115', 1, 1);
 GO
 
--- 5. Roles
-INSERT INTO Rol (Nombre) VALUES
+-- 4. Roles
+IF NOT EXISTS (SELECT 1 FROM Rol)
+INSERT INTO Rol (Nombre) VALUES 
 ('administrador'),
 ('owner'),
 ('vendedor'),
 ('tecnico');
 GO
 
--- 6. Permisos (Corregido: Sin duplicados)
+-- 5. Permisos
+IF NOT EXISTS (SELECT 1 FROM Permiso)
 INSERT INTO Permiso (Nombre) VALUES
 -- Vendedor (IDs 1 al 10)
 ('ver estado actual del stock'),
@@ -1022,7 +1033,7 @@ INSERT INTO Permiso (Nombre) VALUES
 ('habilita al usuario a cambiar la pasword');
 GO
 
--- 7. Rol Permiso (Corregido a 20 IDs)
+-- 6. Rol Permiso
 INSERT INTO RolPermiso (IdRol, IdPermiso) VALUES
 -- Administrador (Tiene todos)
 (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6),
@@ -1044,43 +1055,55 @@ INSERT INTO RolPermiso (IdRol, IdPermiso) VALUES
 (4, 1), (4, 11), (4, 12), (4, 13), (4, 14), (4, 15);
 GO
 
--- 8. Usuarios Base — un empleado por rol + un cliente genérico. Login de prueba:
+-- 7. Usuarios Base
 -- admin / owner / vendedor / tecnico, todos con clave "talleres123456"
 -- (Pwd es el hash bcrypt (10 salt rounds) de esa clave, generado con core/utils/bcrypt.js).
 -- Credenciales completas al final de este archivo, en el resumen del seed.
-INSERT INTO Usuario (DNI, Apellido, Nombre, Email, Celular, EsCliente, UsuarioEmpleado, Pwd, IdRol, IdSucursal, IdLocalidad) VALUES
-('10000001', 'Demo', 'Admin',     'admin@puntocell.com.ar',     '3510000001', 0, 'admin',     '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 1, 1, 1),
-('10000002', 'Demo', 'Owner',     'owner@puntocell.com.ar',     '3510000002', 0, 'owner',     '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 2, 1, 1),
-('10000003', 'Demo', 'Vendedor',  'vendedor@puntocell.com.ar',  '3510000003', 0, 'vendedor',  '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 3, 1, 1),
-('10000004', 'Demo', 'Tecnico',   'tecnico@puntocell.com.ar',   '3510000004', 0, 'tecnico',   '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 4, 1, 1);
+IF NOT EXISTS (SELECT 1 FROM Usuario)
+BEGIN
+    INSERT INTO Usuario (DNI, Apellido, Nombre, Email, Celular, EsCliente, UsuarioEmpleado, Pwd, IdRol, IdSucursal, IdLocalidad) VALUES 
+    ('46222805', 'Fanara',      'Maximiliano',   'estudiosfanara@gmail.com',      '3515559506', 0, 'mfanara',      '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 1, 1, 2),
+    ('42476297', 'Sclarandi',   'Leandro Simón', 'simonsclarandi.lp@gmail.com',   '3517661740', 0, 'lssclarandi',  '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 1, 1, 2),
+    ('43142737', 'Imoberdorf',  'Juan Pablo',    'jpuntocell@gmail.com',          '3513258499', 0, 'jpimoberdorf', '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 1, 1, 2),
+    ('44970115', 'Guerrini',    'Juan Pablo',    'juanpiguerrini477@gmail.com',   '3513072911', 0, 'jpguerrini',   '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 1, 1, 2),
+    ('44348062', 'Yona',        'Natán',         'natanyona1337@gmail.com',       '3517633173', 0, 'nyona',        '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 1, 1, 2),
+    ('10000001', 'Atti',        'Ignacio',       'iatti@puntocell.com.ar',        '3510000001', 0, 'iatti',        '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 2, 1, 1),
+    ('10000002', 'Atti',        'Juan Pablo',    'jpatti@puntocell.com.ar',       '3510000002', 0, 'jpatti',       '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 2, 2, 1),
+    ('10000003', 'Barrionuevo', 'Augusto',       'abarrionuevo@puntocell.com.ar', '3510000003', 0, 'abarrionuevo', '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 3, 1, 1),
+    ('10000004', 'Avila',       'Florencia',     'favila@puntocell.com.ar',       '3510000004', 0, 'favila',       '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 3, 1, 1),
+    ('10000005', 'Atti',        'Sofi',          'satti@puntocell.com.ar',        '3510000005', 0, 'satti',        '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 3, 2, 1),
+    ('10000006', 'Ramírez',     'Diego',         'tecnico2@puntocell.com.ar',     '3510000006', 0, 'tecnico2',     '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 4, 1, 1),
+    ('10000007', 'Atti',        'Guillermo',     'gatti@puntocell.com.ar',        '3510000007', 0, 'gatti',        '$2b$10$uZxeyOTD8PQQsYSZDpnNC.nDiMrB.niW00XAb90hkkO/Wb0kWZrVy', 4, 2, 1);
 
--- Cliente genérico (Id resultante: 5)
-INSERT INTO Usuario (DNI, Apellido, Nombre, Email, Celular, EsCliente, IdLocalidad) VALUES
-('38222333', 'Gómez', 'Martín', 'martin.gomez@cliente.com.ar', '3512222222', 1, 1);
+    -- Clientes
+    INSERT INTO Usuario (DNI, Apellido, Nombre, Email, Celular, EsCliente, IdLocalidad) VALUES 
+    ('38222333', 'Gómez',  'Martín',  'martin.gomez@cliente.com.ar',  '3512222222', 1, 1),
+    ('39111222', 'Pérez',  'Laura',   'laura.perez@email.com',        '3513334444', 1, 2),
+    ('40555666', 'López',  'Carlos',  'carlos.lopez@email.com',       '3515556666', 1, 1),
+    ('30111222', 'López',  'María',   'maria.lopez@cliente.com.ar',   '3513334444', 1, 2),
+    ('28555666', 'Sosa',   'Carlos',  'carlos.sosa@cliente.com.ar',   '3515556666', 1, 1),
+    ('33777888', 'Torres', 'Ana',     'ana.torres@cliente.com.ar',    '3517778888', 1, 3),
+    ('35999000', 'Medina', 'Julián',  'julian.medina@cliente.com.ar', '3519990000', 1, 1),
+    ('40123456', 'Ibáñez', 'Sofía',   'sofia.ibanez@cliente.com.ar',  '3514561230', 1, 5);
+END
 GO
-
 
 --- MÓDULO INVENTARIO ---
 
--- 9. Estados de Inventario (Vital para el catálogo que definimos)
-INSERT INTO EstadoInventario (Nombre) VALUES
-('nuevo'),
-('usado'),
-('reacondicionado'),
-('defectuoso');
+-- 8. Estados de Inventario
+IF NOT EXISTS (SELECT 1 FROM EstadoInventario)
+INSERT INTO EstadoInventario (Nombre) VALUES 
+('nuevo'), ('usado'), ('reacondicionado'), ('defectuoso');
 GO
 
--- 10. Categorías. "repuesto" se agrega como categoría propia (no estaba en la propuesta
--- original): sin ella los repuestos no tienen dónde colgar su ModeloProducto/ListaPrecio.
-INSERT INTO CategoriaProducto (Nombre, EsDispositivo) VALUES
-('smartphone', 1),
-('tablet', 1),
-('notebook', 1),
-('accesorio', 0),
-('repuesto', 0);
+-- 9. Categorías
+IF NOT EXISTS (SELECT 1 FROM CategoriaProducto)
+INSERT INTO CategoriaProducto (Nombre, EsDispositivo) VALUES 
+('smartphone', 1), ('tablet', 1), ('notebook', 1), ('accesorio', 0), ('repuesto', 0);
 GO
 
--- 11. Marcas
+-- 10. Marcas
+IF NOT EXISTS (SELECT 1 FROM MarcaProducto)
 INSERT INTO MarcaProducto (Nombre) VALUES
 ('apple'),
 ('samsung'),
@@ -1096,9 +1119,9 @@ INSERT INTO MarcaProducto (Nombre) VALUES
 ('generica'); -- para accesorios y repuestos sin marca original
 GO
 
--- 12. Modelos (Se asocian a Marca y Categoría)
--- Apple (IdMarca 1), Smartphone (IdCat 1): línea completa iPhone 11 → 17 (base/Pro/Pro Max)
-INSERT INTO ModeloProducto (Nombre, IdMarcaProducto, IdCategoriaProducto) VALUES
+-- 11. Modelos
+IF NOT EXISTS (SELECT 1 FROM ModeloProducto)
+INSERT INTO ModeloProducto (Nombre, IdMarcaProducto, IdCategoriaProducto) VALUES 
 ('iPhone 11', 1, 1),                 -- 1
 ('iPhone 11 Pro', 1, 1),             -- 2
 ('iPhone 11 Pro Max', 1, 1),         -- 3
@@ -1177,24 +1200,27 @@ INSERT INTO ModeloProducto (Nombre, IdMarcaProducto, IdCategoriaProducto) VALUES
 ('Flex de Carga Universal', 12, 5);       -- 70
 GO
 
--- 13. Catálogos de Especificaciones
-INSERT INTO Color (Nombre) VALUES
+-- 12. Catálogos de Especificaciones
+IF NOT EXISTS (SELECT 1 FROM Color)
+INSERT INTO Color (Nombre) VALUES 
 ('negro'), ('blanco'), ('azul'), ('plata'), ('rojo'),
 ('verde'), ('dorado'), ('gris espacial'), ('morado'), ('rosa'),
 ('titanio natural'), ('titanio azul'), ('titanio negro'), ('titanio blanco'),
 ('medianoche'), ('blanco estrella'), ('amarillo'), ('coral'), ('grafito'), ('lavanda');
 GO
 
--- Memoria = RAM del equipo
-INSERT INTO Memoria (Capacidad) VALUES
+IF NOT EXISTS (SELECT 1 FROM Memoria)
+INSERT INTO Memoria (Capacidad) VALUES 
 ('2gb'), ('3gb'), ('4gb'), ('6gb'), ('8gb'), ('12gb'), ('16gb'), ('18gb');
 GO
 
-INSERT INTO Almacenamiento (Capacidad) VALUES
+IF NOT EXISTS (SELECT 1 FROM Almacenamiento)
+INSERT INTO Almacenamiento (Capacidad) VALUES 
 ('32gb'), ('64gb'), ('128gb'), ('256gb'), ('512gb'), ('1tb');
 GO
 
 -- Bateria = estado/salud de la batería (para reacondicionados)
+IF NOT EXISTS (SELECT 1 FROM Bateria)
 INSERT INTO Bateria (Capacidad, Porcentaje, CiclosCarga) VALUES
 ('100% (nueva)', 100.00, 0),
 ('nueva original', 100.00, 0),
@@ -1205,9 +1231,10 @@ INSERT INTO Bateria (Capacidad, Porcentaje, CiclosCarga) VALUES
 ('75%', 75.00, 850);
 GO
 
--- 14. Productos: un renglón vendible por modelo (equipos), o repuesto/accesorio.
+-- 13. Productos
 -- Recordar: los bits de tipo (serializado / vendible / repuesto) viven acá, en Producto,
 -- no en ModeloProducto (evaluado y descartado — ver memoria "propuesta-mover-flags-tipo-a-modelo").
+IF NOT EXISTS (SELECT 1 FROM Producto)
 INSERT INTO Producto (Nombre, EsSerializado, EsVendible, EsRepuesto, Activo, IdModeloProducto) VALUES
 -- Apple iPhone 11 → 17 (serializados, vendibles) — Producto.Id = ModeloProducto.Id (1:1)
 ('Apple iPhone 11', 1, 1, 0, 1, 1),
@@ -1287,7 +1314,8 @@ INSERT INTO Producto (Nombre, EsSerializado, EsVendible, EsRepuesto, Activo, IdM
 ('Flex de Carga Universal (repuesto)', 0, 0, 1, 1, 70);
 GO
 
--- 15. Proveedores
+-- 14. Proveedores
+IF NOT EXISTS (SELECT 1 FROM Proveedor)
 INSERT INTO Proveedor (Nombre, Email, Celular, IdLocalidad) VALUES
 ('Distribuidora CBA', 'ventas@distribuidoracba.com', '3514445555', 2),
 ('Apple Importaciones S.A.', 'import@apple.com', '3519998888', 2),
@@ -1295,9 +1323,10 @@ INSERT INTO Proveedor (Nombre, Email, Celular, IdLocalidad) VALUES
 ('Canje de Clientes', 'canje@puntocell.com.ar', NULL, 1); -- placeholder que usa el front (ver inventarioServices.js) para altas por canje
 GO
 
--- 16. Listas de precios: Id 1 = fallback default (sin categoría) + Minorista/Mayorista
+-- 15. Listas de precios: Id 1 = fallback default (sin categoría) + Minorista/Mayorista
 -- por cada categoría de producto. El front detecta "mayorista" por /mayor/i en el Nombre
 -- (ver preciosServices.js::idsListasMayoristas).
+IF NOT EXISTS (SELECT 1 FROM ListaPrecio)
 INSERT INTO ListaPrecio (Nombre, PorcentajeRentabilidad, Activo, IdCategoriaProducto) VALUES
 ('Lista General (Default)', 30.00, 1, NULL),          -- 1
 ('Minorista Smartphone', 35.00, 1, 1),                -- 2
@@ -1312,197 +1341,432 @@ INSERT INTO ListaPrecio (Nombre, PorcentajeRentabilidad, Activo, IdCategoriaProd
 ('Mayorista Repuesto', 28.00, 1, 5);                  -- 11
 GO
 
--- 17. Inventario (Stock físico ingresado en las sucursales)
-INSERT INTO Inventario (IMEI, Stock, MesesGarantiaMarca, MesesGarantiaLocal, Observaciones, IdSucursal, IdProducto, IdEstadoInventario, IdProveedor, IdColor, IdMemoria, IdBateria, IdAlmacenamiento) VALUES
--- Inv 1: la unidad que se compra y se vende en el flujo de ejemplo de abajo -> Stock 0 (vendida)
-('359000000000017', 0, '2027-01-01', '2026-12-01', 'Vendida en el ticket de ejemplo #1', 1, 7, 1, 2, 1, NULL, 1, 4),
--- Inv 2: Fundas en stock (no serializado)
-(NULL, 20, NULL, '2026-08-01', 'Fundas genéricas transparentes', 1, 36, 1, 3, NULL, NULL, NULL, NULL),
--- Inv 3: Pantallas iPhone 13 para el taller
-(NULL, 10, NULL, '2026-08-01', 'Repuesto para taller', 1, 51, 1, 3, NULL, NULL, NULL, NULL),
--- Inv 4: iPhone 14 Pro en stock, disponible para la venta
-('359000000000024', 1, '2027-06-01', '2026-12-01', 'Lote nuevo sellado', 1, 11, 1, 2, 13, NULL, 1, 4),
--- Inv 5: iPhone 12 recibido en canje (usado), pendiente de fijarle precio final
-('359000000000031', 1, NULL, '2026-06-01', 'Recibido en canje, revisar antes de publicar', 1, 4, 2, 4, 1, NULL, 4, 3),
--- Inv 6: Cargadores en stock
-(NULL, 30, NULL, '2026-08-01', 'Cargadores 20W', 1, 38, 1, 3, NULL, NULL, NULL, NULL),
--- Inv 7: Baterías iPhone 13 para el taller
-(NULL, 15, NULL, '2026-08-01', 'Repuesto para taller', 1, 52, 1, 3, NULL, NULL, NULL, NULL),
--- Inv 8: iPhone 13 en stock en la sucursal Stoecklin
-('359000000000048', 1, '2027-01-01', '2026-12-01', 'Lote nuevo sellado', 2, 7, 1, 2, 2, NULL, 1, 4);
-GO
+-- MÓDULO REPARACIONES CATÁLOGOS BASE
+IF NOT EXISTS (SELECT 1 FROM EstadoOrden)
+INSERT INTO EstadoOrden (Nombre) VALUES 
+('en espera'), ('en reparación'), ('terminado'), ('entregado'), ('anulado');
 
--- 18. PrecioArticulo — CostosVariables = 26% del CostoBase, ValorFinal = CostoReal * (1 + %/100)
--- (ver precios-articulos.service.js::computeFields y compra.service.js::_actualizarPreciosArticulo).
--- Cada renglón de Inventario lleva su precio en las DOS listas de su categoría
--- (minorista + mayorista), igual que lo deja una compra: mismo CostoBase, distinto
--- ValorFinal según el % de cada lista. El POS alterna entre ambos con el toggle.
-INSERT INTO PrecioArticulo (IdInventario, IdListaPrecio, ValorFinal, CostoBase, CostosVariables, CostoReal, PorcentajeGanancia, FechaDesde, FechaHasta) VALUES
--- Inv 1 — Apple iPhone 13 (smartphone): Minorista(2) 35% / Mayorista(3) 18%
-(1, 2, 1360800.00, 800000.00, 208000.00, 1008000.00, 35.00, SYSDATETIME(), NULL),
-(1, 3, 1189440.00, 800000.00, 208000.00, 1008000.00, 18.00, SYSDATETIME(), NULL),
--- Inv 2 — Funda Silicona (accesorio): Minorista(8) 60% / Mayorista(9) 30%
-(2, 8, 3024.00, 1500.00, 390.00, 1890.00, 60.00, SYSDATETIME(), NULL),
-(2, 9, 2457.00, 1500.00, 390.00, 1890.00, 30.00, SYSDATETIME(), NULL),
--- Inv 3 — Pantalla iPhone 13 repuesto: Minorista(10) 55% / Mayorista(11) 28%
-(3, 10, 87885.00, 45000.00, 11700.00, 56700.00, 55.00, SYSDATETIME(), NULL),
-(3, 11, 72576.00, 45000.00, 11700.00, 56700.00, 28.00, SYSDATETIME(), NULL),
--- Inv 4 — Apple iPhone 14 Pro (smartphone)
-(4, 2, 1871100.00, 1100000.00, 286000.00, 1386000.00, 35.00, SYSDATETIME(), NULL),
-(4, 3, 1635480.00, 1100000.00, 286000.00, 1386000.00, 18.00, SYSDATETIME(), NULL),
--- Inv 5 — Apple iPhone 12 usado / canje (smartphone)
-(5, 2, 680400.00, 400000.00, 104000.00, 504000.00, 35.00, SYSDATETIME(), NULL),
-(5, 3, 594720.00, 400000.00, 104000.00, 504000.00, 18.00, SYSDATETIME(), NULL),
--- Inv 6 — Cargador 20W (accesorio)
-(6, 8, 6048.00, 3000.00, 780.00, 3780.00, 60.00, SYSDATETIME(), NULL),
-(6, 9, 4914.00, 3000.00, 780.00, 3780.00, 30.00, SYSDATETIME(), NULL),
--- Inv 7 — Batería iPhone 13 repuesto
-(7, 10, 35154.00, 18000.00, 4680.00, 22680.00, 55.00, SYSDATETIME(), NULL),
-(7, 11, 29030.40, 18000.00, 4680.00, 22680.00, 28.00, SYSDATETIME(), NULL),
--- Inv 8 — Apple iPhone 13 en sucursal Stoecklin (smartphone)
-(8, 2, 1360800.00, 800000.00, 208000.00, 1008000.00, 35.00, SYSDATETIME(), NULL),
-(8, 3, 1189440.00, 800000.00, 208000.00, 1008000.00, 18.00, SYSDATETIME(), NULL);
-GO
+IF NOT EXISTS (SELECT 1 FROM Falla)
+INSERT INTO Falla (Nombre, IdCategoriaProducto) VALUES 
+('Cambio de Módulo / Pantalla Rota', 1), ('Pin de carga dañado / No carga', 1), 
+('Batería inflada / Se apaga rápido', 1), ('Placa en corto / No enciende', 1), 
+('Micrófono / Altavoz dañado', 1), ('Software / Queda en el logo', 1), 
+('No toma señal / Sin servicio', 1), ('Cámara con manchas / No enfoca', 1);
 
--- 19. MovimientoStock (Registro de auditoría inmutable de cada ingreso/salida)
-INSERT INTO MovimientoStock (TipoMovimiento, Cantidad, Observaciones, IdInventario, IdEmpleado) VALUES
-('Ingreso por Compra', 1, 'Compra Id=1', 1, 3),
-('Venta', -1, 'Venta Id=1', 1, 3),
-('Ingreso Inicial', 20, 'Carga inicial de stock', 2, 3),
-('Ingreso Inicial', 10, 'Carga inicial de stock', 3, 3),
-('Ingreso Inicial', 1, 'Carga inicial de stock', 4, 3),
-('Ingreso por Canje', 1, 'Equipo recibido en canje de cliente', 5, 3),
-('Ingreso Inicial', 30, 'Carga inicial de stock', 6, 3),
-('Ingreso Inicial', 15, 'Carga inicial de stock', 7, 3),
-('Ingreso Inicial', 1, 'Carga inicial de stock', 8, 3);
+IF NOT EXISTS (SELECT 1 FROM EstadoReclamo)
+INSERT INTO EstadoReclamo (Nombre) VALUES ('En Revisión'), ('Aprobada'), ('Rechazada');
 GO
 
 
---- MÓDULO BITÁCORA Y CAJA ---
+------------------------------------------------------------------------------
+--- CARGA DE DATOS DE NEGOCIO (2025-2026): compras, ventas y reparaciones ---
+------------------------------------------------------------------------------
+-- Reemplaza al generador anterior (100 filas por tabla vía WHILE + RAND(), montos sin
+-- relación con ningún catálogo real, sin PrecioArticulo ni MovimientoStock para lo
+-- generado, y un literal IdEstadoOrden=6 que violaba la FK contra el catálogo real de
+-- 5 estados). Este bloque:
+--   * Distribuye las operaciones en 10 turnos de caja reales entre 2025-02 y 2026-08
+--     (siempre antes de hoy), con empleados y sucursales rotando.
+--   * Compra stock real (Inventario + PrecioArticulo + MovimientoStock) a partir de un
+--     catálogo curado de costos de mercado en USD.
+--   * Vende y consume en reparaciones ÚNICAMENTE inventario que ya existe y ya llegó a
+--     esa fecha (CreatedAt <= fecha de la operación), y nunca la misma unidad
+--     serializada dos veces.
+--   * Todos los totales (Compra.TotalCosto, Venta.TotalVenta/TotalVentaARS/TotalCosto,
+--     OrdenReparacion.TotalReparacion, CuentaCorrienteProveedor.SaldoAcumulado) se
+--     calculan con SQL a partir de sus detalles reales, no son literales tipeados a mano.
+--   * Se evita MERGE deliberadamente (ambigüedades conocidas de SQL Server con filas de
+--     origen duplicadas); se usa IF EXISTS/ELSE explícito.
+-- Sigue dentro de la transacción SeedData abierta más arriba. Usa tablas temporales
+-- (#tabla) en vez de variables de tabla (@tabla) para los "planes" de datos que deben
+-- sobrevivir a los GO entre fases (una variable @tabla no sobrevive a un GO; una tabla
+-- temporal sí, mientras dure la sesión). Se eliminan al final (sección L).
 
--- 20. Turno Caja (Simulamos una caja abierta por el usuario vendedor, Id 3, en Sucursal 1)
-INSERT INTO TurnoCaja (MontoInicial, TotalIngresos, TotalEgresos, MontoCierreFisico, Observaciones, IdSucursal, IdEmpleadoApertura, IdEmpleadoCierre) VALUES
-(15000.00, 50000.00, 5000.00, 60000.00, 'Caja del turno mañana, todo en orden', 1, 3, 3);
+-- A. PROCEDIMIENTOS DE APOYO
+CREATE OR ALTER PROCEDURE dbo.usp_Seed_IngresoStock
+    @IdProducto INT, @IdSucursal INT, @IdProveedor INT, @IdEstadoInventario INT,
+    @Cantidad INT, @Fecha DATETIME2, @IdEmpleado INT, @IdInventario INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET @IdInventario = NULL;
+    DECLARE @EsSerializado BIT;
+    SELECT @EsSerializado = EsSerializado FROM Producto WHERE Id = @IdProducto;
+
+    IF @EsSerializado = 1
+    BEGIN
+        DECLARE @Imei VARCHAR(50) = '35' + RIGHT('000000000000' + CAST(ABS(CHECKSUM(NEWID())) % 1000000000000 AS VARCHAR(20)), 12) + CAST(ABS(CHECKSUM(NEWID())) % 10 AS VARCHAR(1));
+        INSERT INTO Inventario (IMEI, Stock, MesesGarantiaLocal, CreatedAt, IdSucursal, IdProducto, IdEstadoInventario, IdProveedor)
+        VALUES (@Imei, 1, DATEADD(MONTH, 12, @Fecha), @Fecha, @IdSucursal, @IdProducto, @IdEstadoInventario, @IdProveedor);
+        SET @IdInventario = SCOPE_IDENTITY();
+    END
+    ELSE
+    BEGIN
+        SELECT @IdInventario = Id FROM Inventario WHERE IdProducto = @IdProducto AND IdSucursal = @IdSucursal AND IdEstadoInventario = @IdEstadoInventario AND IMEI IS NULL;
+        IF @IdInventario IS NULL
+        BEGIN
+            INSERT INTO Inventario (IMEI, Stock, MesesGarantiaLocal, CreatedAt, IdSucursal, IdProducto, IdEstadoInventario, IdProveedor)
+            VALUES (NULL, @Cantidad, DATEADD(MONTH, 12, @Fecha), @Fecha, @IdSucursal, @IdProducto, @IdEstadoInventario, @IdProveedor);
+            SET @IdInventario = SCOPE_IDENTITY();
+        END
+        ELSE
+        BEGIN
+            UPDATE Inventario SET Stock = Stock + @Cantidad, CreatedAt = CASE WHEN @Fecha < CreatedAt THEN @Fecha ELSE CreatedAt END WHERE Id = @IdInventario;
+        END
+    END
+    INSERT INTO MovimientoStock (Fecha, TipoMovimiento, Cantidad, Observaciones, IdInventario, IdEmpleado)
+    VALUES (@Fecha, 'Ingreso por Compra', @Cantidad, 'Ingreso de stock', @IdInventario, @IdEmpleado);
+END
 GO
 
--- 21. Movimiento Caja (Egreso de dinero de la caja física)
-INSERT INTO MovimientoCaja (Monto, TipoMovimiento, Descripcion, IdTurnoCaja, IdEmpleado) VALUES
-(5000.00, 0, 'Retiro para comprar artículos de limpieza', 1, 3);
+CREATE OR ALTER PROCEDURE dbo.usp_Seed_ConsumoStock
+    @IdInventario INT, @Cantidad INT, @Fecha DATETIME2, @IdEmpleado INT, @Motivo NVARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF (SELECT Stock FROM Inventario WHERE Id = @IdInventario) < @Cantidad THROW 50001, 'Stock insuficiente.', 1;
+    UPDATE Inventario SET Stock = Stock - @Cantidad WHERE Id = @IdInventario;
+    INSERT INTO MovimientoStock (Fecha, TipoMovimiento, Cantidad, Observaciones, IdInventario, IdEmpleado) VALUES (@Fecha, @Motivo, -@Cantidad, @Motivo, @IdInventario, @IdEmpleado);
+END
 GO
 
--- 22. Bitácora (El "Gran Hermano")
-INSERT INTO Bitacora (Detalle, IpAddress, IdEmpleado, IdSucursal, Accion) VALUES
-('El usuario inició turno en caja correctamente', '192.168.1.15', 3, 1, 'Apertura de caja');
+-- B. HISTORIAL DE COTIZACIÓN
+DECLARE @m INT = 0;
+WHILE @m <= 70
+BEGIN
+    -- Curva simulada que arranca en ~$150 y escala hasta ~$1450 en 5 años
+    INSERT INTO Cotizacion (Clave, Valor, CreatedAt) VALUES ('DolarBlue', 150.00 + (@m * 18.5), DATEADD(MONTH, @m, CAST('2021-01-05' AS DATETIME2)));
+    SET @m = @m + 1;
+END
 GO
 
-
---- MÓDULO REPARACIONES ---
-
--- 23. Estados de las Órdenes del Taller
-INSERT INTO EstadoOrden (Nombre) VALUES
-('en espera'),
-('en reparación'),
-('terminado'),
-('entregado'),
-('anulado');
+-- C. CATÁLOGO DE COSTOS
+IF OBJECT_ID('tempdb..#Catalogo') IS NOT NULL DROP TABLE #Catalogo;
+CREATE TABLE #Catalogo (IdProducto INT PRIMARY KEY, CostoUSD DECIMAL(18,2));
+INSERT INTO #Catalogo (IdProducto, CostoUSD) VALUES
+(1, 300), (2, 350), (3, 400), (4, 450), (5, 500), (6, 550), (7, 600), (8, 650), (9, 700), (10, 750), (11, 800), (12, 850), (13, 900), (14, 950), (15, 1000), (16, 1050), (17, 1100), (18, 1200), (19, 1300), (20, 1400), (21, 1500),
+(22, 900), (23, 1100), (24, 400), (25, 250), (26, 300), (27, 280), (28, 220), (29, 650),
+(30, 450), (31, 600), (32, 800), (33, 1000), (34, 1500), (35, 1200),
+(36, 5), (37, 3), (38, 10), (39, 8), (40, 25), (41, 20), (42, 12),
+(43, 60), (44, 25), (45, 15), (46, 20), (47, 70), (48, 30), (49, 15), (50, 25), (51, 80), (52, 35), (53, 20), (54, 30), (55, 100), (56, 40), (57, 25), (58, 35), (59, 120), (60, 45), (61, 30), (62, 40), (63, 150), (64, 50), (65, 35), (66, 45), (67, 110), (68, 40), (69, 15), (70, 10);
 GO
 
--- 24. Fallas
-INSERT INTO Falla (Nombre, IdCategoriaProducto) VALUES
-('Cambio de Módulo / Pantalla Rota', 1),
-('Pin de carga dañado / No carga', 1),
-('Batería inflada / Se apaga rápido', 1),
-('Placa en corto / No enciende', 1),
-('Micrófono / Altavoz dañado', 1),
-('Software / Queda en el logo', 1),
-('No toma señal / Sin servicio', 1),
-('Cámara con manchas / No enfoca', 1);
+-- D. TURNOS DE CAJA MASIVOS (2021-2026, 150 turnos generados de a 12 días)
+IF OBJECT_ID('tempdb..#Turnos') IS NOT NULL DROP TABLE #Turnos;
+-- Se quita el IDENTITY para evitar saltos de caché en SQL Server. Se numera explícitamente.
+CREATE TABLE #Turnos (NroPlan INT PRIMARY KEY, Fecha DATE, IdSucursal INT, IdEmpleadoApertura INT, IdEmpleadoCierre INT, MontoInicial DECIMAL(18,2), IdTurnoCaja INT NULL);
+
+DECLARE @t INT = 1;
+DECLARE @FechaBase DATE = '2021-01-05';
+WHILE @t <= 150
+BEGIN
+    INSERT INTO #Turnos (NroPlan, Fecha, IdSucursal, IdEmpleadoApertura, IdEmpleadoCierre, MontoInicial)
+    VALUES (
+        @t,
+        DATEADD(DAY, (@t - 1) * 12, @FechaBase), 
+        CASE WHEN @t % 2 = 0 THEN 1 ELSE 2 END,
+        CASE WHEN @t % 2 = 0 THEN 8 ELSE 10 END,
+        CASE WHEN @t % 2 = 0 THEN 9 ELSE 10 END,
+        15000.00 + (@t * 100)
+    );
+    SET @t = @t + 1;
+END
 GO
 
--- 25. Dispositivo Cliente (El cliente Id 5 trae un equipo propio, Moto G84 - IdModelo 27)
-INSERT INTO DispositivoCliente (IMEI, Desbloqueo, Observaciones, Activo, IdCliente, IdModeloProducto, IdColor) VALUES
-('358741258963214', 'Patron L', 'Pantalla astillada, marco golpeado', 1, 5, 27, 1);
+DECLARE @ti INT = 1;
+DECLARE @FechaT DATE, @SucT INT, @EmpAT INT, @EmpCT INT, @MontoInicT DECIMAL(18,2), @IdTurnoNuevo INT;
+WHILE @ti <= 150
+BEGIN
+    SELECT @FechaT=Fecha, @SucT=IdSucursal, @EmpAT=IdEmpleadoApertura, @EmpCT=IdEmpleadoCierre, @MontoInicT=MontoInicial FROM #Turnos WHERE NroPlan = @ti;
+    INSERT INTO TurnoCaja (FechaApertura, FechaCierre, MontoInicial, TotalIngresos, TotalEgresos, MontoCierreFisico, Observaciones, IdSucursal, IdEmpleadoApertura, IdEmpleadoCierre)
+    VALUES (DATEADD(HOUR, 9, CAST(@FechaT AS DATETIME2)), DATEADD(HOUR, 20, CAST(@FechaT AS DATETIME2)), @MontoInicT, 0, 0, @MontoInicT, 'Turno masivo 21-26', @SucT, @EmpAT, @EmpCT);
+    SET @IdTurnoNuevo = SCOPE_IDENTITY();
+    UPDATE #Turnos SET IdTurnoCaja = @IdTurnoNuevo WHERE NroPlan = @ti;
+    INSERT INTO Bitacora (Detalle, IdEmpleado, IdSucursal, Accion, Fecha) VALUES ('Apertura de turno', @EmpAT, @SucT, 'Apertura de caja', DATEADD(HOUR, 9, CAST(@FechaT AS DATETIME2))), ('Cierre de turno', @EmpCT, @SucT, 'Cierre de caja', DATEADD(HOUR, 20, CAST(@FechaT AS DATETIME2)));
+    SET @ti = @ti + 1;
+END
 GO
 
--- 26. Orden de Reparación (Ingresa al taller del usuario tecnico, Id 4)
-INSERT INTO OrdenReparacion (CostoRepuestos, PrecioManoObra, TotalReparacion, IdEmpleado, IdDispositivoCliente, IdEstadoOrden) VALUES
-(25000.00, 15000.00, 40000.00, 4, 1, 1); -- Estado 1: En espera
+-- E. COMPRAS MASIVAS (Inicial en Turnos 1 y 2, y luego cada 15 turnos)
+IF OBJECT_ID('tempdb..#ComprasPlan') IS NOT NULL DROP TABLE #ComprasPlan;
+CREATE TABLE #ComprasPlan (NroPlan INT PRIMARY KEY, Fecha DATE, IdProveedor INT, IdSucursal INT, IdEmpleado INT, IdTurnoPlan INT, IdCompraGenerada INT NULL);
+
+INSERT INTO #ComprasPlan (NroPlan, Fecha, IdProveedor, IdSucursal, IdEmpleado, IdTurnoPlan)
+SELECT 1, Fecha, 1, IdSucursal, 1, NroPlan FROM #Turnos WHERE NroPlan = 1;
+INSERT INTO #ComprasPlan (NroPlan, Fecha, IdProveedor, IdSucursal, IdEmpleado, IdTurnoPlan)
+SELECT 2, Fecha, 2, IdSucursal, 7, NroPlan FROM #Turnos WHERE NroPlan = 2;
+
+DECLARE @cp INT = 15;
+DECLARE @c_id INT = 3;
+WHILE @cp <= 150
+BEGIN
+    INSERT INTO #ComprasPlan (NroPlan, Fecha, IdProveedor, IdSucursal, IdEmpleado, IdTurnoPlan)
+    SELECT @c_id, Fecha, (@cp % 3) + 1, IdSucursal, CASE WHEN IdSucursal=1 THEN 3 ELSE 5 END, NroPlan 
+    FROM #Turnos WHERE NroPlan = @cp;
+    SET @cp = @cp + 15;
+    SET @c_id = @c_id + 1;
+END
+
+IF OBJECT_ID('tempdb..#ComprasDetallePlan') IS NOT NULL DROP TABLE #ComprasDetallePlan;
+CREATE TABLE #ComprasDetallePlan (DetalleId INT IDENTITY(1,1) PRIMARY KEY, NroPlan INT, IdProducto INT, Cantidad INT, Procesado BIT NOT NULL DEFAULT 0);
+
+-- Compra inicial enorme para soportar todos los años
+DECLARE @prod INT = 1; WHILE @prod <= 60 BEGIN INSERT INTO #ComprasDetallePlan (NroPlan, IdProducto, Cantidad) VALUES (1, @prod, 35); SET @prod = @prod + 1; END
+SET @prod = 1; WHILE @prod <= 40 BEGIN INSERT INTO #ComprasDetallePlan (NroPlan, IdProducto, Cantidad) VALUES (2, @prod, 25); SET @prod = @prod + 1; END
+
+-- Compras de reposición cíclicas
+DECLARE @cplan INT = 3;
+DECLARE @MaxCPlan INT = (SELECT MAX(NroPlan) FROM #ComprasPlan);
+WHILE @cplan <= @MaxCPlan
+BEGIN
+    INSERT INTO #ComprasDetallePlan (NroPlan, IdProducto, Cantidad) VALUES (@cplan, 45, 10), (@cplan, 52, 10), (@cplan, 10, 5), (@cplan, 38, 20), (@cplan, 36, 15), (@cplan, 69, 10);
+    SET @cplan = @cplan + 1;
+END
+
+DECLARE @ci INT = 1, @nCompras INT = @MaxCPlan;
+DECLARE @IdCompraNuevo INT, @FechaC DATE, @ProvC INT, @SucC INT, @EmpC INT, @TurnoPlanC INT, @TurnoC INT;
+DECLARE @DetalleIdActual INT, @IdProductoD INT, @CantidadD INT, @CostoUnit DECIMAL(18,2), @IdInvNuevo INT, @IdCatProd INT;
+DECLARE @ListaMin INT, @ListaMay INT, @PctMin DECIMAL(5,2), @PctMay DECIMAL(5,2), @CV DECIMAL(18,2), @CR DECIMAL(18,2);
+DECLARE @su INT, @TotalC DECIMAL(18,2), @IdPagoNuevo INT;
+
+WHILE @ci <= @nCompras
+BEGIN
+    SELECT @FechaC=Fecha, @ProvC=IdProveedor, @SucC=IdSucursal, @EmpC=IdEmpleado, @TurnoPlanC=IdTurnoPlan FROM #ComprasPlan WHERE NroPlan = @ci;
+    SELECT @TurnoC = IdTurnoCaja FROM #Turnos WHERE NroPlan = @TurnoPlanC;
+
+    INSERT INTO Compra (Fecha, TotalCosto, EstadoPago, SaldoPendiente, IdProveedor, IdSucursalDestino, IdEmpleado) VALUES (CAST(@FechaC AS DATETIME2), 0, 1, 0, @ProvC, @SucC, @EmpC);
+    SET @IdCompraNuevo = SCOPE_IDENTITY();
+    UPDATE #ComprasPlan SET IdCompraGenerada = @IdCompraNuevo WHERE NroPlan = @ci;
+
+    WHILE EXISTS (SELECT 1 FROM #ComprasDetallePlan WHERE NroPlan = @ci AND Procesado = 0)
+    BEGIN
+        SELECT TOP 1 @DetalleIdActual = DetalleId, @IdProductoD = IdProducto, @CantidadD = Cantidad FROM #ComprasDetallePlan WHERE NroPlan = @ci AND Procesado = 0 ORDER BY DetalleId;
+        SET @CostoUnit = NULL; SET @IdCatProd = NULL;
+        SELECT @CostoUnit = CostoUSD FROM #Catalogo WHERE IdProducto = @IdProductoD;
+        SELECT @IdCatProd = mo.IdCategoriaProducto FROM Producto p JOIN ModeloProducto mo ON p.IdModeloProducto = mo.Id WHERE p.Id = @IdProductoD;
+
+        SELECT @ListaMin = CASE @IdCatProd WHEN 1 THEN 2 WHEN 2 THEN 4 WHEN 3 THEN 6 WHEN 4 THEN 8 WHEN 5 THEN 10 END, @ListaMay = CASE @IdCatProd WHEN 1 THEN 3 WHEN 2 THEN 5 WHEN 3 THEN 7 WHEN 4 THEN 9 WHEN 5 THEN 11 END;
+        SELECT @PctMin = PorcentajeRentabilidad FROM ListaPrecio WHERE Id = @ListaMin;
+        SELECT @PctMay = PorcentajeRentabilidad FROM ListaPrecio WHERE Id = @ListaMay;
+        SET @CV = ROUND(@CostoUnit * 0.26, 2); SET @CR = @CostoUnit + @CV;
+
+        IF (SELECT EsSerializado FROM Producto WHERE Id = @IdProductoD) = 1
+        BEGIN
+            SET @su = 1;
+            WHILE @su <= @CantidadD
+            BEGIN
+                EXEC dbo.usp_Seed_IngresoStock @IdProducto=@IdProductoD, @IdSucursal=@SucC, @IdProveedor=@ProvC, @IdEstadoInventario=1, @Cantidad=1, @Fecha=@FechaC, @IdEmpleado=@EmpC, @IdInventario=@IdInvNuevo OUTPUT;
+                INSERT INTO DetalleCompra (Cantidad, PrecioCostoUnitario, IdCompra, IdInventario) VALUES (1, @CostoUnit, @IdCompraNuevo, @IdInvNuevo);
+                INSERT INTO PrecioArticulo (IdInventario, IdListaPrecio, ValorFinal, CostoBase, CostoVariables, CostoReal, PorcentajeGanancia, FechaDesde, FechaHasta) VALUES (@IdInvNuevo, @ListaMin, ROUND(@CR * (1 + @PctMin/100), 2), @CostoUnit, @CV, @CR, @PctMin, CAST(@FechaC AS DATETIME2), NULL), (@IdInvNuevo, @ListaMay, ROUND(@CR * (1 + @PctMay/100), 2), @CostoUnit, @CV, @CR, @PctMay, CAST(@FechaC AS DATETIME2), NULL);
+                SET @su = @su + 1;
+            END
+        END
+        ELSE
+        BEGIN
+            EXEC dbo.usp_Seed_IngresoStock @IdProducto=@IdProductoD, @IdSucursal=@SucC, @IdProveedor=@ProvC, @IdEstadoInventario=1, @Cantidad=@CantidadD, @Fecha=@FechaC, @IdEmpleado=@EmpC, @IdInventario=@IdInvNuevo OUTPUT;
+            INSERT INTO DetalleCompra (Cantidad, PrecioCostoUnitario, IdCompra, IdInventario) VALUES (@CantidadD, @CostoUnit, @IdCompraNuevo, @IdInvNuevo);
+            IF NOT EXISTS (SELECT 1 FROM PrecioArticulo WHERE IdInventario = @IdInvNuevo)
+            BEGIN
+                INSERT INTO PrecioArticulo (IdInventario, IdListaPrecio, ValorFinal, CostoBase, CostoVariables, CostoReal, PorcentajeGanancia, FechaDesde, FechaHasta) VALUES (@IdInvNuevo, @ListaMin, ROUND(@CR * (1 + @PctMin/100), 2), @CostoUnit, @CV, @CR, @PctMin, CAST(@FechaC AS DATETIME2), NULL), (@IdInvNuevo, @ListaMay, ROUND(@CR * (1 + @PctMay/100), 2), @CostoUnit, @CV, @CR, @PctMay, CAST(@FechaC AS DATETIME2), NULL);
+            END
+        END
+        UPDATE #ComprasDetallePlan SET Procesado = 1 WHERE DetalleId = @DetalleIdActual;
+    END
+
+    UPDATE Compra SET TotalCosto = ISNULL((SELECT SUM(Cantidad * PrecioCostoUnitario) FROM DetalleCompra WHERE IdCompra = @IdCompraNuevo), 0) WHERE Id = @IdCompraNuevo;
+    SET @TotalC = (SELECT TotalCosto FROM Compra WHERE Id = @IdCompraNuevo);
+    UPDATE Compra SET EstadoPago = 3, SaldoPendiente = 0 WHERE Id = @IdCompraNuevo;
+    
+    IF @TotalC > 0
+    BEGIN
+        INSERT INTO PagoCompra (Monto, FechaPago, IdCompra, IdMetodoPago, IdTurnoCaja) VALUES (@TotalC, CAST(@FechaC AS DATETIME2), @IdCompraNuevo, 3, @TurnoC);
+        SET @IdPagoNuevo = SCOPE_IDENTITY();
+        INSERT INTO CuentaCorrienteProveedor (IdProveedor, FechaMovimiento, Concepto, Debe, Haber, SaldoAcumulado, IdCompra, IdPagoCompra) VALUES (@ProvC, CAST(@FechaC AS DATETIME2), 'Factura de Compra', @TotalC, 0, 0, @IdCompraNuevo, NULL), (@ProvC, DATEADD(MINUTE, 1, CAST(@FechaC AS DATETIME2)), 'Pago a cuenta/total', 0, @TotalC, 0, @IdCompraNuevo, @IdPagoNuevo);
+    END
+    SET @ci = @ci + 1;
+END
 GO
 
--- 27. Orden Falla (Falla Id 1 = Cambio de Módulo / Pantalla)
-INSERT INTO OrdenFalla (IdOrdenReparacion, IdFalla) VALUES
-(1, 1);
+-- F. VENTAS MASIVAS 2021-2026 (Consumiendo el stock y turnos iterativamente)
+IF OBJECT_ID('tempdb..#VentasPlan') IS NOT NULL DROP TABLE #VentasPlan;
+CREATE TABLE #VentasPlan (NroPlan INT PRIMARY KEY, Fecha DATE, IdSucursal INT, IdCliente INT, IdEmpleado INT, IdTurnoPlan INT, NumLineas INT, IdMetodoPago INT, EsCuotas BIT, NumCuotas INT NULL, IdVentaGenerada INT NULL);
+
+DECLARE @v INT = 3; 
+DECLARE @v_id INT = 1;
+WHILE @v <= 150
+BEGIN
+    DECLARE @Suc_V INT = (SELECT IdSucursal FROM #Turnos WHERE NroPlan = @v);
+    DECLARE @Fch_V DATE = (SELECT Fecha FROM #Turnos WHERE NroPlan = @v);
+    DECLARE @Emp_V INT = CASE WHEN @Suc_V = 1 THEN 8 ELSE 10 END;
+    
+    INSERT INTO #VentasPlan (NroPlan, Fecha, IdSucursal, IdCliente, IdEmpleado, IdTurnoPlan, NumLineas, IdMetodoPago, EsCuotas, NumCuotas) 
+    VALUES (@v_id, @Fch_V, @Suc_V, 13 + (@v % 8), @Emp_V, @v, 1 + (@v % 3), 1 + (@v % 5), 0, NULL);
+    SET @v_id = @v_id + 1;
+    
+    IF @v % 3 = 0 
+    BEGIN
+        INSERT INTO #VentasPlan (NroPlan, Fecha, IdSucursal, IdCliente, IdEmpleado, IdTurnoPlan, NumLineas, IdMetodoPago, EsCuotas, NumCuotas) 
+        VALUES (@v_id, @Fch_V, @Suc_V, 13 + ((@v+3) % 8), @Emp_V, @v, 2, 6, 1, 3);
+        SET @v_id = @v_id + 1;
+    END
+    SET @v = @v + 1;
+END
+
+DECLARE @Hoy DATE = CAST(GETDATE() AS DATE);
+DECLARE @vi INT = 1, @nVentas INT = (SELECT MAX(NroPlan) FROM #VentasPlan);
+DECLARE @IdVentaNuevo INT, @FechaV DATE, @SucV INT, @CliV INT, @EmpV INT, @TurnoPlanV INT, @TurnoV INT, @LineasV INT, @MetodoV INT, @CuotasV BIT, @NumCuotasV INT;
+DECLARE @IdCotiz INT, @ValorCotiz DECIMAL(18,2), @li INT, @IdInvVenta INT, @PrecioUnitUSD DECIMAL(18,2), @SubtotalUSD DECIMAL(18,2), @CostoTotalUSD DECIMAL(18,2), @TotalVentaARS DECIMAL(18,2);
+DECLARE @NumCuota INT, @MontoCuota DECIMAL(18,2), @VencCuota DATE, @PagadaCuota BIT, @RecargoCuota DECIMAL(18,2);
+DECLARE @candidatos TABLE (IdInventario INT);
+
+WHILE @vi <= @nVentas
+BEGIN
+    SELECT @FechaV=Fecha, @SucV=IdSucursal, @CliV=IdCliente, @EmpV=IdEmpleado, @TurnoPlanV=IdTurnoPlan, @LineasV=NumLineas, @MetodoV=IdMetodoPago, @CuotasV=EsCuotas, @NumCuotasV=NumCuotas FROM #VentasPlan WHERE NroPlan = @vi;
+    SELECT @TurnoV = IdTurnoCaja FROM #Turnos WHERE NroPlan = @TurnoPlanV;
+    SELECT TOP 1 @IdCotiz = Id, @ValorCotiz = Valor FROM Cotizacion WHERE Clave = 'DolarBlue' AND CreatedAt <= CAST(@FechaV AS DATETIME2) ORDER BY CreatedAt DESC;
+
+    INSERT INTO Venta (Fecha, TotalVenta, TotalVentaARS, TotalCosto, Observaciones, EstadoPago, IdTurnoCaja, IdCliente, IdEmpleado, IdCotizacionDolar, IdDescuento) VALUES (CAST(@FechaV AS DATETIME2), 0, 0, 0, 'Venta generada 21-26', CASE WHEN @CuotasV = 1 THEN 0 ELSE 1 END, @TurnoV, @CliV, @EmpV, @IdCotiz, NULL);
+    SET @IdVentaNuevo = SCOPE_IDENTITY();
+
+    SET @li = 1;
+    WHILE @li <= @LineasV
+    BEGIN
+        SET @IdInvVenta = NULL; DELETE FROM @candidatos;
+        INSERT INTO @candidatos (IdInventario) SELECT TOP 1 i.Id FROM Inventario i JOIN Producto p ON i.IdProducto = p.Id WHERE i.IdSucursal = @SucV AND i.Stock > 0 AND i.CreatedAt <= CAST(@FechaV AS DATETIME2) AND p.EsVendible = 1 AND NOT EXISTS (SELECT 1 FROM DetalleVenta dv WHERE dv.IdVenta = @IdVentaNuevo AND dv.IdInventario = i.Id) ORDER BY NEWID();
+        SELECT @IdInvVenta = IdInventario FROM @candidatos;
+
+        IF @IdInvVenta IS NOT NULL
+        BEGIN
+            SET @PrecioUnitUSD = NULL; SELECT TOP 1 @PrecioUnitUSD = pa.ValorFinal FROM PrecioArticulo pa WHERE pa.IdInventario = @IdInvVenta AND pa.FechaHasta IS NULL ORDER BY pa.FechaDesde DESC;
+            IF @PrecioUnitUSD IS NOT NULL
+            BEGIN
+                INSERT INTO DetalleVenta (Cantidad, PrecioUnitario, IdVenta, IdInventario) VALUES (1, @PrecioUnitUSD, @IdVentaNuevo, @IdInvVenta);
+                EXEC dbo.usp_Seed_ConsumoStock @IdInventario=@IdInvVenta, @Cantidad=1, @Fecha=@FechaV, @IdEmpleado=@EmpV, @Motivo='Venta';
+            END
+        END
+        SET @li = @li + 1;
+    END
+
+    SET @SubtotalUSD = ISNULL((SELECT SUM(Cantidad * PrecioUnitario) FROM DetalleVenta WHERE IdVenta = @IdVentaNuevo), 0);
+    SET @CostoTotalUSD = ISNULL((SELECT SUM(dv.Cantidad * pa.CostoReal) FROM DetalleVenta dv JOIN PrecioArticulo pa ON pa.IdInventario = dv.IdInventario AND pa.FechaHasta IS NULL WHERE dv.IdVenta = @IdVentaNuevo), 0);
+    SET @TotalVentaARS = ROUND(@SubtotalUSD * @ValorCotiz, 2);
+
+    IF @SubtotalUSD = 0 DELETE FROM Venta WHERE Id = @IdVentaNuevo;
+    ELSE
+    BEGIN
+        UPDATE Venta SET TotalVenta = @SubtotalUSD, TotalVentaARS = @TotalVentaARS, TotalCosto = @CostoTotalUSD WHERE Id = @IdVentaNuevo;
+        UPDATE #VentasPlan SET IdVentaGenerada = @IdVentaNuevo WHERE NroPlan = @vi;
+
+        IF @CuotasV = 1
+        BEGIN
+            SET @NumCuota = 1; SET @MontoCuota = ROUND(@TotalVentaARS / @NumCuotasV, 2);
+            WHILE @NumCuota <= @NumCuotasV
+            BEGIN
+                SET @VencCuota = DATEADD(MONTH, @NumCuota, @FechaV); SET @PagadaCuota = CASE WHEN @VencCuota <= @Hoy THEN 1 ELSE 0 END; SET @RecargoCuota = CASE WHEN @PagadaCuota = 0 AND @VencCuota < @Hoy THEN ROUND(@MontoCuota * 0.05, 2) ELSE 0 END;
+                INSERT INTO Cuota (NumeroCuota, MontoCuota, FechaVencimiento, FechaPago, Recargo, IdVenta, IdTurnoCaja) VALUES (@NumCuota, @MontoCuota, CAST(@VencCuota AS DATETIME2), CASE WHEN @PagadaCuota = 1 THEN CAST(@VencCuota AS DATETIME2) ELSE NULL END, @RecargoCuota, @IdVentaNuevo, @TurnoV);
+                SET @NumCuota = @NumCuota + 1;
+            END
+        END
+        ELSE
+        BEGIN
+            INSERT INTO PagoVenta (Monto, FechaPago, Observacion, IdVenta, IdMetodoPago, IdTurnoCaja) VALUES (@TotalVentaARS, CAST(@FechaV AS DATETIME2), 'Pago', @IdVentaNuevo, @MetodoV, @TurnoV);
+        END
+    END
+    SET @vi = @vi + 1;
+END
 GO
 
--- 28. Seguimiento Orden (Trazabilidad del estado)
-INSERT INTO SeguimientoOrden (ObservacionTecnico, IdOrdenReparacion, IdEmpleado, IdEstadoOrden) VALUES
-('Equipo ingresado en mostrador, a la espera de desarme por el técnico', 1, 4, 1);
+-- G. ÓRDENES DE REPARACIÓN MASIVAS 2021-2026 
+IF OBJECT_ID('tempdb..#ReparacionesPlan') IS NOT NULL DROP TABLE #ReparacionesPlan;
+CREATE TABLE #ReparacionesPlan (NroPlan INT PRIMARY KEY, FechaIngreso DATE, IdCliente INT, IdModeloProducto INT, IdFalla INT, IdTecnico INT, IdEstadoOrdenFinal INT, IdProductoRepuesto INT NULL, CantidadRepuesto INT NULL, PrecioManoObra DECIMAL(18,2));
+
+DECLARE @r INT = 3;
+DECLARE @r_id INT = 1;
+DECLARE @FchR_Plan DATE, @SucR_Plan INT, @TecR_Plan INT;
+WHILE @r <= 150
+BEGIN
+    SET @FchR_Plan = (SELECT Fecha FROM #Turnos WHERE NroPlan = @r);
+    SET @SucR_Plan = (SELECT IdSucursal FROM #Turnos WHERE NroPlan = @r);
+    SET @TecR_Plan = CASE WHEN @SucR_Plan = 1 THEN 11 ELSE 12 END;
+    
+    INSERT INTO #ReparacionesPlan (NroPlan, FechaIngreso, IdCliente, IdModeloProducto, IdFalla, IdTecnico, IdEstadoOrdenFinal, IdProductoRepuesto, CantidadRepuesto, PrecioManoObra) VALUES 
+    (@r_id, @FchR_Plan, 13 + (@r % 8), 1 + (@r % 28), 1 + (@r % 8), @TecR_Plan, CASE WHEN @r % 5 = 0 THEN 5 ELSE 4 END, CASE WHEN @r % 2 = 0 THEN 43 + (@r % 15) ELSE NULL END, 1, 15000.00 + (@r * 150));
+    SET @r_id = @r_id + 1;
+    SET @r = @r + 1;
+END
+
+DECLARE @ri INT = 1, @nRep INT = (SELECT MAX(NroPlan) FROM #ReparacionesPlan);
+DECLARE @FechaR DATE, @CliR INT, @ModeloR INT, @FallaR INT, @TecR INT, @EstadoFinalR INT, @ProdRepR INT, @CantRepR INT, @ManoObraR DECIMAL(18,2);
+DECLARE @IdDispR INT, @IdOrdenR INT, @CostoRepuestosARS DECIMAL(18,2), @PrecioCobradoR DECIMAL(18,2), @IdCotizR INT, @ValorCotizR DECIMAL(18,2);
+DECLARE @IdInvRepuesto INT, @FechaEntregaR DATETIME2, @TurnoIngresoR INT, @TurnoEntregaR INT, @SeniaR DECIMAL(18,2);
+
+WHILE @ri <= @nRep
+BEGIN
+    SELECT @FechaR=FechaIngreso, @CliR=IdCliente, @ModeloR=IdModeloProducto, @FallaR=IdFalla, @TecR=IdTecnico, @EstadoFinalR=IdEstadoOrdenFinal, @ProdRepR=IdProductoRepuesto, @CantRepR=CantidadRepuesto, @ManoObraR=PrecioManoObra FROM #ReparacionesPlan WHERE NroPlan = @ri;
+    INSERT INTO DispositivoCliente (Desbloqueo, Observaciones, Activo, IdCliente, IdModeloProducto) VALUES ('Patrón en L', 'Ingresado', 1, @CliR, @ModeloR);
+    SET @IdDispR = SCOPE_IDENTITY();
+
+    SET @CostoRepuestosARS = 0; SET @PrecioCobradoR = 0; SET @IdInvRepuesto = NULL;
+    IF @ProdRepR IS NOT NULL
+    BEGIN
+        SELECT TOP 1 @IdInvRepuesto = Id FROM Inventario WHERE IdProducto = @ProdRepR AND IMEI IS NULL AND Stock > 0 AND CreatedAt <= CAST(@FechaR AS DATETIME2) ORDER BY Id;
+        IF @IdInvRepuesto IS NOT NULL
+        BEGIN
+            SELECT TOP 1 @IdCotizR = Id, @ValorCotizR = Valor FROM Cotizacion WHERE Clave = 'DolarBlue' AND CreatedAt <= CAST(@FechaR AS DATETIME2) ORDER BY CreatedAt DESC;
+            SELECT TOP 1 @CostoRepuestosARS = pa.CostoReal * @ValorCotizR FROM PrecioArticulo pa WHERE pa.IdInventario = @IdInvRepuesto AND pa.FechaHasta IS NULL ORDER BY pa.FechaDesde DESC;
+            SET @CostoRepuestosARS = ROUND(ISNULL(@CostoRepuestosARS, 0) * @CantRepR, 2);
+            SET @PrecioCobradoR = ROUND(@CostoRepuestosARS * 1.6, 2);
+        END
+    END
+
+    SET @FechaEntregaR = CASE WHEN @EstadoFinalR = 4 THEN DATEADD(DAY, 6, CAST(@FechaR AS DATETIME2)) ELSE NULL END;
+    INSERT INTO OrdenReparacion (FechaEmision, FechaEntrega, CostoRepuestos, PrecioManoObra, TotalReparacion, IdEmpleado, IdDispositivoCliente, IdEstadoOrden) VALUES (CAST(@FechaR AS DATETIME2), @FechaEntregaR, @CostoRepuestosARS, @ManoObraR, @PrecioCobradoR + @ManoObraR, @TecR, @IdDispR, @EstadoFinalR);
+    SET @IdOrdenR = SCOPE_IDENTITY();
+
+    INSERT INTO OrdenFalla (IdOrdenReparacion, IdFalla) VALUES (@IdOrdenR, @FallaR);
+
+    IF @IdInvRepuesto IS NOT NULL
+    BEGIN
+        INSERT INTO RepuestoOrden (Cantidad, PrecioCobrado, IdOrdenReparacion, IdInventario) VALUES (@CantRepR, @PrecioCobradoR, @IdOrdenR, @IdInvRepuesto);
+        EXEC dbo.usp_Seed_ConsumoStock @IdInventario=@IdInvRepuesto, @Cantidad=@CantRepR, @Fecha=@FechaR, @IdEmpleado=@TecR, @Motivo='Consumo en Reparación';
+    END
+
+    INSERT INTO SeguimientoOrden (FechaModificacion, ObservacionTecnico, IdOrdenReparacion, IdEmpleado, IdEstadoOrden) VALUES (CAST(@FechaR AS DATETIME2), 'Diagnóstico inicial', @IdOrdenR, @TecR, 1);
+    IF @EstadoFinalR = 4 INSERT INTO SeguimientoOrden (FechaModificacion, ObservacionTecnico, IdOrdenReparacion, IdEmpleado, IdEstadoOrden) VALUES (@FechaEntregaR, 'Equipo entregado', @IdOrdenR, @TecR, 4);
+
+    SET @TurnoIngresoR = (SELECT TOP 1 IdTurnoCaja FROM #Turnos WHERE Fecha <= @FechaR ORDER BY Fecha DESC);
+    SET @SeniaR = ROUND((@PrecioCobradoR + @ManoObraR) * 0.3, 2);
+    IF @SeniaR > 0 INSERT INTO PagoReparacion (Monto, Senia, FechaPago, Observacion, IdOrdenReparacion, IdMetodoPago, IdTurnoCaja) VALUES (@SeniaR, @SeniaR, CAST(@FechaR AS DATETIME2), 'Seña inicial', @IdOrdenR, 1, @TurnoIngresoR);
+    IF @EstadoFinalR = 4
+    BEGIN
+        SET @TurnoEntregaR = (SELECT TOP 1 IdTurnoCaja FROM #Turnos WHERE Fecha <= CAST(@FechaEntregaR AS DATE) ORDER BY Fecha DESC);
+        INSERT INTO PagoReparacion (Monto, Senia, FechaPago, Observacion, IdOrdenReparacion, IdMetodoPago, IdTurnoCaja) VALUES (((@PrecioCobradoR + @ManoObraR) - @SeniaR), 0, @FechaEntregaR, 'Saldo final', @IdOrdenR, 1, @TurnoEntregaR);
+    END
+    SET @ri = @ri + 1;
+END
 GO
 
--- 29. Pago Reparacion (El cliente deja una seña para pedir repuesto)
-INSERT INTO PagoReparacion (Monto, Senia, Observacion, IdOrdenReparacion, IdMetodoPago, IdTurnoCaja) VALUES
-(10000.00, 10000.00, 'Seña inicial para solicitar módulo', 1, 1, 1);
+-- H. BACKFILL DE TOTALES DE CADA TURNO
+UPDATE tc
+SET TotalIngresos = ISNULL(pv.Total, 0) + ISNULL(pr.Total, 0), TotalEgresos = ISNULL(mc.Total, 0), MontoCierreFisico = tc.MontoInicial + ISNULL(pv.Total, 0) + ISNULL(pr.Total, 0) - ISNULL(mc.Total, 0)
+FROM TurnoCaja tc
+OUTER APPLY (SELECT SUM(Monto) AS Total FROM PagoVenta WHERE IdTurnoCaja = tc.Id) pv
+OUTER APPLY (SELECT SUM(Monto) AS Total FROM PagoReparacion WHERE IdTurnoCaja = tc.Id) pr
+OUTER APPLY (SELECT SUM(Monto) AS Total FROM MovimientoCaja WHERE IdTurnoCaja = tc.Id AND TipoMovimiento = 0) mc
+WHERE tc.Id IN (SELECT IdTurnoCaja FROM #Turnos);
 GO
 
-
---- MÓDULO COMPRAS ---
-
--- 30. Compra (Cabecera de la factura al proveedor) — pagada al contado, por eso EstadoPago=3 y SaldoPendiente=0
--- Compra el iPhone 13 que después se vende en el Venta #1 de más abajo (Inv 1).
-INSERT INTO Compra (TotalCosto, EstadoPago, SaldoPendiente, IdProveedor, IdSucursalDestino, IdEmpleado) VALUES
-(800000.00, 3, 0.00, 2, 1, 3);
+-- I. LIMPIEZA AUXILIAR
+IF OBJECT_ID('tempdb..#Turnos') IS NOT NULL DROP TABLE #Turnos;
+IF OBJECT_ID('tempdb..#Catalogo') IS NOT NULL DROP TABLE #Catalogo;
+IF OBJECT_ID('tempdb..#ComprasPlan') IS NOT NULL DROP TABLE #ComprasPlan;
+IF OBJECT_ID('tempdb..#ComprasDetallePlan') IS NOT NULL DROP TABLE #ComprasDetallePlan;
+IF OBJECT_ID('tempdb..#VentasPlan') IS NOT NULL DROP TABLE #VentasPlan;
+IF OBJECT_ID('tempdb..#ReparacionesPlan') IS NOT NULL DROP TABLE #ReparacionesPlan;
+DROP PROCEDURE IF EXISTS dbo.usp_Seed_IngresoStock;
+DROP PROCEDURE IF EXISTS dbo.usp_Seed_ConsumoStock;
 GO
 
--- 31. Detalle Compra
-INSERT INTO DetalleCompra (Cantidad, PrecioCostoUnitario, IdCompra, IdInventario) VALUES
-(1, 800000.00, 1, 1);
-GO
-
--- 32. Pago Compra (Pagamos al proveedor por Transferencia - MetodoPago 3)
-INSERT INTO PagoCompra (Monto, IdCompra, IdMetodoPago, IdTurnoCaja) VALUES
-(800000.00, 1, 3, 1);
-GO
-
--- 33. Cuenta corriente del proveedor: la compra genera la deuda completa (Debe) y el pago la cancela (Haber) en el mismo momento.
-INSERT INTO CuentaCorrienteProveedor (IdProveedor, Concepto, Debe, Haber, SaldoAcumulado, IdCompra, IdPagoCompra) VALUES
-(2, 'Factura de Compra', 800000.00, 0.00, 800000.00, 1, NULL),
-(2, 'Pago a cuenta/total', 0.00, 800000.00, 0.00, 1, 1);
-GO
-
-
---- MÓDULO VENTAS ---
-
--- 34. Cotización Dólar (Historial congelado)
-INSERT INTO Cotizacion (Clave, Valor) VALUES
-('DolarBlue', 1450.00),
-('DolarOficial', 1000.00);
-GO
-
--- 35. Descuento
-INSERT INTO Descuento (Nombre, Porcentaje, FechaDesde, FechaHasta) VALUES
-('Hot Sale 2026', 15.00, '2026-05-10', '2026-05-20'),
-('Efectivo 10%', 10.00, NULL, NULL);
-GO
-
--- 36. Venta (Cabecera del ticket: Cliente Id 5, Empleado Id 3) — vende el Inv 1 (iPhone 13)
--- al precio de la Lista Minorista Smartphone ($1.360.800) con el 10% de descuento en efectivo.
-INSERT INTO Venta (TotalVenta, TotalVentaARS, TotalCosto, Observaciones, IdTurnoCaja, IdCliente, IdEmpleado, IdCotizacionDolar, IdDescuento) VALUES
-(844.63, 1224720.00, 1008000.00, 'Venta de iPhone 13 a consumidor final', 1, 5, 3, 1, 2);
-GO
-
--- 37. Detalle Venta (El cliente se lleva 1 iPhone - IdInventario 1)
-INSERT INTO DetalleVenta (Cantidad, PrecioUnitario, IdVenta, IdInventario) VALUES
-(1, 1360800.00, 1, 1);
-GO
-
--- 38. Pago Venta (Se cobró en Efectivo - IdMetodoPago 1)
-INSERT INTO PagoVenta (Monto, Observacion, IdVenta, IdMetodoPago, IdTurnoCaja) VALUES
-(1224720.00, 'Abona completo en efectivo con descuento aplicado', 1, 1, 1);
-GO
-
--- 39. Estado Reclamo (Catálogo de Garantías)
-INSERT INTO EstadoReclamo (Nombre) VALUES
-('En Revisión'),
-('Aprobada'),
-('Rechazada');
+PRINT 'Carga masiva de datos de negocio finalizada correctamente.';
+COMMIT TRANSACTION SeedData;
 GO

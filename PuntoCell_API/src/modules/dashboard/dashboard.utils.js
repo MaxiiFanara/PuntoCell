@@ -21,6 +21,20 @@ export const normalizeRange = (query = {}, fallbackDays = 30) => {
   return { from, to }
 }
 
+export const resolveIdSucursal = (query = {}) => {
+  const raw = query.idSucursal ?? query.IdSucursal ?? query.sucursalId ?? query.sucursal
+  if (raw === undefined || raw === null || raw === '') return null
+  const branchId = Number(raw)
+  return Number.isFinite(branchId) && branchId > 0 ? branchId : null
+}
+
+export const resolveProductId = (query = {}) => {
+  const raw = query.productId ?? query.productoId ?? query.IdArticulo ?? query.idArticulo ?? query.articuloId
+  if (raw === undefined || raw === null || raw === '') return null
+  const productId = Number(raw)
+  return Number.isFinite(productId) && productId > 0 ? productId : null
+}
+
 const pad = (value) => String(value).padStart(2, '0')
 
 export const periodKey = (value, groupBy = 'day') => {

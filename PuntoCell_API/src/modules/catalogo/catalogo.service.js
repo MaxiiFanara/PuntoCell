@@ -21,12 +21,32 @@ export default class CatalogoService {
           include: [{
             association: 'modelo',
             attributes: ['Nombre'],
-            include: [{ association: 'marca', attributes: ['Nombre'] }]
+            include: [
+              { association: 'marca', attributes: ['Nombre'] },
+              // Categoría real del producto (Celulares/Accesorios/etc. en la DB).
+              // Antes el catálogo público agrupaba por nombre de MODELO, lo que
+              // rompía el filtro de categorías del front (cada modelo era casi su
+              // propia categoría). Cambio acotado a este include + al mapeo de
+              // abajo; no toca modelos, asociaciones ni la base de datos.
+              { association: 'categoria', attributes: ['Nombre'] },
+            ]
           }]
         }, {
           association: 'color', attributes: ['Nombre']
         }, {
           association: 'memoria', attributes: ['Capacidad']
+        }, {
+          association: 'bateria', attributes: ['Capacidad']
+        }, {
+          association: 'almacenamiento', attributes: ['Capacidad']
+        }, {
+          association: 'estado', attributes: ['Nombre']
+        }, {
+          // El inventario es por sucursal: el mismo producto puede existir en las
+          // dos sedes como renglones distintos, con su propio stock. El catálogo
+          // muestra de cuál viene cada uno para que el comprador lo sepa antes
+          // de comprar. Solo el nombre: no se expone dirección ni nada interno.
+          association: 'sucursal', attributes: ['Nombre']
         }]
       }),
       models.Cotizacion.findAll({ order: [['CreatedAt', 'DESC']] })
@@ -80,13 +100,21 @@ export default class CatalogoService {
         return {
           id: String(inv.Id),
           name: inv.articulo?.Nombre || 'Producto',
-          category: inv.articulo?.modelo?.Nombre || 'Dispositivos',
+          modelo: inv.articulo?.modelo?.Nombre || null,
+          categoria: inv.articulo?.modelo?.categoria?.Nombre || 'otros',
           marca: inv.articulo?.modelo?.marca?.Nombre || null,
           priceUsd,
           stock: inv.Stock || 0,
           esSerializado: !!inv.articulo?.EsSerializado,
           color: inv.color?.Nombre || null,
           memoria: inv.memoria?.Capacidad || null,
+          bateria: inv.bateria?.Capacidad || null,
+          almacenamiento: inv.almacenamiento?.Capacidad || null,
+          estado: inv.estado?.Nombre || null,
+          garantiaMarca: inv.MesesGarantiaMarca || null,
+          garantiaLocal: inv.MesesGarantiaLocal || null,
+          observaciones: inv.Observaciones || null,
+          sucursal: inv.sucursal?.Nombre || null,
         };
       })
       .filter((p) => p.priceUsd > 0);

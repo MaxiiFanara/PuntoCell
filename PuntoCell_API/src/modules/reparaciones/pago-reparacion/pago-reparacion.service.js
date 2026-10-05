@@ -3,9 +3,10 @@ import { auditar } from '../../../core/utils/audit.util.js';
 const noEncontrado = () => { const e = new Error('Pago de reparación no encontrado'); e.statusCode = 404; return e; };
 
 export default class PagoReparacionService {
-  constructor(pagoReparacionDAO, bitacoraService = null) {
+  constructor(pagoReparacionDAO, bitacoraService = null, cajaService = null) {
     this.pagoReparacionDAO = pagoReparacionDAO;
     this.bitacoraService = bitacoraService;
+    this.cajaService = cajaService;
   }
 
   async getAll(query = {}) {
@@ -20,13 +21,34 @@ export default class PagoReparacionService {
   }
 
   async create(data, ctx = null) {
-    const creado = await this.pagoReparacionDAO.create({
-      ...data,
-      FechaPago: data.FechaPago ? new Date(data.FechaPago) : new Date()
-    });
-    await auditar(this.bitacoraService, ctx, `Registró un pago de ${data.Monto} en la orden de reparación #${data.IdOrdenReparacion} (pago #${creado.Id})`,
-      `Método ${data.IdMetodoPago ?? '-'} · turno ${data.IdTurnoCaja ?? '-'}`);
-    return creado;
+    const sequelize = this.pagoReparacionDAO.model.sequelize;
+    const t = await sequelize.transaction();
+
+    try {
+      const creado = await this.pagoReparacionDAO.create({
+        ...data,
+        FechaPago: data.FechaPago ? new Date(data.FechaPago) : new Date()
+      }, { transaction: t });
+
+      if (this.cajaService) {
+        await this.cajaService.registrarIngreso({
+          IdTurnoCaja: data.IdTurnoCaja,
+          IdEmpleado: ctx?.IdEmpleado,
+          Monto: data.Monto,
+          Descripcion: `Pago de reparación Id=${data.IdOrdenReparacion}`,
+          Fecha: creado.FechaPago
+        }, { transaction: t });
+      }
+
+      await t.commit();
+
+      await auditar(this.bitacoraService, ctx, `Registró un pago de ${data.Monto} en la orden de reparación #${data.IdOrdenReparacion} (pago #${creado.Id})`,
+        `Método ${data.IdMetodoPago ?? '-'} · turno ${data.IdTurnoCaja ?? '-'}`);
+      return creado;
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
   }
 
   async update(id, data, ctx = null) {

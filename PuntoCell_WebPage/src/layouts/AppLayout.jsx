@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { Box, IconButton, Typography } from '@mui/material';
+import { Box, IconButton, Typography, Tooltip } from '@mui/material';
 import {
   ShoppingCartCheckout,
   Sell,
@@ -15,18 +15,18 @@ import {
   Close,
   Dashboard,
   Build,
+  LightModeOutlined,
+  DarkModeOutlined,
 } from '@mui/icons-material';
+import { useColorScheme } from '@mui/material/styles';
 
 import Navbar from '../components/layout/Navbar';
+import AsistenteUsuarioChat from '../components/modals/AsistenteUsuarioChat';
 import { useAuth } from '../context/AuthContext';
 
 const RAIL = 232;
 const RAIL_COLAPSADO = 68;
 
-// Menú agrupado como en el nuevo diseño: la operación del día a día arriba,
-// la administración abajo. Los ítems y el gating por rol (reqAdmin) se
-// mantienen exactamente como estaban — Compras y Precios siguen siendo
-// admin/encargado, igual que los <AdminRoute> de App.jsx.
 const GRUPOS = [
   {
     titulo: 'Operación',
@@ -36,6 +36,7 @@ const GRUPOS = [
       { name: 'Registrar una venta', path: '/app/punto-venta',      icon: Storefront },
       { name: 'Historial de Ventas', path: '/app/ventas/historial', icon: ReceiptLong },
       { name: 'Inventario',          path: '/app/inventario',       icon: Inventory2 },
+      { name: 'Caja',                path: '/app/caja',             icon: Assessment },
     ],
   },
   {
@@ -53,11 +54,38 @@ const GRUPOS = [
 
 const ROL_LABEL = { 1: 'Administrador', 2: 'Owner', 3: 'Vendedor', 4: 'Técnico' };
 
+const SECCIONES = [
+  { path: '/app/dashboard', nombre: 'Dashboard', detalle: 'Sirve para ver métricas generales y accesos rápidos de administración.' },
+  { path: '/app/reparaciones', nombre: 'Reparaciones', detalle: 'Usalo para gestionar órdenes, estados y seguimiento de equipos.' },
+  { path: '/app/punto-venta', nombre: 'Punto de venta', detalle: 'Usalo para registrar ventas rápidas y cobrar operaciones del mostrador.' },
+  { path: '/app/ventas/historial', nombre: 'Historial de ventas', detalle: 'Te muestra las ventas ya registradas y permite revisarlas.' },
+  { path: '/app/inventario', nombre: 'Inventario', detalle: 'Acá podés consultar stock, movimientos y detalles de artículos.' },
+  { path: '/app/caja', nombre: 'Caja', detalle: 'Te permite revisar y operar sobre movimientos, aperturas y cierres.' },
+  { path: '/app/compras', nombre: 'Compras', detalle: 'Se usa para ingresar compras y abastecimiento del negocio.' },
+  { path: '/app/precios', nombre: 'Precios', detalle: 'Permite administrar listas y valores de venta.' },
+  { path: '/app/reportes', nombre: 'Reportes', detalle: 'Sirve para consultar reportes y resumir información operativa.' },
+  { path: '/app/admin/usuarios', nombre: 'Usuarios', detalle: 'Acá se administran usuarios, roles y permisos.' },
+  { path: '/app/admin/bitacora', nombre: 'Bitácora', detalle: 'Muestra el historial de acciones y eventos del sistema.' },
+];
+
+const resolvePantalla = (pathname) => SECCIONES.find((section) => pathname === section.path || pathname.startsWith(`${section.path}/`)) ?? {
+  path: pathname,
+  nombre: 'Sistema',
+  detalle: 'Preguntame sobre esta pantalla y te explico cómo usarla.'
+};
+
 export default function AppLayout() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [asistenteAbierto, setAsistenteAbierto] = useState(false);
   const { usuario } = useAuth();
+
+  // Control de modo oscuro/claro en el panel interno
+  const { mode, setMode } = useColorScheme();
+  const esOscuro = mode === 'dark';
+
+  const pantallaActual = useMemo(() => resolvePantalla(location.pathname), [location.pathname]);
 
   const compacto = collapsed && !mobileOpen;
   const cerrarMobile = () => setMobileOpen(false);
@@ -187,7 +215,7 @@ export default function AppLayout() {
           );
         })}
 
-        {/* Usuario + colapsar */}
+        {/* Usuario, Tema + colapsar */}
         <Box sx={{ mt: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
           {usuario && (
             <Box
@@ -219,20 +247,40 @@ export default function AppLayout() {
             </Box>
           )}
 
-          <IconButton
-            onClick={() => setCollapsed(!collapsed)}
-            size="small"
-            sx={{ display: { xs: 'none', lg: 'flex' }, alignSelf: compacto ? 'center' : 'flex-end' }}
-            aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
-          >
-            <ChevronLeft sx={{ fontSize: 18, transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
-          </IconButton>
+          {/* Botón de cambio de tema y colapsar en la barra lateral */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: compacto ? 'center' : 'space-between', px: 0.5 }}>
+            <Tooltip title={esOscuro ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}>
+              <IconButton
+                onClick={() => setMode(esOscuro ? 'light' : 'dark')}
+                size="small"
+                aria-label="Cambiar modo de color"
+                sx={{ border: 1, borderColor: 'divider', borderRadius: '8px', p: '6px' }}
+              >
+                {esOscuro ? <LightModeOutlined sx={{ fontSize: 17 }} /> : <DarkModeOutlined sx={{ fontSize: 17 }} />}
+              </IconButton>
+            </Tooltip>
+
+            <IconButton
+              onClick={() => setCollapsed(!collapsed)}
+              size="small"
+              sx={{ display: { xs: 'none', lg: 'flex' } }}
+              aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
+            >
+              <ChevronLeft sx={{ fontSize: 18, transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
+            </IconButton>
+          </Box>
         </Box>
       </Box>
 
       {/* ─── Contenido ────────────────────────────────────────── */}
       <Box component="main" sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        <Navbar onAbrirMenu={() => setMobileOpen(true)} />
+        <Navbar onAbrirMenu={() => setMobileOpen(true)} onAbrirAyuda={() => setAsistenteAbierto(true)} />
+        <AsistenteUsuarioChat
+          open={asistenteAbierto}
+          onClose={() => setAsistenteAbierto(false)}
+          usuario={usuario}
+          pantalla={pantallaActual}
+        />
         <Outlet />
       </Box>
     </Box>

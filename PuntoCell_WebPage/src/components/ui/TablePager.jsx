@@ -1,6 +1,6 @@
 import { Box, Button, IconButton } from '@mui/material'
 
-// ponytail: paginador plano, sin elipsis. Con más de ~12 páginas conviene
+// Paginador plano, sin elipsis. Con más de ~12 páginas conviene
 // truncar con "…"; hoy ninguna vista llega, así que no está.
 export default function TablePager({ page, pageCount, from, to, total, unidad = 'registros', onChange }) {
   const go = (n) => n >= 1 && n <= pageCount && n !== page && onChange?.(n)

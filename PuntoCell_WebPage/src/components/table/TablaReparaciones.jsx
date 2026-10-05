@@ -124,8 +124,8 @@ const TablaReparaciones = ({ ordenes, loading, onRowClick, ordenSeleccionada }) 
                       </TableCell>
 
                       <TableCell>
-                        <Box sx={{ fontWeight: 700, lineHeight: 1.25 }}>{orden.ApellidoCliente}, {orden.NombreCliente}</Box>
-                        <Box className="mono" sx={{ fontSize: '.72rem', color: 'text.disabled', mt: '1px' }}>DNI {orden.DNICliente}</Box>
+                        <Box sx={{ fontWeight: 700, lineHeight: 1.25 }}>{[orden.ApellidoCliente, orden.NombreCliente].filter(Boolean).join(', ') || 'Sin cliente'}</Box>
+                        <Box className="mono" sx={{ fontSize: '.72rem', color: 'text.disabled', mt: '1px' }}>DNI {orden.DNICliente || 'N/A'}</Box>
                       </TableCell>
 
                       <TableCell>

@@ -73,6 +73,13 @@ export default class NotificacionService {
         cuerpo: 'La orden de reparación fue anulada. Si creés que es un error o tenés dudas, comunicate con nosotros.',
         badge: '🚫 Anulado',
       },
+      6: {
+        asunto: `Orden #${numOrden} — Orden abandonada`,
+        color: '#b45309',
+        titulo: 'Tu equipo fue marcado como abandonado',
+        cuerpo: 'Pasaron 60 días desde que la reparación quedó terminada sin retiro. La orden fue dada de baja y el equipo ingresó a inventario.',
+        badge: '⏳ Abandonado',
+      },
     };
 
     const config = ESTADOS[nuevoEstado];
@@ -164,7 +171,7 @@ export default class NotificacionService {
 
   async enviarEmailRecuperacion(email, nombre, token) {
     // TODO: mover a env.APP.FRONTEND_URL en producción
-    const frontendUrl = 'http://localhost:5173';
+    const frontendUrl = 'http://localhost:5173,http://localhost:5174,http://localhost:5175';
     const resetLink = `${frontendUrl}/reset-password?token=${token}`;
 
     const mailOptions = {

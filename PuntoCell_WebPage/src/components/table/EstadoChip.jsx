@@ -7,6 +7,7 @@ const CONFIG = {
   terminado:       { label: 'Terminado',  tone: 'due' },
   entregado:       { label: 'Entregado',  tone: 'ok' },
   anulado:         { label: 'Anulada',    tone: 'late' },
+  abandonado:      { label: 'Abandonado', tone: 'late' },
 }
 
 const EstadoChip = ({ estado }) => {

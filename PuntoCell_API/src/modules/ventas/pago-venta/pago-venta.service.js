@@ -1,9 +1,10 @@
 import { registerAudit } from '../../../core/utils/audit.util.js';
 
 export default class PagoVentaService {
-  constructor(pagoDAO, bitacoraService = null) {
+  constructor(pagoDAO, bitacoraService = null, cajaService = null) {
     this.pagoDAO = pagoDAO;
     this.bitacoraService = bitacoraService;
+    this.cajaService = cajaService;
     this.ATTRIBUTES = {};
   }
 
@@ -33,10 +34,11 @@ export default class PagoVentaService {
     const t = await sequelize.transaction();
     try {
       const models = sequelize.models;
+      let venta = null;
 
       // Validate Venta exists
       if (data.IdVenta && models.Venta) {
-        const venta = await models.Venta.findByPk(data.IdVenta);
+        venta = await models.Venta.findByPk(data.IdVenta);
         if (!venta) throw new Error(`Venta no encontrada (Id=${data.IdVenta})`);
       }
 
@@ -45,6 +47,16 @@ export default class PagoVentaService {
       const payload = { ...data, Pagado: pagadoFlag };
 
       const pago = await this.pagoDAO.create(payload, { transaction: t });
+
+      if (this.cajaService) {
+        await this.cajaService.registrarIngreso({
+          IdTurnoCaja: data.IdTurnoCaja,
+          IdEmpleado: auditContext?.IdEmpleado || venta?.IdEmpleado,
+          Monto: payload.Monto,
+          Descripcion: `Cobro de venta Id=${data.IdVenta}`,
+          Fecha: payload.FechaPago
+        }, { transaction: t });
+      }
 
       // If pagado, update Venta.EstadoPago to true
       if (pagadoFlag && models.Venta) {

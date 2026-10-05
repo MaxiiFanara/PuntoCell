@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { validateFields } from '../../core/middlewares/validateFields.middleware.js';
 import { listaPreciosSchema, listaPreciosUpdateSchema } from './lista-de-precios/lista-de-precios.dto.js';
-import { preciosArticulosSchema, preciosArticulosUpdateSchema } from './precios-articulos/precios-articulos.dto.js';
+import { preciosArticulosSchema, preciosArticulosUpdateSchema, bulkUpdateSchema } from './precios-articulos/precios-articulos.dto.js';
 
 export default (container) => {
   const router = Router();
@@ -14,6 +14,7 @@ export default (container) => {
   router.delete('/lista-de-precios/:id', container.precios.listaPreciosController.remove);
 
   // Precios por artículo
+  router.post('/precios-articulos/bulk', validateFields(bulkUpdateSchema), container.precios.preciosArticulosController.bulkUpdate);
   router.get('/precios-articulos', container.precios.preciosArticulosController.getAll);
   router.get('/precios-articulos/:id', container.precios.preciosArticulosController.getById);
   router.post('/precios-articulos', validateFields(preciosArticulosSchema), container.precios.preciosArticulosController.create);

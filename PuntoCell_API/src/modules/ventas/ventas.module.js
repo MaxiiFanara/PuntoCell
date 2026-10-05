@@ -30,7 +30,7 @@ import VentaDAO from './venta/venta.dao.js';
 import VentaService from './venta/venta.service.js';
 import VentaController from './venta/venta.controller.js';
 
-export function createVentasModule(bitacoraService = null) {
+export function createVentasModule(bitacoraService = null, cajaService = null) {
   const cotizacionDAO = new CotizacionDAO(models.Cotizacion);
   const cotizacionService = new CotizacionService(cotizacionDAO, bitacoraService);
   const cotizacionController = new CotizacionController(cotizacionService);
@@ -44,7 +44,7 @@ export function createVentasModule(bitacoraService = null) {
   const detalleVentaService = new DetalleVentaService(detalleVentaDAO, bitacoraService);
   const detalleVentaController = new DetalleVentaController(detalleVentaService);
   const ventaDAO = new VentaDAO(models.Venta);
-  const ventaService = new VentaService(ventaDAO, detalleVentaDAO, bitacoraService);
+  const ventaService = new VentaService(ventaDAO, detalleVentaDAO, bitacoraService, cajaService);
   const ventaController = new VentaController(ventaService);
   const devolucionDAO = new DevolucionVentaDAO(models.DevolucionVenta);
   const detalleDevolucionDAO = new DetalleDevolucionVentaDAO(models.DetalleDevolucionVenta);
@@ -53,7 +53,7 @@ export function createVentasModule(bitacoraService = null) {
   const detalleDevolucionService = new DetalleDevolucionVentaService(detalleDevolucionDAO, bitacoraService);
   const detalleDevolucionController = new DetalleDevolucionVentaController(detalleDevolucionService);
   const pagoVentaDAO = new PagoVentaDAO(models.PagoVenta);
-  const pagoVentaService = new PagoVentaService(pagoVentaDAO, bitacoraService);
+  const pagoVentaService = new PagoVentaService(pagoVentaDAO, bitacoraService, cajaService);
   const pagoVentaController = new PagoVentaController(pagoVentaService);
   const cuotaDAO = new CuotaDAO(models.Cuota);
   const cuotaService = new CuotaService(cuotaDAO, bitacoraService);

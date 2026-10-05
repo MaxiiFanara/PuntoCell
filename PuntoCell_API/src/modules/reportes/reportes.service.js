@@ -1,6 +1,7 @@
 import { Op } from 'sequelize'
 import { models } from '../../models/index.js'
 import { auditar } from '../../core/utils/audit.util.js'
+import { resolveIdSucursal, resolveProductId } from '../dashboard/dashboard.utils.js'
 
 const DEFAULT_LIMIT = 20
 
@@ -119,6 +120,17 @@ const includesForVenta = () => ([
   }
 ])
 
+const includesForTurnoCaja = () => ([
+  { model: models.Usuario, as: 'empleadoApertura', attributes: ['Id', 'Nombre', 'Apellido'], required: false },
+  { model: models.Usuario, as: 'empleadoCierre', attributes: ['Id', 'Nombre', 'Apellido'], required: false },
+  { model: models.Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'], required: false }
+])
+
+const includesForMovimientoCaja = () => ([
+  { model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido'], required: false },
+  { model: models.TurnoCaja, as: 'turnoCaja', attributes: ['Id', 'IdSucursal'], required: false }
+])
+
 const includesForMovimiento = () => ([
   { model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido'], required: false },
   {
@@ -193,18 +205,20 @@ export default class ReportesService {
     const { from, to } = normalizeRange(query, 30)
     const groupBy = String(query.groupBy || 'month').toLowerCase()
     const reportType = String(query.reportType || 'gasto').toLowerCase()
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
 
     const where = { Fecha: { [Op.between]: [from, to] } }
     if (query.supplierId) where.IdProveedor = Number(query.supplierId)
-    if (query.branchId) where.IdSucursalDestino = Number(query.branchId)
+    if (idSucursal !== null) where.IdSucursalDestino = idSucursal
     if (query.employeeId) where.IdEmpleado = Number(query.employeeId)
 
     let rows = plainList(await models.Compra.findAll({ where, include: includesForCompra(), order: [['Fecha', 'DESC']] }))
 
-    if (query.productId || query.categoryId) {
+    if (productId !== null || query.categoryId) {
       rows = rows.filter((compra) => (compra.detalles ?? []).some((detalle) => {
         const meta = getProductoMeta(detalle.inventario)
-        if (query.productId && Number(meta.id) !== Number(query.productId)) return false
+        if (productId !== null && Number(meta.id) !== Number(productId)) return false
         if (query.categoryId && Number(meta.idCategoria) !== Number(query.categoryId)) return false
         return true
       }))
@@ -262,6 +276,8 @@ export default class ReportesService {
     const { from, to } = normalizeRange(query, 30)
     const groupBy = String(query.groupBy || 'month').toLowerCase()
     const reportType = String(query.reportType || 'facturacion').toLowerCase()
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
 
     const where = { Fecha: { [Op.between]: [from, to] } }
     if (query.employeeId) where.IdEmpleado = Number(query.employeeId)
@@ -269,18 +285,17 @@ export default class ReportesService {
 
     let rows = plainList(await models.Venta.findAll({ where, include: includesForVenta(), order: [['Fecha', 'DESC']] }))
 
-    if (query.branchId) {
-      const branchId = Number(query.branchId)
-      rows = rows.filter((venta) => Number(venta.turnoCaja?.IdSucursal) === branchId)
+    if (idSucursal !== null) {
+      rows = rows.filter((venta) => Number(venta.turnoCaja?.IdSucursal) === idSucursal)
     }
     if (query.paymentMethodId) {
       const paymentMethodId = Number(query.paymentMethodId)
       rows = rows.filter((venta) => (venta.pagos ?? []).some((pago) => Number(pago.IdMetodoPago) === paymentMethodId))
     }
-    if (query.productId || query.categoryId) {
+    if (productId !== null || query.categoryId) {
       rows = rows.filter((venta) => (venta.detalles ?? []).some((detalle) => {
         const meta = getProductoMeta(detalle.inventario)
-        if (query.productId && Number(meta.id) !== Number(query.productId)) return false
+        if (productId !== null && Number(meta.id) !== Number(productId)) return false
         if (query.categoryId && Number(meta.idCategoria) !== Number(query.categoryId)) return false
         return true
       }))
@@ -364,20 +379,21 @@ export default class ReportesService {
     const { from, to } = normalizeRange(query, 30)
     const groupBy = String(query.groupBy || 'month').toLowerCase()
     const reportType = String(query.reportType || 'movimientos').toLowerCase()
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
 
     const where = { Fecha: { [Op.between]: [from, to] } }
     if (query.employeeId) where.IdEmpleado = Number(query.employeeId)
 
     let rows = plainList(await models.MovimientoStock.findAll({ where, include: includesForMovimiento(), order: [['Fecha', 'DESC']] }))
 
-    if (query.branchId) {
-      const branchId = Number(query.branchId)
-      rows = rows.filter((movimiento) => Number(movimiento.inventario?.IdSucursal) === branchId)
+    if (idSucursal !== null) {
+      rows = rows.filter((movimiento) => Number(movimiento.inventario?.IdSucursal) === idSucursal)
     }
-    if (query.productId || query.categoryId) {
+    if (productId !== null || query.categoryId) {
       rows = rows.filter((movimiento) => {
         const meta = getProductoMeta(movimiento.inventario)
-        if (query.productId && Number(meta.id) !== Number(query.productId)) return false
+        if (productId !== null && Number(meta.id) !== Number(productId)) return false
         if (query.categoryId && Number(meta.idCategoria) !== Number(query.categoryId)) return false
         return true
       })
@@ -417,8 +433,8 @@ export default class ReportesService {
         }))
         const stockLimit = Number(query.stockMax ?? query.limitStock ?? 20)
         resultRows = inventoryRows.filter((inventario) => {
-          if (query.branchId && Number(inventario.IdSucursal) !== Number(query.branchId)) return false
-          if (query.productId && Number(inventario.IdArticulo) !== Number(query.productId)) return false
+          if (idSucursal !== null && Number(inventario.IdSucursal) !== idSucursal) return false
+          if (productId !== null && Number(inventario.IdArticulo) !== Number(productId)) return false
           if (query.categoryId) {
             const categoryId = inventario.articulo?.modelo?.IdCategoriaArticulo ?? inventario.articulo?.modelo?.IdCategoriaProducto
             if (Number(categoryId) !== Number(query.categoryId)) return false
@@ -470,8 +486,8 @@ export default class ReportesService {
           ]
         }))
         resultRows = inventoryRows.filter((inventario) => {
-          if (query.branchId && Number(inventario.IdSucursal) !== Number(query.branchId)) return false
-          if (query.productId && Number(inventario.IdArticulo) !== Number(query.productId)) return false
+          if (idSucursal !== null && Number(inventario.IdSucursal) !== idSucursal) return false
+          if (productId !== null && Number(inventario.IdArticulo) !== Number(productId)) return false
           if (query.categoryId) {
             const categoryId = inventario.articulo?.modelo?.IdCategoriaArticulo ?? inventario.articulo?.modelo?.IdCategoriaProducto
             if (Number(categoryId) !== Number(query.categoryId)) return false
@@ -504,12 +520,17 @@ export default class ReportesService {
     const { from, to } = normalizeRange(query, 30)
     const groupBy = String(query.groupBy || 'month').toLowerCase()
     const reportType = String(query.reportType || 'productividad').toLowerCase()
+    const idSucursal = resolveIdSucursal(query)
 
     const where = { FechaEmision: { [Op.between]: [from, to] } }
     if (query.technicianId) where.IdEmpleado = Number(query.technicianId)
     if (query.statusId) where.IdEstadoOrden = Number(query.statusId)
 
     let rows = plainList(await models.OrdenReparacion.findAll({ where, include: includesForReparacion(), order: [['FechaEmision', 'DESC']] }))
+
+    if (idSucursal !== null) {
+      rows = rows.filter((reparacion) => Number(reparacion.empleado?.IdSucursal) === idSucursal)
+    }
 
     if (query.deviceTypeId || query.brandId || query.failureId) {
       rows = rows.filter((reparacion) => {
@@ -581,6 +602,125 @@ export default class ReportesService {
     }
 
     if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Reporte reparaciones', reportType)
+    return { reportType, period: { from: from.toISOString(), to: to.toISOString() }, groupBy, rows: resultRows }
+  }
+
+  async getCajaReport(query = {}, ctx = null) {
+    const { from, to } = normalizeRange(query, 30)
+    const reportType = String(query.reportType || 'cierres').toLowerCase()
+    const idSucursal = resolveIdSucursal(query)
+
+    let resultRows = []
+
+    if (reportType === 'movimientos') {
+      const where = { Fecha: { [Op.between]: [from, to] } }
+      let rows = plainList(await models.MovimientoCaja.findAll({ where, include: includesForMovimientoCaja(), order: [['Fecha', 'DESC']] }))
+      
+      if (idSucursal !== null) {
+        rows = rows.filter(m => Number(m.turnoCaja?.IdSucursal) === idSucursal)
+      }
+
+      resultRows = rows.map(mov => ({
+        id: mov.Id,
+        turnId: mov.IdTurnoCaja,
+        period: mov.Fecha,
+        movementType: mov.TipoMovimiento,
+        totalAmount: toNumber(mov.Monto),
+        description: mov.Motivo || mov.Descripcion || '—',
+        employee: [mov.empleado?.Nombre, mov.empleado?.Apellido].filter(Boolean).join(' ') || `Empleado ${mov.IdEmpleado}`
+      }))
+    } else {
+      // Para 'cierres' y 'arqueos'
+      const where = { FechaApertura: { [Op.between]: [from, to] } }
+      if (idSucursal !== null) where.IdSucursal = idSucursal
+
+      let rows = plainList(await models.TurnoCaja.findAll({ where, include: includesForTurnoCaja(), order: [['FechaApertura', 'DESC']] }))
+
+      resultRows = rows.map(turno => {
+        const esperado = toNumber(turno.MontoEsperado || turno.TotalCalculado || 0)
+        const real = toNumber(turno.MontoReal || turno.TotalCierre || 0)
+        const nombreCajero = [turno.empleadoApertura?.Nombre, turno.empleadoApertura?.Apellido].filter(Boolean).join(' ') 
+          || `Cajero ${turno.IdEmpleadoApertura || 'Desconocido'}`
+        return {
+          id: turno.Id,
+          turnId: turno.Id,
+          branchId: turno.IdSucursal,
+          branch: turno.sucursal?.Nombre || '—',
+          cashier: nombreCajero,
+          openingDate: turno.FechaApertura,
+          closingDate: turno.FechaCierre || '—',
+          expectedAmount: esperado,
+          actualAmount: real,
+          cashDifference: real - esperado
+        }
+      })
+
+      if (reportType === 'arqueos') {
+        // Filtramos solo los turnos donde hubo diferencia de plata
+        resultRows = resultRows.filter(r => r.cashDifference !== 0)
+      }
+    }
+
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Reporte caja', reportType)
+    return { reportType, period: { from: from.toISOString(), to: to.toISOString() }, rows: resultRows }
+  }
+
+  // 🔥 NUEVOS REPORTES DE FINANZAS
+  async getFinanzasReport(query = {}, ctx = null) {
+    const { from, to } = normalizeRange(query, 30)
+    const groupBy = String(query.groupBy || 'month').toLowerCase()
+    const reportType = String(query.reportType || 'flujo-caja').toLowerCase()
+    const idSucursal = resolveIdSucursal(query)
+
+    // Buscamos Ventas
+    const whereVentas = { Fecha: { [Op.between]: [from, to] } }
+    let ventas = plainList(await models.Venta.findAll({ where: whereVentas, include: includesForVenta() }))
+    if (idSucursal !== null) ventas = ventas.filter(v => Number(v.turnoCaja?.IdSucursal) === idSucursal)
+
+    // Buscamos Compras
+    const whereCompras = { Fecha: { [Op.between]: [from, to] } }
+    if (idSucursal !== null) whereCompras.IdSucursalDestino = idSucursal
+    const compras = plainList(await models.Compra.findAll({ where: whereCompras }))
+
+    const byPeriod = new Map()
+
+    // Procesamos Ingresos (Ventas)
+    for (const venta of ventas) {
+      const period = periodKey(venta.Fecha, groupBy)
+      if (!byPeriod.has(period)) byPeriod.set(period, { period, totalIncome: 0, totalExpense: 0, totalSalesCost: 0 })
+      const bucket = byPeriod.get(period)
+      bucket.totalIncome += toNumber(venta.TotalVenta)
+      bucket.totalSalesCost += toNumber(venta.TotalCosto) // Para calcular rentabilidad pura
+    }
+
+    // Procesamos Egresos (Compras)
+    for (const compra of compras) {
+      const period = periodKey(compra.Fecha, groupBy)
+      if (!byPeriod.has(period)) byPeriod.set(period, { period, totalIncome: 0, totalExpense: 0, totalSalesCost: 0 })
+      const bucket = byPeriod.get(period)
+      bucket.totalExpense += toNumber(compra.TotalCosto)
+    }
+
+    let resultRows = Array.from(byPeriod.values()).sort((a, b) => String(a.period).localeCompare(String(b.period)))
+
+    resultRows = resultRows.map(item => {
+      if (reportType === 'rentabilidad') {
+        return {
+          period: item.period,
+          totalAmount: item.totalIncome, // Ingresos por venta
+          totalCost: item.totalSalesCost, // Costo de la mercadería vendida
+          netProfit: item.totalIncome - item.totalSalesCost // Rentabilidad neta sobre ventas
+        }
+      }
+      return {
+        period: item.period,
+        totalIncome: item.totalIncome,
+        totalExpense: item.totalExpense,
+        netProfit: item.totalIncome - item.totalExpense // Flujo de caja libre (Ingresos - Egresos generales)
+      }
+    })
+
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Reporte finanzas', reportType)
     return { reportType, period: { from: from.toISOString(), to: to.toISOString() }, groupBy, rows: resultRows }
   }
 }

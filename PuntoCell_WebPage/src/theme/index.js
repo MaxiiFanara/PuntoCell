@@ -9,6 +9,13 @@ export const SANS = 'Archivo, ui-sans-serif, system-ui, -apple-system, "Segoe UI
 export const ROW_HEIGHT = 46
 export const CONTROL_HEIGHT = 32
 
+// Ritmo de la cara pública (landing + catálogo). El panel interno conserva su
+// propia densidad: estos valores no los consume ninguna pantalla de /app.
+export const PUBLIC_MAXW      = 1180
+export const PUBLIC_GUTTER    = 'clamp(1.5rem, 4vw, 3rem)'
+export const PUBLIC_SECTION_Y = 'clamp(5rem, 9vw, 9rem)'
+export const PUBLIC_CONTROL_H = 48
+
 const light = {
   primary:   { main: '#12684e', light: '#e7f1ec', dark: '#0d5240', contrastText: '#ffffff' },
   secondary: { main: '#625e57', light: '#f0eee9', dark: '#3f3c37', contrastText: '#ffffff' },
@@ -23,6 +30,12 @@ const light = {
     surfaceMuted: '#fbfaf8',
     dividerSoft:  '#f0eee9',
     accentSoft:   '#e7f1ec',
+    // Texto atenuado que SÍ pasa AA. `text.disabled` (#918c83) mide 3.3:1 sobre
+    // blanco y estaba usándose como texto real (el label de categoría de la card,
+    // el contador del catálogo, los breadcrumbs). Éste mide 5.1:1 sobre paper y
+    // 4.6:1 sobre el fondo. `text.disabled` queda sólo para lo que de verdad está
+    // deshabilitado.
+    textMuted:    '#746e64',
     lift:    '0 1px 1px rgba(15,23,41,.04), 0 2px 8px -3px rgba(15,23,41,.08)',
     liftPop: '0 2px 4px rgba(15,23,41,.08), 0 24px 48px -16px rgba(15,23,41,.32)',
   },
@@ -42,6 +55,9 @@ const dark = {
     surfaceMuted: '#221f1b',
     dividerSoft:  '#26231e',
     accentSoft:   '#163026',
+    // En oscuro el atenuado y el secundario colapsan en el mismo valor: sobre
+    // `background.paper` cualquier cosa más apagada cae por debajo de 4.5:1.
+    textMuted:    '#a39d93',
     lift:    '0 1px 1px rgba(0,0,0,.3), 0 2px 8px -3px rgba(0,0,0,.5)',
     liftPop: '0 2px 4px rgba(0,0,0,.4), 0 24px 48px -16px rgba(0,0,0,.72)',
   },
@@ -72,6 +88,15 @@ const theme = createTheme({
     body2: { fontSize: '.78rem',   lineHeight: 1.45 },
     caption: { fontSize: '.72rem' },
     button: { fontWeight: 600, letterSpacing: 0 },
+    // Escala display de la cara pública. El h1 del panel mide 2rem y no sostiene
+    // una apertura de tienda; estas tres variantes sólo las usan landing y catálogo.
+    // Peso 600, nunca 700 u 800: la escala hace el trabajo, el grosor grita.
+    d1: { fontFamily: SANS, fontSize: 'clamp(2.25rem, 4.6vw, 3.5rem)', fontWeight: 600, letterSpacing: '-.035em', lineHeight: 1.05 },
+    d2: { fontFamily: SANS, fontSize: 'clamp(1.75rem, 3.2vw, 2.5rem)',  fontWeight: 600, letterSpacing: '-.032em', lineHeight: 1.1 },
+    d3: { fontFamily: SANS, fontSize: 'clamp(1.35rem, 2.2vw, 1.75rem)', fontWeight: 600, letterSpacing: '-.028em', lineHeight: 1.2 },
+    // Cuerpo de la cara pública: más grande y más aireado que el body1 del panel.
+    publicBody: { fontFamily: SANS, fontSize: '1.0625rem', lineHeight: 1.65 },
+
     // Eyebrow: la etiqueta chica en mayúsculas que encabeza cada bloque del mockup.
     eyebrow: {
       fontFamily: SANS,
@@ -97,6 +122,31 @@ const theme = createTheme({
           outline: `2px solid ${t.vars.palette.primary.main}`,
           outlineOffset: 2,
           borderRadius: 4,
+        },
+        // Superficies que el navegador dibuja y que no pertenecen a ningún
+        // sistema de diseño si no se las tematiza.
+        '::selection': {
+          background: t.vars.palette.pc.accentSoft,
+          color: t.vars.palette.primary.main,
+        },
+        html: { caretColor: t.vars.palette.primary.main, scrollbarColor: `${t.vars.palette.text.disabled} transparent`, scrollbarWidth: 'thin' },
+        '::-webkit-scrollbar': { width: 12, height: 12 },
+        '::-webkit-scrollbar-track': { background: 'transparent' },
+        '::-webkit-scrollbar-thumb': {
+          background: t.vars.palette.divider,
+          border: `3.5px solid ${t.vars.palette.background.default}`,
+          borderRadius: 99,
+        },
+        '::-webkit-scrollbar-thumb:hover': { background: t.vars.palette.text.disabled },
+        a: { textUnderlineOffset: 3, textDecorationThickness: 1 },
+        // Sobre un campo `primary` el anillo verde desaparece: ahí el foco va en
+        // el color de contraste. La banda de cierre marca ese bloque con la clase.
+        '.on-primary :focus-visible': { outlineColor: t.vars.palette.primary.contrastText },
+        // Entrada de la apertura de la cara pública. Es el único movimiento de
+        // entrada del sistema; todo lo demás es estado.
+        '@keyframes pcRise': {
+          from: { opacity: 0, transform: 'translateY(8px)' },
+          to:   { opacity: 1, transform: 'none' },
         },
       }),
     },
@@ -359,40 +409,5 @@ const theme = createTheme({
     },
   },
 })
-
-// Tokens que consume la vitrina pública (features/catalogo/*). Antes vivían en un tema
-// propio del catálogo (theme/presets/puntocell.js); ahora el catálogo hereda este tema
-// único, así que se exponen acá apuntando a las CSS vars del tema para que respondan a
-// claro/oscuro. Los valores de acento usan el verde primary del sistema.
-theme.custom = {
-  navbar: {
-    background: 'var(--pc-palette-background-paper)',
-    blur: 'blur(10px)',
-    border: '1px solid var(--pc-palette-divider)',
-  },
-  hero: {
-    overlay: 'linear-gradient(90deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.25) 100%)',
-    blur: 'var(--pc-palette-pc-accentSoft)',
-    buttonGradient: 'var(--pc-palette-primary-main)',
-  },
-  cards: {
-    hover: 'var(--pc-palette-pc-liftPop)',
-    border: 'var(--pc-palette-divider)',
-    softBackground: 'var(--pc-palette-pc-surfaceMuted)',
-  },
-  footer: {
-    background: 'var(--pc-palette-background-paper)',
-  },
-  chips: {
-    activeBg: 'var(--pc-palette-primary-main)',
-    activeColor: 'var(--pc-palette-primary-contrastText)',
-    defaultBg: 'var(--pc-palette-background-paper)',
-    defaultColor: 'var(--pc-palette-text-secondary)',
-    hoverBg: 'var(--pc-palette-pc-surfaceMuted)',
-  },
-  grid: {
-    spacing: 3,
-  },
-}
 
 export default theme

@@ -59,12 +59,21 @@ const DASHBOARD_MODULES = [
   },
   {
     id: 'financiero',
-    title: 'Financiero / Caja',
+    title: 'Financiero',
     desc: 'Ingresos, Egresos y Márgenes por producto o marca.',
     path: '/app/dashboard/financiero',
     icon: AccountBalanceWallet,
     color: 'success.main',
     bgIcon: 'success.light'
+  },
+  {
+    id: 'caja',
+    title: 'Caja',
+    desc: 'Control de caja y transacciones financieras.',
+    path: '/app/dashboard/caja',
+    icon: AccountBalanceWallet,
+    color: 'info.main',
+    bgIcon: 'info.light'
   }
 ];
 

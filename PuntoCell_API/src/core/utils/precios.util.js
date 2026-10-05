@@ -4,7 +4,7 @@
 // categoría (típicamente minorista + mayorista), todas con el mismo CostoBase.
 // Cálculo idéntico a precios-articulos.service.js::computeFields.
 
-export const FACTOR_COSTOS_VARIABLES = 0.26;
+
 
 const round2 = (v) => Number(Number(v || 0).toFixed(2));
 
@@ -30,9 +30,9 @@ export async function resolverListasPrecioCategoria(sequelize, idCategoria, t = 
   return listas;
 }
 
-// Cierra los PrecioArticulo vigentes del renglón y crea uno nuevo por cada lista, todos
-// con el mismo CostoBase; cada lista calcula su ValorFinal según su % de rentabilidad.
-// No hace nada si no hay listas o el costo no es > 0. Devuelve los PrecioArticulo creados.
+// Cierra los PrecioArticulo vigentes del renglón y crea uno nuevo por cada lista.
+// CostoBase es el mismo para todas, pero el CostoVariables y ValorFinal se calculan
+// individualmente usando el FactorCostosVariables y PorcentajeRentabilidad de cada lista.
 export async function reprecificarInventario(sequelize, { IdInventario, CostoBase, listas }, t = null) {
   const { PrecioArticulo } = sequelize.models;
   const opts = t ? { transaction: t } : {};
@@ -46,17 +46,20 @@ export async function reprecificarInventario(sequelize, { IdInventario, CostoBas
   );
 
   const base = round2(CostoBase);
-  const cv = round2(base * FACTOR_COSTOS_VARIABLES);
-  const cr = round2(base + cv);
-
   const creados = [];
+  
   for (const lista of listas) {
+    const factorCv = Number(lista.FactorCostosVariables || 0) / 100;
     const pct = Number(lista.PorcentajeRentabilidad || 0);
+    
+    const cv = round2(base * factorCv);
+    const cr = round2(base + cv);
+
     creados.push(await PrecioArticulo.create({
       IdInventario,
       IdListaPrecio: lista.Id,
       CostoBase: base,
-      CostosVariables: cv,
+      CostoVariables: cv,
       CostoReal: cr,
       PorcentajeGanancia: pct,
       ValorFinal: round2(cr * (1 + pct / 100)),
@@ -67,13 +70,9 @@ export async function reprecificarInventario(sequelize, { IdInventario, CostoBas
   return creados;
 }
 
-// Cuando cambia el % de rentabilidad de una ListaPrecio, ningún PrecioArticulo debe quedar
-// calculado con el % viejo: cierra TODOS los renglones vigentes de esa lista y crea uno
-// nuevo por cada uno con el mismo CostoBase/CostoReal (el costo no cambió) pero el nuevo
-// % y ValorFinal. Mismo patrón de historial que reprecificarInventario — nunca se pisa un
-// registro. Devuelve los PrecioArticulo recreados (longitud = cuántos productos se vieron
-// afectados). No hace nada si la lista no tiene ningún precio vigente todavía.
-export async function repreciarPorLista(sequelize, { IdListaPrecio, PorcentajeRentabilidad }, t = null) {
+// Cuando cambia el % de rentabilidad o el factor de costos de una ListaPrecio:
+// Cierra TODOS los renglones vigentes de esa lista y crea uno nuevo por cada uno.
+export async function repreciarPorLista(sequelize, { IdListaPrecio, PorcentajeRentabilidad, FactorCostosVariables }, t = null) {
   const { PrecioArticulo } = sequelize.models;
   const opts = t ? { transaction: t } : {};
 
@@ -82,23 +81,30 @@ export async function repreciarPorLista(sequelize, { IdListaPrecio, PorcentajeRe
 
   const ahora = new Date();
   const pct = Number(PorcentajeRentabilidad || 0);
+  const factorCv = Number(FactorCostosVariables || 0) / 100;
 
   await PrecioArticulo.update(
     { FechaHasta: ahora },
     { where: { IdListaPrecio, FechaHasta: null }, ...opts }
   );
 
-  const nuevos = vigentes.map((p) => ({
-    IdInventario: p.IdInventario,
-    IdListaPrecio,
-    CostoBase: p.CostoBase,
-    CostosVariables: p.CostosVariables,
-    CostoReal: p.CostoReal,
-    PorcentajeGanancia: pct,
-    ValorFinal: round2(Number(p.CostoReal) * (1 + pct / 100)),
-    FechaDesde: ahora,
-    FechaHasta: null
-  }));
+  const nuevos = vigentes.map((p) => {
+    const base = Number(p.CostoBase);
+    const cv = round2(base * factorCv);
+    const cr = round2(base + cv);
+
+    return {
+      IdInventario: p.IdInventario,
+      IdListaPrecio,
+      CostoBase: base,
+      CostoVariables: cv,
+      CostoReal: cr,
+      PorcentajeGanancia: pct,
+      ValorFinal: round2(cr * (1 + pct / 100)),
+      FechaDesde: ahora,
+      FechaHasta: null
+    };
+  });
 
   return PrecioArticulo.bulkCreate(nuevos, opts);
 }

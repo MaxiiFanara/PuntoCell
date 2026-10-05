@@ -1,15 +1,15 @@
 import { Op } from 'sequelize'
 import { auditar } from '../../core/utils/audit.util.js'
 import { models } from '../../models/index.js'
-import { getProductoMeta, includesForProducto, normalizeRange, periodKey, plainList, sortDesc, toNumber } from './dashboard.utils.js'
+import { getProductoMeta, includesForProducto, normalizeRange, periodKey, plainList, resolveIdSucursal, resolveProductId, sortDesc, toNumber } from './dashboard.utils.js'
 
 const VALID_GRAN = ['day', 'week', 'month', 'year']
 
 const rangeToWhere = (field, from, to) => ({ [field]: { [Op.between]: [from, to] } })
 const sum = (rows, mapper) => rows.reduce((total, item) => total + toNumber(mapper(item)), 0)
 
-const buildVentaIncludes = () => ([
-  { model: models.TurnoCaja, as: 'turnoCaja', attributes: ['Id', 'IdSucursal'], required: false, include: [{ model: models.Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'], required: false }] },
+const buildVentaIncludes = (idSucursal = null) => ([
+  { model: models.TurnoCaja, as: 'turnoCaja', attributes: ['Id', 'IdSucursal'], required: idSucursal !== null, ...(idSucursal !== null ? { where: { IdSucursal: idSucursal } } : {}), include: [{ model: models.Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'], required: false }] },
   { model: models.Usuario, as: 'cliente', attributes: ['Id', 'Nombre', 'Apellido', 'DNI'], required: false },
   { model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido'], required: false },
   { model: models.PagoVenta, as: 'pagos', attributes: ['Id', 'Monto', 'IdMetodoPago', 'FechaPago'], required: false, include: [{ model: models.MetodoPago, as: 'metodoPago', attributes: ['Id', 'Nombre'], required: false }] },
@@ -24,13 +24,22 @@ const buildCompraIncludes = () => ([
 ])
 
 const buildRepairIncludes = () => ([
-  { model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido'], required: false },
+  { model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido', 'IdSucursal'], required: false, include: [{ model: models.Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'], required: false }] },
   { model: models.EstadoOrden, as: 'estado', attributes: ['Id', 'Nombre'], required: false },
   { model: models.DispositivoCliente, as: 'dispositivo', attributes: ['Id', 'IdModeloArticulo', 'IdCliente'], required: false, include: [{ model: models.ModeloArticulo, as: 'modelo', attributes: ['Id', 'Nombre', 'IdMarcaArticulo', 'IdCategoriaArticulo'], required: false, include: [{ model: models.MarcaArticulo, as: 'marca', attributes: ['Id', 'Nombre'], required: false }, { model: models.CategoriaArticulo, as: 'categoria', attributes: ['Id', 'Nombre'], required: false }] }] },
   { model: models.Falla, as: 'fallas', through: { attributes: [] }, attributes: ['Id', 'Nombre'], required: false },
 ])
 
-const buildMovimientoIncludes = () => ([
+const getDetalleProductId = (detalle) => detalle?.inventario?.IdProducto ?? detalle?.inventario?.IdArticulo ?? detalle?.IdArticulo ?? null
+
+const hasProductInSale = (venta, productId) => {
+  if (productId === null) return true
+  return (venta.detalles ?? []).some((detalle) => Number(getDetalleProductId(detalle)) === Number(productId))
+}
+
+const filterSalesByProduct = (rows, productId) => (productId === null ? rows : rows.filter((row) => hasProductInSale(row, productId)))
+
+const buildMovimientoIncludes = (idSucursal = null) => ([
   { model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido'], required: false },
   { model: models.Inventario, as: 'inventario', attributes: ['Id', 'IdArticulo', 'IdSucursal', 'Stock'], required: false, include: [{ model: models.Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'], required: false }, { model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre', 'IdModeloArticulo'], required: false, include: [{ model: models.ModeloArticulo, as: 'modelo', attributes: ['Id', 'Nombre', 'IdMarcaArticulo', 'IdCategoriaArticulo'], required: false, include: [{ model: models.MarcaArticulo, as: 'marca', attributes: ['Id', 'Nombre'], required: false }, { model: models.CategoriaArticulo, as: 'categoria', attributes: ['Id', 'Nombre'], required: false }] }] }] },
 ])
@@ -48,11 +57,12 @@ export default class DashboardService {
   }
 
   async getSummary(query = {}, ctx = null) {
+    const idSucursal = resolveIdSucursal(query)
     const [ventas, compras, reparaciones, inventario] = await Promise.all([
-      models.Venta.count(),
-      models.Compra.count(),
-      models.OrdenReparacion.count(),
-      models.Inventario.count(),
+      models.Venta.count({ include: idSucursal === null ? [] : [{ model: models.TurnoCaja, as: 'turnoCaja', attributes: [], required: true, where: { IdSucursal: idSucursal } }] }),
+      models.Compra.count({ where: idSucursal === null ? {} : { IdSucursalDestino: idSucursal } }),
+      models.OrdenReparacion.count({ include: idSucursal === null ? [] : [{ model: models.Usuario, as: 'empleado', attributes: [], required: true, where: { IdSucursal: idSucursal } }] }),
+      models.Inventario.count({ where: idSucursal === null ? {} : { IdSucursal: idSucursal } }),
     ])
 
     if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó resumen de dashboard', 'summary')
@@ -62,7 +72,9 @@ export default class DashboardService {
   async getSalesEvolution(query = {}, ctx = null) {
     const { from, to } = normalizeRange(query, 29)
     const gran = VALID_GRAN.includes(String(query.granularity || '').toLowerCase()) ? String(query.granularity).toLowerCase() : 'day'
-    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), attributes: ['Id', 'Fecha', 'TotalVenta'], order: [['Fecha', 'ASC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
+    const rows = filterSalesByProduct(plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), attributes: ['Id', 'Fecha', 'TotalVenta'], include: buildVentaIncludes(idSucursal).slice(0, 1), order: [['Fecha', 'ASC']], limit: 1000 })), productId)
     const buckets = new Map()
     for (const venta of rows) {
       const key = periodKey(venta.Fecha, gran)
@@ -76,7 +88,9 @@ export default class DashboardService {
 
   async getSalesByCategory(query = {}, ctx = null) {
     const { from, to } = normalizeRange(query, 29)
-    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
+    const rows = filterSalesByProduct(plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(idSucursal), order: [['Fecha', 'DESC']], limit: 1000 })), productId)
     const categoryMap = new Map()
     for (const venta of rows) {
       for (const detalle of venta.detalles ?? []) {
@@ -94,7 +108,9 @@ export default class DashboardService {
 
   async getParetoProducts(query = {}, ctx = null) {
     const { from, to } = normalizeRange(query, 29)
-    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
+    const rows = filterSalesByProduct(plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(idSucursal), order: [['Fecha', 'DESC']], limit: 1000 })), productId)
     const products = new Map()
     for (const venta of rows) {
       for (const detalle of venta.detalles ?? []) {
@@ -119,7 +135,9 @@ export default class DashboardService {
 
   async getPriceQuantityScatter(query = {}, ctx = null) {
     const { from, to } = normalizeRange(query, 29)
-    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
+    const rows = filterSalesByProduct(plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(idSucursal), order: [['Fecha', 'DESC']], limit: 1000 })), productId)
     const products = new Map()
     for (const venta of rows) {
       for (const detalle of venta.detalles ?? []) {
@@ -141,9 +159,11 @@ export default class DashboardService {
     const compTo = new Date(to)
     compFrom.setMonth(compFrom.getMonth() - 1)
     compTo.setMonth(compTo.getMonth() - 1)
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
 
-    const baseRows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
-    const compRows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', compFrom, compTo), include: buildVentaIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
+    const baseRows = filterSalesByProduct(plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(idSucursal), order: [['Fecha', 'DESC']], limit: 1000 })), productId)
+    const compRows = filterSalesByProduct(plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', compFrom, compTo), include: buildVentaIncludes(idSucursal), order: [['Fecha', 'DESC']], limit: 1000 })), productId)
 
     const aggregate = (rows) => {
       const map = new Map()
@@ -179,7 +199,9 @@ export default class DashboardService {
 
   async getSalesByPaymentMethod(query = {}, ctx = null) {
     const { from, to } = normalizeRange(query, 29)
-    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
+    const rows = filterSalesByProduct(plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(idSucursal), order: [['Fecha', 'DESC']], limit: 1000 })), productId)
     const map = new Map()
     for (const venta of rows) {
       for (const pago of venta.pagos ?? []) {
@@ -196,16 +218,18 @@ export default class DashboardService {
 
   async getSalesByBranch(query = {}, ctx = null) {
     const { from, to } = normalizeRange(query, 29)
-    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
+    const rows = filterSalesByProduct(plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaIncludes(idSucursal), order: [['Fecha', 'DESC']], limit: 1000 })), productId)
     const map = new Map()
     for (const venta of rows) {
-      const branchId = venta.turnoCaja?.IdSucursal ?? null
-      const branchName = venta.turnoCaja?.sucursal?.Nombre ?? `Sucursal ${branchId ?? 'N/A'}`
+      const idSucursal = venta.turnoCaja?.IdSucursal ?? null
+      const branchName = venta.turnoCaja?.sucursal?.Nombre ?? `Sucursal ${idSucursal ?? 'N/A'}`
       const totalVenta = toNumber(venta.TotalVenta)
       const totalCosto = toNumber(venta.TotalCosto)
       const units = sum(venta.detalles ?? [], (detalle) => detalle.Cantidad)
-      if (!map.has(branchId)) map.set(branchId, { id: branchId, sucursal: branchName, salesCount: 0, revenue: 0, cost: 0, units: 0 })
-      const bucket = map.get(branchId)
+      if (!map.has(idSucursal)) map.set(idSucursal, { id: idSucursal, sucursal: branchName, salesCount: 0, revenue: 0, cost: 0, units: 0 })
+      const bucket = map.get(idSucursal)
       bucket.salesCount += 1
       bucket.revenue += totalVenta
       bucket.cost += totalCosto

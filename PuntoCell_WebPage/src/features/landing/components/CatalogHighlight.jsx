@@ -1,85 +1,78 @@
-import { Box, Button, Paper, Typography } from '@mui/material';
-import SmartphoneIcon from '@mui/icons-material/Smartphone';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import { Box, Typography } from '@mui/material'
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
+import { Link } from 'react-router-dom'
 
-import StatusPill from '../../../components/ui/StatusPill';
-
-// Vidriera de ejemplo hasta que se enganche al catálogo real (/api/catalogo).
-const DESTACADOS = [
-  { name: 'iPhone 15 Pro Max', spec: '256 GB', price: 'U$S 1.199', estado: 'Nuevo' },
-  { name: 'iPhone 14 Pro',     spec: '128 GB', price: 'U$S 899',   estado: 'Seminuevo' },
-  { name: 'AirPods Pro',       spec: '2da gen', price: 'U$S 249',  estado: 'Nuevo' },
-  { name: 'Apple Watch S9',    spec: '45 mm',  price: 'U$S 399',   estado: 'Nuevo' },
-];
+import ProductCard from '../../catalogo/components/ProductCard'
+import ProductCardSkeleton from '../../catalogo/components/ProductCardSkeleton'
+import { useProducts } from '../../catalogo/context/ProductContext'
+import { section, shell } from '../../../components/ui/publicStyles'
 
 export default function CatalogHighlight() {
-  return (
-    <Box component="section" sx={{ px: 2.5, py: { xs: 8, md: 12 }, bgcolor: 'background.default', borderTop: 1, borderColor: 'divider' }}>
-      <Box sx={{ maxWidth: 1120, mx: 'auto' }}>
+  const { products, loading } = useProducts()
+  // Lo que se muestra acá es "lo que hay en el local ahora", no una selección
+  // editorial: el flag `featured` del contexto era literalmente stock > 0.
+  const disponibles = products.filter((p) => p.stock > 0).slice(0, 4)
 
-        <Box sx={{
-          display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
-          gap: 2, mb: { xs: 3.5, md: 5 }, flexWrap: 'wrap',
-        }}>
-          <Box>
-            <Box sx={{ typography: 'eyebrow', color: 'text.disabled', mb: 1 }}>Vidriera</Box>
-            <Typography component="h2" sx={{ fontSize: { xs: '1.75rem', md: '2.25rem' }, fontWeight: 600, letterSpacing: '-.03em' }}>
-              Equipos destacados
-            </Typography>
-            <Typography sx={{ mt: 1, fontSize: '1rem', color: 'text.secondary' }}>
-              Los modelos más buscados, con entrega inmediata.
-            </Typography>
-          </Box>
-          <Button href="/catalogo" endIcon={<ArrowForwardIcon sx={{ fontSize: '16px !important' }} />}>
+  if (!loading && disponibles.length === 0) return null
+
+  return (
+    <Box component="section" id="disponibles" sx={section(true)}>
+      <Box sx={shell}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            gap: 4,
+            flexWrap: 'wrap',
+          }}
+        >
+          <Typography component="h2" sx={{ typography: 'd2' }}>
+            Disponibles ahora
+          </Typography>
+
+          {/* La flecha que avanza 3px es la única coquetería de la página, y
+              sólo donde hay puntero fino. */}
+          <Box
+            component={Link}
+            to="/catalogo"
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 0.5,
+              color: 'text.primary',
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: '.9375rem',
+              lineHeight: 1,
+              '& svg': {
+                fontSize: 16,
+                transition: 'transform 220ms cubic-bezier(.23,1,.32,1)',
+              },
+              '@media (hover: hover) and (pointer: fine)': {
+                '&:hover svg': { transform: 'translateX(3px)' },
+              },
+            }}
+          >
             Ver todo el catálogo
-          </Button>
+            <ArrowForwardIcon />
+          </Box>
         </Box>
 
-        <Box sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' },
-          gap: 2,
-        }}>
-          {DESTACADOS.map((p) => (
-            <Paper
-              key={p.name}
-              sx={{
-                display: 'flex', flexDirection: 'column', overflow: 'hidden',
-                transition: 'border-color .2s',
-                '&:hover': { borderColor: 'primary.main' },
-              }}
-            >
-              {/* Marcador de foto. Antes venía de placehold.co: la vidriera
-                  dependía de un servicio externo para renderizar. */}
-              <Box sx={{
-                position: 'relative', height: 190,
-                bgcolor: 'pc.surfaceMuted',
-                borderBottom: 1, borderColor: 'pc.dividerSoft',
-                display: 'grid', placeItems: 'center',
-                color: 'text.disabled',
-              }}>
-                <SmartphoneIcon sx={{ fontSize: 44, opacity: .45 }} />
-                <Box sx={{ position: 'absolute', top: 10, right: 10 }}>
-                  <StatusPill tone={p.estado === 'Nuevo' ? 'ok' : 'flat'} label={p.estado} />
-                </Box>
-              </Box>
-
-              <Box sx={{ p: 2.25, display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1 }}>
-                <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>{p.spec}</Box>
-                <Typography component="h3" sx={{ fontWeight: 600, fontSize: '.95rem', letterSpacing: '-.015em' }}>
-                  {p.name}
-                </Typography>
-                <Typography className="mono" sx={{ mt: 0.5, fontSize: '1.15rem', fontWeight: 600, letterSpacing: '-.02em', color: 'primary.main' }}>
-                  {p.price}
-                </Typography>
-                <Button href="/catalogo" variant="outlined" fullWidth sx={{ mt: 1.75 }}>
-                  Ver detalle
-                </Button>
-              </Box>
-            </Paper>
-          ))}
+        <Box
+          sx={{
+            mt: 'clamp(2.5rem, 4.5vw, 3.5rem)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+            gap: 'clamp(1rem, 1.8vw, 1.5rem)',
+            alignItems: 'stretch',
+          }}
+        >
+          {loading
+            ? [...Array(4)].map((_, i) => <ProductCardSkeleton key={i} />)
+            : disponibles.map((p) => <ProductCard key={p.id} product={p} />)}
         </Box>
       </Box>
     </Box>
-  );
+  )
 }

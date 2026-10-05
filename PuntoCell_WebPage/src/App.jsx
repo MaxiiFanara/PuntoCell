@@ -12,6 +12,8 @@ import DashboardPage from './pages/DashboardPage';
 import CatalogoLayout from './features/catalogo/layouts/CatalogoLayout';
 import CatalogPage from './features/catalogo/views/CatalogPage';
 import ProductDetail from './features/catalogo/views/ProductDetail';
+import CheckoutPage from './features/catalogo/views/CheckoutPage';
+import PagoResultado from './features/catalogo/views/PagoResultado';
 
 // --- LAYOUTS Y VISTAS DE TU PROYECTO (VENTAS, STOCK, ADMIN) ---
 import AppLayout from './layouts/AppLayout';
@@ -31,6 +33,7 @@ import ComprasList from './features/compras/views/ComprasList';
 import PreciosScreen from './features/precios/precios';
 import { VentaProvider } from './features/punto-venta/context/VentaContext';
 import ThemeToggle from './components/ui/ThemeToggle';
+import CajaList from './features/caja/views/CajaList';
 
 // --- IMPORTACIONES DE DASHBOARDS
 import DashboardVentas from './features/dashboards/views/DashboardVentas';
@@ -39,6 +42,7 @@ import DashboardInventario from './features/dashboards/views/DashboardInventario
 import DashboardReparaciones from './features/dashboards/views/DashboardReparaciones';
 import DashboardControl from './features/dashboards/views/DashboardControl';
 import DashboardFinanciero from './features/dashboards/views/DashboardFinanciero';
+import DashboardCaja from './features/dashboards/views/DashboardCaja';
 
 // --- WRAPPERS DE SEGURIDAD ---
 const ProtectedRoute = ({ children }) => {
@@ -60,7 +64,7 @@ const App = () => (
   <AuthProvider>
     {/* Único switch de tema del sistema: fuera de <Routes> para que aparezca en
         todas las pantallas, públicas e internas. */}
-    <ThemeToggle />
+    
     <Routes>
       {/* ---------------- PUBLICAS ---------------- */}
       <Route path="/" element={<LandingPage />} />
@@ -75,6 +79,10 @@ const App = () => (
         <Route index element={<CatalogPage />} />
         {/* Ruta de detalle: /catalogo/product/123 */}
         <Route path="product/:id" element={<ProductDetail />} />
+        {/* Checkout: /catalogo/checkout */}
+        <Route path="checkout" element={<CheckoutPage />} />
+        {/* Vuelta desde Mercado Pago: /catalogo/pago/resultado */}
+        <Route path="pago/resultado" element={<PagoResultado />} />
       </Route>
 
       {/* ---------------- APP PRINCIPAL PROTEGIDA ---------------- */}
@@ -108,6 +116,7 @@ const App = () => (
           <Route path="reparaciones" element={<AdminRoute><DashboardReparaciones /></AdminRoute>} />
           <Route path="control" element={<AdminRoute><DashboardControl /></AdminRoute>} />
           <Route path="financiero" element={<AdminRoute><DashboardFinanciero /></AdminRoute>} />
+          <Route path="caja" element={<AdminRoute><DashboardCaja /></AdminRoute>} />
         </Route>
 
         {/* -------- VENTAS Y POS -------- */}
@@ -121,6 +130,9 @@ const App = () => (
 
         {/* -------- COMPRAS / ABASTECIMIENTO -------- */}
         <Route path="compras" element={<AdminRoute><ComprasList /></AdminRoute>} />
+
+        {/* -------- CAJA -------- */}
+        <Route path="caja" element={<AdminRoute><CajaList /></AdminRoute>} />
 
         {/* -------- PRECIOS -------- */}
         <Route path="precios" element={<AdminRoute><PreciosScreen /></AdminRoute>} />

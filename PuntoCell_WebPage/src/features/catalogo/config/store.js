@@ -1,9 +1,8 @@
 export const STORE_CONFIG = {
-  sections: [
-    'hero',
-    'featured',
-    'catalog',
-  ],
+  // Lo consume formatCurrency. Faltaba, así que Intl.NumberFormat caía al locale
+  // del navegador del visitante: con el navegador en inglés los precios salían
+  // "$1,871,100" en vez de "$1.871.100".
+  locale: 'es-AR',
 
   business: {
     name: 'Punto Cell',
@@ -31,38 +30,8 @@ export const STORE_CONFIG = {
     showLogo: true,
   },
 
-  hero: {
-    eyebrow: 'Punto Cell',
-
-    title:
-      'Tu próximo equipo, al mejor precio',
-
-    description:
-      'Encuentra los últimos modelos, repuestos originales y el servicio técnico más confiable para tu dispositivo.',
-
-    buttonText: 'Explorar colección',
-
-    image:
-      'https://images.unsplash.com/photo-1785741612674-965f99d5c38f?q=80&w=1752&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-
-    stats: [
-      {
-        value: 'Dispositivos Moviles',
-        label: 'Ultima tecnología',
-      },
-
-      {
-        value: 'Accesorios',
-        label: 'Toda la tecnología',
-      },
-    ],
-  },
-
   catalog: {
-    title: 'Colección',
-
-    subtitle:
-      'Explorá nuestra selección de productos.',
+    title: 'Catálogo',
 
     emptyState: {
       title:
@@ -76,14 +45,6 @@ export const STORE_CONFIG = {
   productPage: {
     installmentText:
       '',
-
-    benefits: [
-      'Envíos a todo el país',
-
-      'Medios de pago seguros',
-
-      'Productos seleccionados cuidadosamente',
-    ],
 
     addToCartText:
       'Agregar al carrito',

@@ -1,7 +1,7 @@
 import { Op } from 'sequelize'
 import { auditar } from '../../../core/utils/audit.util.js'
 import { models } from '../../../models/index.js'
-import { normalizeRange, periodKey, plainList, toNumber } from '../dashboard.utils.js'
+import { normalizeRange, periodKey, plainList, resolveIdSucursal, resolveProductId, toNumber } from '../dashboard.utils.js'
 
 const VALID_GRAN = ['day', 'week', 'month', 'year']
 const rangeToWhere = (field, from, to) => ({ [field]: { [Op.between]: [from, to] } })
@@ -9,12 +9,39 @@ const compraAttributes = ['Id', 'Fecha', 'TotalCosto', 'IdProveedor', 'IdSucursa
 
 const buildCompraIncludes = () => ([
   { model: models.Proveedor, as: 'proveedor', attributes: ['Id', 'Nombre'], required: false },
-  { model: models.DetalleCompra, as: 'detalles', attributes: ['Id', 'Cantidad', 'PrecioCostoUnitario', 'IdArticulo'], required: false, include: [{ model: models.Inventario, as: 'inventario', attributes: ['Id', 'IdArticulo', 'IdSucursal', 'Stock'], required: false }] },
+  { 
+    model: models.DetalleCompra, 
+    as: 'detalles', 
+    attributes: ['Id', 'Cantidad', 'PrecioCostoUnitario', 'IdArticulo'], 
+    required: false, 
+    include: [{ 
+      model: models.Inventario, 
+      as: 'inventario', 
+      attributes: ['Id', 'IdArticulo', 'IdSucursal', 'Stock'], 
+      required: false,
+      include: [{
+        // CORRECCIÓN: Agregamos el Articulo para poder leer el nombre real
+        model: models.Articulo,
+        as: 'articulo',
+        attributes: ['Id', 'Nombre'],
+        required: false
+      }]
+    }] 
+  },
 ])
 
 const buildVentaDetalleIncludes = () => ([
   { model: models.DetalleVenta, as: 'detalles', attributes: ['Id', 'Cantidad', 'PrecioUnitario', 'IdArticulo'], required: false, include: [{ model: models.Inventario, as: 'inventario', attributes: ['Id', 'IdArticulo', 'IdSucursal', 'Stock'], required: false, include: [{ model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre', 'IdModeloArticulo'], required: false, include: [{ model: models.ModeloArticulo, as: 'modelo', attributes: ['Id', 'Nombre', 'IdMarcaArticulo', 'IdCategoriaArticulo'], required: false, include: [{ model: models.MarcaArticulo, as: 'marca', attributes: ['Id', 'Nombre'], required: false }, { model: models.CategoriaArticulo, as: 'categoria', attributes: ['Id', 'Nombre'], required: false }] }] }] }] },
 ])
+
+const getDetalleProductId = (detalle) => detalle?.inventario?.IdProducto ?? detalle?.inventario?.IdArticulo ?? detalle?.IdArticulo ?? null
+
+const hasProductInPurchase = (compra, productId) => {
+  if (productId === null) return true
+  return (compra.detalles ?? []).some((detalle) => Number(getDetalleProductId(detalle)) === Number(productId))
+}
+
+const filterPurchasesByProduct = (rows, productId) => (productId === null ? rows : rows.filter((row) => hasProductInPurchase(row, productId)))
 
 export default class ComprasDashboardService {
   constructor(bitacoraService = null) { this.bitacoraService = bitacoraService }
@@ -24,7 +51,11 @@ export default class ComprasDashboardService {
   async getCostoEvolucion(query = {}, ctx = null) {
     const gran = VALID_GRAN.includes(String(query.granularity || '').toLowerCase()) ? String(query.granularity).toLowerCase() : 'day'
     const { from, to } = this._resolveRange(query, 29)
-    const rows = plainList(await models.Compra.findAll({ where: rangeToWhere('Fecha', from, to), attributes: ['Id', 'Fecha', 'TotalCosto'], order: [['Fecha', 'ASC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
+    const where = { ...rangeToWhere('Fecha', from, to) }
+    if (idSucursal !== null) where.IdSucursalDestino = idSucursal
+    const rows = filterPurchasesByProduct(plainList(await models.Compra.findAll({ where, attributes: ['Id', 'Fecha', 'TotalCosto'], order: [['Fecha', 'ASC']], limit: 1000 })), productId)
     const buckets = new Map()
     for (const compra of rows) {
       const key = periodKey(compra.Fecha, gran)
@@ -38,7 +69,11 @@ export default class ComprasDashboardService {
 
   async getComprasPorProveedor(query = {}, ctx = null) {
     const { from, to } = this._resolveRange(query, 29)
-    const rows = plainList(await models.Compra.findAll({ where: rangeToWhere('Fecha', from, to), attributes: compraAttributes, include: buildCompraIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
+    const where = { ...rangeToWhere('Fecha', from, to) }
+    if (idSucursal !== null) where.IdSucursalDestino = idSucursal
+    const rows = filterPurchasesByProduct(plainList(await models.Compra.findAll({ where, attributes: compraAttributes, include: buildCompraIncludes(), order: [['Fecha', 'DESC']], limit: 1000 })), productId)
     const map = new Map()
     for (const compra of rows) {
       const id = compra.IdProveedor
@@ -50,13 +85,17 @@ export default class ComprasDashboardService {
     }
     const proveedores = Array.from(map.values()).sort((a, b) => b.totalComprado - a.totalComprado)
     if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó compras por proveedor', `from=${from.toISOString()} to=${to.toISOString()}`)
-    return { period: { from: from.toISOString(), to: to.toISOString() }, proveedores }
+    return { period: { from: from.toISOString(), to: to.toISOString(), proveedores } }
   }
 
   async getRankingProveedores(query = {}, ctx = null) {
     const { from, to } = this._resolveRange(query, 29)
     const order = String(query.order || 'monto').toLowerCase()
-    const rows = plainList(await models.Compra.findAll({ where: rangeToWhere('Fecha', from, to), attributes: compraAttributes, include: buildCompraIncludes(), order: [['Fecha', 'DESC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
+    const where = { ...rangeToWhere('Fecha', from, to) }
+    if (idSucursal !== null) where.IdSucursalDestino = idSucursal
+    const rows = filterPurchasesByProduct(plainList(await models.Compra.findAll({ where, attributes: compraAttributes, include: buildCompraIncludes(), order: [['Fecha', 'DESC']], limit: 1000 })), productId)
     const map = new Map()
     for (const compra of rows) {
       const id = compra.IdProveedor
@@ -82,16 +121,20 @@ export default class ComprasDashboardService {
   }
 
   async getEvolucionPrecioProducto(query = {}, ctx = null) {
-    if (!query.productoId) throw new Error('productoId is required')
+    const productId = resolveProductId(query)
+    if (productId === null) throw new Error('productId is required')
     const gran = VALID_GRAN.includes(String(query.granularity || '').toLowerCase()) ? String(query.granularity).toLowerCase() : 'month'
     const { from, to } = this._resolveRange(query, 150)
-    const rows = plainList(await models.Compra.findAll({ where: rangeToWhere('Fecha', from, to), attributes: compraAttributes, include: buildCompraIncludes(), order: [['Fecha', 'ASC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const where = { ...rangeToWhere('Fecha', from, to) }
+    if (idSucursal !== null) where.IdSucursalDestino = idSucursal
+    const rows = plainList(await models.Compra.findAll({ where, attributes: compraAttributes, include: buildCompraIncludes(), order: [['Fecha', 'ASC']], limit: 1000 }))
     const map = new Map()
     for (const compra of rows) {
       const key = periodKey(compra.Fecha, gran)
       for (const detalle of compra.detalles ?? []) {
-        const productId = detalle.inventario?.IdArticulo ?? detalle.IdArticulo
-        if (Number(productId) !== Number(query.productoId)) continue
+        const detalleProductId = detalle.inventario?.IdArticulo ?? detalle.IdArticulo
+        if (Number(detalleProductId) !== Number(productId)) continue
         if (!map.has(key)) map.set(key, { period: key, total: 0, count: 0 })
         const bucket = map.get(key)
         bucket.total += toNumber(detalle.PrecioCostoUnitario)
@@ -99,18 +142,22 @@ export default class ComprasDashboardService {
       }
     }
     const series = Array.from(map.values()).map((row) => ({ period: row.period, avgPrecio: row.count > 0 ? Number((row.total / row.count).toFixed(2)) : 0 })).sort((a, b) => String(a.period).localeCompare(String(b.period)))
-    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó evolución precio de compra', `producto=${query.productoId}`)
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó evolución precio de compra', `producto=${productId}`)
     return { period: { from: from.toISOString(), to: to.toISOString(), granularity: gran }, series }
   }
 
   async getVariacionPrecioProveedor(query = {}, ctx = null) {
     const { from, to } = this._resolveRange(query, 89)
-    const rows = plainList(await models.Compra.findAll({ where: rangeToWhere('Fecha', from, to), attributes: compraAttributes, include: buildCompraIncludes(), order: [['Fecha', 'ASC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
+    const where = { ...rangeToWhere('Fecha', from, to) }
+    if (idSucursal !== null) where.IdSucursalDestino = idSucursal
+    const rows = plainList(await models.Compra.findAll({ where, attributes: compraAttributes, include: buildCompraIncludes(), order: [['Fecha', 'ASC']], limit: 1000 }))
     const map = new Map()
     for (const compra of rows) {
       for (const detalle of compra.detalles ?? []) {
-        const productId = detalle.inventario?.IdArticulo ?? detalle.IdArticulo
-        if (query.productoId && Number(productId) !== Number(query.productoId)) continue
+        const detalleProductId = detalle.inventario?.IdArticulo ?? detalle.IdArticulo
+        if (productId !== null && Number(detalleProductId) !== Number(productId)) continue
         const id = compra.IdProveedor
         if (!map.has(id)) map.set(id, { id, proveedor: compra.proveedor?.Nombre ?? `Proveedor ${id}`, prices: [] })
         map.get(id).prices.push(toNumber(detalle.PrecioCostoUnitario))
@@ -123,12 +170,18 @@ export default class ComprasDashboardService {
 
   async getABCCompras(query = {}, ctx = null) {
     const { from, to } = this._resolveRange(query, 149)
-    const rows = plainList(await models.Compra.findAll({ where: rangeToWhere('Fecha', from, to), attributes: compraAttributes, include: buildCompraIncludes(), order: [['Fecha', 'ASC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const productId = resolveProductId(query)
+    const where = { ...rangeToWhere('Fecha', from, to) }
+    if (idSucursal !== null) where.IdSucursalDestino = idSucursal
+    const rows = filterPurchasesByProduct(plainList(await models.Compra.findAll({ where, attributes: compraAttributes, include: buildCompraIncludes(), order: [['Fecha', 'ASC']], limit: 1000 })), productId)
     const map = new Map()
     for (const compra of rows) {
       for (const detalle of compra.detalles ?? []) {
         const id = detalle.inventario?.IdArticulo ?? detalle.IdArticulo
-        if (!map.has(id)) map.set(id, { id, producto: `Producto ${id}`, total: 0 })
+        // CORRECCIÓN: Leemos el nombre real que unimos en buildCompraIncludes
+        const nombreReal = detalle.inventario?.articulo?.Nombre ?? `Producto ${id}`
+        if (!map.has(id)) map.set(id, { id, producto: nombreReal, total: 0 })
         map.get(id).total += toNumber(detalle.Cantidad) * toNumber(detalle.PrecioCostoUnitario)
       }
     }
@@ -148,40 +201,44 @@ export default class ComprasDashboardService {
   }
 
   async getPuntoReposicion(query = {}, ctx = null) {
-    if (!query.productoId) throw new Error('productoId is required')
+    const productId = resolveProductId(query)
+    if (productId === null) throw new Error('productId is required')
     const days = Number(query.days) || 90
     const leadTime = Number(query.leadTimeDays) || 7
     const { from, to } = this._resolveRange(query, days)
-    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaDetalleIncludes(), order: [['Fecha', 'ASC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaDetalleIncludes(idSucursal), order: [['Fecha', 'ASC']], limit: 1000 }))
     let totalQty = 0
     for (const venta of rows) {
       for (const detalle of venta.detalles ?? []) {
         const id = detalle.inventario?.IdProducto ?? detalle.inventario?.IdArticulo
-        if (Number(id) === Number(query.productoId)) totalQty += toNumber(detalle.Cantidad)
+        if (Number(id) === Number(productId)) totalQty += toNumber(detalle.Cantidad)
       }
     }
     const avgDaily = totalQty / days
     const reorderPoint = avgDaily * leadTime
-    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó punto de reposición', `producto=${query.productoId}`)
-    return { productoId: query.productoId, periodDays: days, avgDailyDemand: Number(avgDaily.toFixed(4)), leadTimeDays: leadTime, reorderPoint: Number(reorderPoint.toFixed(4)) }
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó punto de reposición', `producto=${productId}`)
+    return { productoId: productId, periodDays: days, avgDailyDemand: Number(avgDaily.toFixed(4)), leadTimeDays: leadTime, reorderPoint: Number(reorderPoint.toFixed(4)) }
   }
 
   async getStockSeguridad(query = {}, ctx = null) {
-    if (!query.productoId) throw new Error('productoId is required')
+    const productId = resolveProductId(query)
+    if (productId === null) throw new Error('productId is required')
     const days = Number(query.days) || 90
     const leadTime = Number(query.leadTimeDays) || 7
     const serviceLevel = Number(query.serviceLevel) || 0.95
     const zMap = { '0.9': 1.28, '0.95': 1.65, '0.99': 2.33 }
     const z = zMap[String(serviceLevel)] || 1.65
     const { from, to } = this._resolveRange(query, days)
-    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaDetalleIncludes(), order: [['Fecha', 'ASC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaDetalleIncludes(idSucursal), order: [['Fecha', 'ASC']], limit: 1000 }))
     const daily = new Map()
     for (const venta of rows) {
       const key = String(venta.Fecha).slice(0, 10)
       if (!daily.has(key)) daily.set(key, 0)
       for (const detalle of venta.detalles ?? []) {
         const id = detalle.inventario?.IdProducto ?? detalle.inventario?.IdArticulo
-        if (Number(id) === Number(query.productoId)) daily.set(key, daily.get(key) + toNumber(detalle.Cantidad))
+        if (Number(id) === Number(productId)) daily.set(key, daily.get(key) + toNumber(detalle.Cantidad))
       }
     }
     const values = Array.from(daily.values())
@@ -189,20 +246,22 @@ export default class ComprasDashboardService {
     const variance = values.reduce((s, x) => s + Math.pow(x - mean, 2), 0) / Math.max(1, values.length)
     const sd = Math.sqrt(variance)
     const safetyStock = z * (sd * Math.sqrt(leadTime))
-    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó stock de seguridad', `producto=${query.productoId}`)
-    return { productoId: query.productoId, meanDaily: Number(mean.toFixed(4)), sdDaily: Number(sd.toFixed(4)), leadTimeDays: leadTime, serviceLevel, z, safetyStock: Number(safetyStock.toFixed(4)) }
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó stock de seguridad', `producto=${productId}`)
+    return { productoId: productId, meanDaily: Number(mean.toFixed(4)), sdDaily: Number(sd.toFixed(4)), leadTimeDays: leadTime, serviceLevel, z, safetyStock: Number(safetyStock.toFixed(4)) }
   }
 
   async getEOQ(query = {}, ctx = null) {
-    if (!query.productoId) throw new Error('productoId is required')
+    const productId = resolveProductId(query)
+    if (productId === null) throw new Error('productId is required')
     const days = Number(query.days) || 365
     const { from, to } = this._resolveRange(query, days)
-    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaDetalleIncludes(), order: [['Fecha', 'ASC']], limit: 1000 }))
+    const idSucursal = resolveIdSucursal(query)
+    const rows = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), include: buildVentaDetalleIncludes(idSucursal), order: [['Fecha', 'ASC']], limit: 1000 }))
     let qty = 0
     for (const venta of rows) {
       for (const detalle of venta.detalles ?? []) {
         const id = detalle.inventario?.IdProducto ?? detalle.inventario?.IdArticulo
-        if (Number(id) === Number(query.productoId)) qty += toNumber(detalle.Cantidad)
+        if (Number(id) === Number(productId)) qty += toNumber(detalle.Cantidad)
       }
     }
     const annualDemand = (qty / Math.max(1, days)) * 365
@@ -210,7 +269,7 @@ export default class ComprasDashboardService {
     let holdingCost = Number(query.holdingCost || 0)
     if (!holdingCost) holdingCost = query.holdingCostPercent && query.unitCost ? Number(query.holdingCostPercent) * Number(query.unitCost) : 1
     const eoq = Math.sqrt((2 * annualDemand * orderingCost) / holdingCost)
-    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó EOQ', `producto=${query.productoId}`)
-    return { productoId: query.productoId, annualDemand: Number(annualDemand.toFixed(2)), orderingCost, holdingCost: Number(holdingCost.toFixed(4)), eoq: Number(eoq.toFixed(2)) }
+    if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó EOQ', `producto=${productId}`)
+    return { productoId: productId, annualDemand: Number(annualDemand.toFixed(2)), orderingCost, holdingCost: Number(holdingCost.toFixed(4)), eoq: Number(eoq.toFixed(2)) }
   }
 }

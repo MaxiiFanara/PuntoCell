@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography, IconButton,
   TextField, MenuItem, Grid, ToggleButton, ToggleButtonGroup, FormControlLabel, Switch,
-  Autocomplete, Divider, Alert, Chip
+  Autocomplete, Divider, Alert, Chip, InputAdornment
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -17,6 +17,9 @@ import Money from '../../../components/ui/Money';
 import NumberField from '../../../components/ui/NumberField';
 import EntityAutocomplete from '../../../components/ui/EntityAutocomplete';
 import { useVenta } from '../../punto-venta/context/VentaContext';
+
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
+import ImeiScannerModal from '../../../components/modals/ImeiScannerModal';
 
 const ID_TURNO_CAJA = 1; // seed fijo — el módulo de caja de la API todavía no está expuesto
 const hoy = () => new Date().toISOString().slice(0, 10);
@@ -87,6 +90,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
   const [idMetodoPago, setIdMetodoPago] = useState('');
 
   const [lineas, setLineas] = useState([lineaVacia()]);
+  const [scannerTarget, setScannerTarget] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
@@ -449,12 +453,30 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
                   <Grid size={12}>
                     <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                       {l.imeis.map((imei, k) => (
-                        <TextField key={k} size="small" label={`IMEI ${k + 1} *`} value={imei}
+                        <TextField 
+                          key={k} 
+                          size="small" 
+                          label={`IMEI ${k + 1} *`} 
+                          value={imei}
                           onChange={(e) => setLinea(i, { imeis: l.imeis.map((v, idx) => (idx === k ? soloImei(e.target.value) : v)) })}
                           inputProps={{ maxLength: 15, inputMode: 'numeric' }}
+                          InputProps={{
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <IconButton 
+                                  color="primary" 
+                                  onClick={() => setScannerTarget({ lineaIndex: i, imeiIndex: k })}
+                                  title="Escanear con cámara"
+                                >
+                                  <QrCodeScannerIcon fontSize="small" />
+                                </IconButton>
+                              </InputAdornment>
+                            ),
+                          }}
                           error={imei.length > 0 && !esImeiValido(imei)}
                           helperText={`${imei.length}/15`}
-                          sx={{ width: 210 }} />
+                          sx={{ width: 240 }} // Ligeramente más ancho (antes 210) para alojar el ícono
+                        />
                       ))}
                     </Box>
                   </Grid>
@@ -518,6 +540,20 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
           {guardando ? 'Guardando…' : 'Registrar compra'}
         </Button>
       </DialogActions>
+      <ImeiScannerModal
+        open={Boolean(scannerTarget)}
+        onClose={() => setScannerTarget(null)}
+        onScanSuccess={(codigo) => {
+          if (scannerTarget) {
+            const { lineaIndex, imeiIndex } = scannerTarget;
+            const imeiLimpio = soloImei(codigo.trim());
+            const currentLine = lineas[lineaIndex];
+            setLinea(lineaIndex, {
+              imeis: currentLine.imeis.map((v, idx) => (idx === imeiIndex ? imeiLimpio : v))
+            });
+          }
+        }}
+      />
     </Dialog>
   );
 }

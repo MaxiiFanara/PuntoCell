@@ -26,11 +26,17 @@ export default class ListaPreciosService {
     const existente = await this.listaPreciosDAO.getById(id);
     if (!existente) return null;
 
-    // Si cambia el % de rentabilidad, todos los precios de venta ya calculados con esta
-    // lista quedan desincronizados — hay que recalcularlos en la misma transacción.
+    // Si cambia el % de rentabilidad o el % de costos variables, todos los precios de venta
+    // ya calculados con esta lista quedan desincronizados — hay que recalcularlos en la misma transacción.
     const rentabilidadNueva = data.PorcentajeRentabilidad;
+    const factorCvnuevo = data.FactorCostosVariables;
+    
     const cambiaRentabilidad = rentabilidadNueva !== undefined
       && Number(rentabilidadNueva) !== Number(existente.PorcentajeRentabilidad);
+    const cambiaCostos = factorCvnuevo !== undefined
+      && Number(factorCvnuevo) !== Number(existente.FactorCostosVariables);
+
+    const cambiaCalculo = cambiaRentabilidad || cambiaCostos;
 
     const sequelize = this.listaPreciosDAO.model.sequelize;
     const t = await sequelize.transaction();
@@ -38,10 +44,14 @@ export default class ListaPreciosService {
       const actualizada = await this.listaPreciosDAO.update(id, data, { transaction: t });
 
       let afectados = 0;
-      if (cambiaRentabilidad) {
+      if (cambiaCalculo) {
         const recreados = await repreciarPorLista(
           sequelize,
-          { IdListaPrecio: id, PorcentajeRentabilidad: rentabilidadNueva },
+          { 
+            IdListaPrecio: id, 
+            PorcentajeRentabilidad: rentabilidadNueva !== undefined ? rentabilidadNueva : existente.PorcentajeRentabilidad,
+            FactorCostosVariables: factorCvnuevo !== undefined ? factorCvnuevo : existente.FactorCostosVariables
+          },
           t
         );
         afectados = recreados.length;
@@ -50,8 +60,8 @@ export default class ListaPreciosService {
       await t.commit();
 
       await auditar(this.bitacoraService, ctx, `Modificó la lista de precios #${id}`,
-        cambiaRentabilidad
-          ? `Rentabilidad ${existente.PorcentajeRentabilidad}% → ${rentabilidadNueva}% · recalculó ${afectados} precio(s) de venta`
+        cambiaCalculo
+          ? `Recalculó ${afectados} precio(s) de venta por cambio de rentabilidad o costos variables`
           : `Campos: ${Object.keys(data).join(', ')}`);
 
       return actualizada;

@@ -4,10 +4,10 @@ import {
   Box, Button, Dialog, DialogActions, DialogContent, DialogTitle,
   IconButton, MenuItem, Paper, Select, Switch, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup,
-  Tooltip, Typography,
+  Tooltip, Typography, InputAdornment, // 1. Agregado InputAdornment
 } from '@mui/material';
 import {
-  Search, Visibility, LocalShipping, Lock, Store, Close, PointOfSale,
+  Search, Visibility, LocalShipping, Lock, Store, Close, PointOfSale, QrCodeScanner, // 1. Agregado QrCodeScanner
 } from '@mui/icons-material';
 import { inventarioService } from '../../../services/inventarioServices';
 import { useVenta } from '../../punto-venta/context/VentaContext';
@@ -20,6 +20,7 @@ import StatusPill from '../../../components/ui/StatusPill';
 import Money from '../../../components/ui/Money';
 import FilterBar, { FilterField } from '../../../components/ui/FilterBar';
 import TablePager from '../../../components/ui/TablePager';
+import ImeiScannerModal from '../../../components/modals/ImeiScannerModal'; // 1. Importación del modal
 
 const FILAS_POR_PAGINA = 10;
 
@@ -28,28 +29,24 @@ const tonoStock = (stock) => (stock === 0 ? 'late' : stock <= 2 ? 'due' : 'ok');
 const InventarioList = () => {
   const navigate = useNavigate();
   const { usuario } = useAuth();
-  // Cotización real y compartida: se recalcula sola si se edita desde la navbar.
   const { dolarGlobal: DOLAR_HOY } = useVenta();
 
-  // Sucursal del empleado logueado; determina si el stock visto es propio o ajeno (lectura)
   const miSucursalReal = usuario?.sucursal || 1;
   const [sucursales, setSucursales] = useState([]);
   const [sucursalActual, setSucursalActual] = useState(miSucursalReal);
   const esMiStock = sucursalActual === miSucursalReal;
   const [mostrarAgotados, setMostrarAgotados] = useState(false);
-  // Mismo criterio que Punto de Venta (VentaContext): minorista por defecto, mayorista
-  // solo con este switch explícito — no cambia nada en la base, solo qué precio se lee.
   const [esMayorista, setEsMayorista] = useState(false);
   const [busqueda, setBusqueda] = useState('');
-  // Filtro de tipo de producto: 'todos' | 'vendibles' | 'repuestos' | 'canje'
   const [filtroTipo, setFiltroTipo] = useState('todos');
   const [openModal, setOpenModal] = useState(false);
   const [productoTransferir, setProductoTransferir] = useState(null);
   const [inventario, setInventario] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [pagina, setPagina] = useState(1);
+  
+  const [scannerAbierto, setScannerAbierto] = useState(false); // 2. Estado del escáner
 
-  // Sucursales tal cual están en la base (antes había nombres hardcodeados en el front)
   useEffect(() => {
     inventarioService.getSucursales()
       .then((res) => setSucursales(Array.isArray(res) ? res : (res?.data || [])))
@@ -70,7 +67,6 @@ const InventarioList = () => {
         canje: { soloCanje: true },
         todos: {},
       }[filtroTipo];
-      // getConPrecios mergea el PrecioArticulo vigente (el modelo nuevo no lo trae en /inventarios)
       const datosBackend = await inventarioService.getConPrecios({ IdSucursal: sucursalActual, ...paramsFiltro });
 
       const inventarioAdaptado = datosBackend.map(row => {
@@ -83,7 +79,6 @@ const InventarioList = () => {
           producto: art.Nombre || 'Equipo sin nombre',
           modelo: art.modelo?.Nombre || row.modelo?.Nombre || '',
           imei: row.IMEI || null,
-          // Características: solo vienen si el renglón las tiene (accesorios/repuestos → null)
           color: row.color?.Nombre || row.Color?.Nombre || null,
           memoria: row.memoria?.Capacidad || row.Memoria?.Capacidad || null,
           bateria: Number.isFinite(batPct) ? `${batPct}%` : null,
@@ -110,12 +105,8 @@ const InventarioList = () => {
     return coincideBusqueda && coincideStock;
   });
 
-  // Volvemos a la página 1 cada vez que cambia el resultado filtrado, para no
-  // quedar mostrando una página vacía.
   useEffect(() => { setPagina(1); }, [busqueda, mostrarAgotados, sucursalActual, filtroTipo]);
 
-  // Los KPIs salen del inventario completo de la sucursal, no del filtro visible:
-  // son el estado del depósito, no del recorte que estás mirando.
   const resumen = useMemo(() => ({
     articulos: inventario.length,
     unidades: inventario.reduce((a, i) => a + i.stock, 0),
@@ -137,9 +128,6 @@ const InventarioList = () => {
 
   const confirmarTraspaso = async () => {
     try {
-      // Destino = mi propia sucursal (adonde quiero traer el stock), no una asumida a mano.
-      // IdInventario = la fila puntual (ese IMEI). Es clave para serializados: puede haber
-      // varias unidades del mismo modelo en la misma sucursal.
       const payload = {
         IdInventario: productoTransferir.id,
         IdArticulo: productoTransferir.idArticulo,
@@ -155,7 +143,6 @@ const InventarioList = () => {
       await cargarInventario();
     } catch (error) {
       console.error("Error en traspaso:", error);
-      // fetchApi arma error.message con el mensaje real del backend
       alert(`❌ No se pudo hacer el traspaso: ${error.message || 'Error desconocido'}`);
     }
   };
@@ -193,10 +180,6 @@ const InventarioList = () => {
         }
       />
 
-      {/* El alta de stock entra por Compras — la sección Inventario solo lista y traspasa. */}
-
-      {/* Estar mirando el stock de otra sucursal cambia lo que podés hacer, así que
-          se avisa de forma persistente y no con un color de borde. */}
       {!esMiStock && (
         <Paper sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: '10px 15px' }}>
           <Lock sx={{ fontSize: 16, color: 'warning.main' }} />
@@ -239,7 +222,19 @@ const InventarioList = () => {
           <TextField
             fullWidth placeholder="Equipo, modelo o IMEI"
             value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
-            slotProps={{ input: { startAdornment: <Search sx={{ fontSize: 15, color: 'text.disabled', mr: .75 }} /> } }}
+            slotProps={{
+              input: {
+                startAdornment: <Search sx={{ fontSize: 15, color: 'text.disabled', mr: .75 }} />,
+                // 3. Botón inyectado para activar la cámara
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton size="small" color="primary" onClick={() => setScannerAbierto(true)}>
+                      <QrCodeScanner sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  </InputAdornment>
+                )
+              }
+            }}
           />
         </FilterField>
 
@@ -430,6 +425,15 @@ const InventarioList = () => {
           <Button variant="contained" onClick={confirmarTraspaso}>Confirmar traspaso</Button>
         </DialogActions>
       </Dialog>
+
+      {/* 4. Inyección del Escáner */}
+      <ImeiScannerModal
+        open={scannerAbierto}
+        onClose={() => setScannerAbierto(false)}
+        onScanSuccess={(codigoEscaneado) => {
+          setBusqueda(codigoEscaneado); // Pega el código escaneado en el buscador
+        }}
+      />
     </Box>
   );
 };

@@ -64,39 +64,7 @@ const controlTotals = (result) => {
   return { rows, totals }
 }
 
-const buildControlTrend = async () => {
-  const weeks = []
-  const now = new Date()
-  for (let offset = 3; offset >= 0; offset -= 1) {
-    const to = new Date(now)
-    to.setDate(to.getDate() - (offset * 7))
-    const from = new Date(to)
-    from.setDate(from.getDate() - 6)
-    weeks.push({ from, to })
-  }
-
-  const weekly = await Promise.all(
-    weeks.map(async ({ from, to }) => {
-      const qs = buildQuery({ from: from.toISOString(), to: to.toISOString() })
-      const result = await fetchData(`/dashboard/control/empleado-operacion?${qs}`)
-      const { totals } = controlTotals(result)
-      return {
-        anulaciones: totals.Anulaciones,
-        descuentos: totals.Descuentos,
-      }
-    })
-  )
-
-  return {
-    xAxis: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'],
-    series: [
-      { data: weekly.map((item) => item.anulaciones), label: 'Anulaciones', color: '#a93b32' },
-      { data: weekly.map((item) => item.descuentos), label: 'Descuentos', color: '#dfa758' },
-    ],
-  }
-}
-
-const buildControlTrendFromRange = async (range = null) => {
+const buildControlTrendFromRange = async (range = null, branchId = '') => {
   const normalized = normalizeUiRange(range, 30)
   const fromDate = new Date(normalized.from)
   const toDate = new Date(normalized.to)
@@ -113,7 +81,7 @@ const buildControlTrendFromRange = async (range = null) => {
 
   const weekly = await Promise.all(
     buckets.map(async ({ from, to }) => {
-      const qs = buildQuery({ from: from.toISOString(), to: to.toISOString() })
+      const qs = buildQuery({ from: from.toISOString(), to: to.toISOString(), idSucursal: branchId || undefined })
       const result = await fetchData(`/dashboard/control/empleado-operacion?${qs}`)
       const { totals } = controlTotals(result)
       return {
@@ -206,21 +174,6 @@ const repairDemandProfitMatrix = (entries = []) => entries.slice(0, 5).map((entr
   color: colorByIndex(index, ['#4cbf93', '#12684e', '#dfa758', '#a39d93', '#a93b32']),
 }))
 
-const buildEOQCurve = (eoqData = null) => {
-  const eoq = toNumber(eoqData?.eoq)
-  const demand = toNumber(eoqData?.annualDemand)
-  const ordering = toNumber(eoqData?.orderingCost || 50)
-  const holding = toNumber(eoqData?.holdingCost || 1)
-  const cantidades = eoq > 0
-    ? Array.from({ length: 8 }, (_, index) => Math.max(1, Math.round(eoq * (0.4 + index * 0.2))))
-    : [50, 100, 150, 200, 250, 300, 350, 400]
-  const costoMantenimiento = cantidades.map((cantidad) => Number(((cantidad / 2) * holding).toFixed(2)))
-  const costoPedido = cantidades.map((cantidad) => Number((((demand || 0) / Math.max(1, cantidad)) * ordering).toFixed(2)))
-  const costoTotal = cantidades.map((cantidad, index) => Number((costoMantenimiento[index] + costoPedido[index]).toFixed(2)))
-
-  return { cantidades, costoMantenimiento, costoPedido, costoTotal }
-}
-
 const lowRotationBuckets = (items = [], periodDays = 90) => {
   const buckets = [
     { label: '0-30 días', min: 0, max: 30, value: 0, capital: 0, color: '#12684e' },
@@ -253,17 +206,21 @@ export const emptyVentasDashboard = {
   empleados: [],
   pareto: { productos: [], ventasAbsolutas: [], porcentajeAcumulado: [] },
   elasticidad: [],
+  abc: { grafico: [], topA: [] },     
+  margenes: [],
 }
 
 export const emptyComprasDashboard = {
-  kpis: { gastoMensual: 0, proveedoresActivos: 0, cumplimientoPromedio: 0, alertasStock: 0 },
+  kpis: { gastoMensual: 0, proveedoresActivos: 0, alertasStock: 0 },
   evolucionCosto: { xAxis: [], series: [{ data: [], label: 'Costo Total (Miles $)' }] },
   precioProducto: { xAxis: [], series: [{ data: [], label: 'Precio Compra (U$S)' }] },
   proveedores: [],
   dispersionPrecios: [],
   abc: [],
   inventario: [],
-  eoq: { cantidades: [], costoMantenimiento: [], costoPedido: [], costoTotal: [] },
+  listaProductos: [], 
+  productoSeleccionadoId: null,
+  productoSeleccionadoNombre: ''
 }
 
 export const emptyInventarioDashboard = {
@@ -298,13 +255,20 @@ export const emptyFinancieroDashboard = {
   rentabilidadMarca: [],
 }
 
-export async function loadVentasDashboard(range = null) {
+export async function loadVentasDashboard(range = null, branchId = '') {
   const range30 = normalizeUiRange(range, 30)
   const range60 = normalizeUiRange(range, 60)
-  const query30 = buildQuery(range30)
-  const query60 = buildQuery(range60)
-  const [summary, evolucion, formaPago, categoria, sucursal, pareto, elasticidad, empleados, historico, finanzas] = await Promise.all([
-    fetchData('/dashboard/summary'),
+  
+  const queryParams30 = { ...range30, idSucursal: branchId || undefined }
+  const queryParams60 = { ...range60, idSucursal: branchId || undefined }
+  
+  const query30 = buildQuery(queryParams30)
+  const query60 = buildQuery(queryParams60)
+  
+  const historicoUrl = `/ventas/historico?desde=${encodeURIComponent(range60.from)}&hasta=${encodeURIComponent(range60.to)}${branchId ? `&idSucursal=${branchId}` : ''}`;
+
+  const [summary, evolucion, formaPago, categoria, sucursal, pareto, elasticidad, empleados, historico, finanzas, margenCategoria] = await Promise.all([
+    fetchData(`/dashboard/summary${branchId ? `?idSucursal=${branchId}` : ''}`),
     fetchData(`/dashboard/ventas/evolucion?${query30}`),
     fetchData(`/dashboard/ventas/forma-pago?${query30}`),
     fetchData(`/dashboard/ventas/categoria?${query30}`),
@@ -312,17 +276,18 @@ export async function loadVentasDashboard(range = null) {
     fetchData(`/dashboard/ventas/pareto?${query30}`),
     fetchData(`/dashboard/ventas/elasticidad?${query30}`),
     getEmpleados().catch(() => []),
-    fetchData(`/ventas/historico?desde=${encodeURIComponent(range60.from)}&hasta=${encodeURIComponent(range60.to)}`).catch(() => []),
+    fetchData(historicoUrl).catch(() => []),
     fetchData(`/dashboard/finanzas/margen-bruto?${query60}`).catch(() => null),
+    fetchData(`/dashboard/finanzas/margen-categoria?${query60}`).catch(() => null), 
   ])
+
+  console.log("DATOS MARGEN DESDE C#:", margenCategoria);
 
   const ventasTotales = toNumber(pareto?.totalRevenue) || sum(evolucion?.series ?? [], (item) => item.total)
   const ventasCount = toNumber(summary?.ventas?.count) || (historico?.length ?? 0)
   const margenPct = toNumber(finanzas?.margenPct)
 
-  const mapaEmpleados = new Map(
-    (empleados ?? []).map((emp) => [String(emp.id ?? emp.Id), `${emp.nombre ?? emp.Nombre ?? ''} ${emp.apellido ?? emp.Apellido ?? ''}`.trim() || emp.nombre || emp.Nombre || `#${emp.id ?? emp.Id}`])
-  )
+  const mapaEmpleados = new Map((empleados ?? []).map((emp) => [String(emp.id ?? emp.Id), `${emp.nombre ?? emp.Nombre ?? ''} ${emp.apellido ?? emp.Apellido ?? ''}`.trim() || emp.nombre || emp.Nombre || `#${emp.id ?? emp.Id}`]))
   const agregados = new Map()
   for (const venta of historico ?? []) {
     const idEmpleado = String(venta.IdEmpleado ?? venta.idEmpleado ?? venta.empleado?.Id ?? '')
@@ -333,119 +298,140 @@ export async function loadVentasDashboard(range = null) {
     agregados.set(idEmpleado, actual)
   }
 
-  const rankingEmpleados = Array.from(agregados.values())
-    .sort((a, b) => b.ventas - a.ventas)
-    .slice(0, 4)
-    .map((item) => ({
-      nombre: item.nombre,
-      ventas: item.ventas,
-      ticket: item.ventas > 0 ? Math.round(item.total / item.ventas) : 0,
-    }))
+  const rankingEmpleados = Array.from(agregados.values()).sort((a, b) => b.ventas - a.ventas).slice(0, 4).map((item) => ({ nombre: item.nombre, ventas: item.ventas, ticket: item.ventas > 0 ? Math.round(item.total / item.ventas) : 0 }))
 
-  const elasticidadSeries = Array.isArray(elasticidad?.entries) ? elasticidad.entries : []
-  const dispersionSeries = Array.isArray(elasticidadSeries) ? elasticidadSeries : []
+  const paretoEntries = pareto?.entries ?? [];
+  const paretoIds = new Set(paretoEntries.map(p => String(p.id)));
+  const dispersionSeries = (Array.isArray(elasticidad?.entries) ? elasticidad.entries : []).filter(item => paretoIds.has(String(item.id)))
+
+  // 🔥 NUEVO: Construcción de la matriz ABC extrayendo los nombres de los productos
+  let classA = [], classB = [], classC = [];
+  let totalA = 0, totalB = 0, totalC = 0;
+  
+  for (const item of paretoEntries) {
+    const val = toNumber(item.total);
+    const cum = toNumber(item.cumulativePercentage ?? item.cumulative);
+    const prodName = item.product ?? item.producto ?? 'Producto Desconocido';
+    
+    if (cum <= 80) { totalA += val; classA.push({ nombre: prodName, valor: val }); }
+    else if (cum <= 95) { totalB += val; classB.push({ nombre: prodName, valor: val }); }
+    else { totalC += val; classC.push({ nombre: prodName, valor: val }); }
+  }
+  
+  const totalAbcVentas = totalA + totalB + totalC || 1;
+  const abcVentas = {
+    grafico: [
+      { id: 0, value: Math.round((totalA / totalAbcVentas) * 100), label: 'Clase A (80%)', color: '#12684e' },
+      { id: 1, value: Math.round((totalB / totalAbcVentas) * 100), label: 'Clase B (15%)', color: '#dfa758' },
+      { id: 2, value: Math.round((totalC / totalAbcVentas) * 100), label: 'Clase C (5%)', color: '#a93b32' }
+    ],
+    topA: classA.slice(0, 5) // Mandamos los 5 mejores para la lista
+  };
+
+  // 🔥 NUEVO: Extracción matemática con salvavidas para costos en cero
+  const margenesVentas = (margenCategoria?.entries ?? []).map((item) => {
+    let ingresos = toNumber(item.revenue ?? item.totalVentas ?? item.total ?? 0);
+    let costos = toNumber(item.cost ?? item.costo ?? 0);
+    let ganancia = toNumber(item.margin ?? item.margen ?? item.margenNeto ?? 0);
+    let pct = toNumber(item.marginPct ?? item.margenPct ?? 0);
+
+    // Si el backend no manda "ingresos", lo reconstruimos
+    if (ingresos === 0 && (costos > 0 || ganancia > 0)) {
+        ingresos = costos + ganancia;
+    }
+
+    // SALVAVIDAS: Si el costo llegó en $0, pero el backend SÍ nos mandó un porcentaje 
+    // de margen válido (ej: 40%), forzamos el cálculo de la plata real:
+    if (costos === 0 && pct > 0 && pct < 100 && ingresos > 0) {
+        ganancia = (ingresos * pct) / 100;
+        costos = ingresos - ganancia;
+    }
+
+    return {
+      categoria: item.categoria ?? item.category ?? 'Categoría',
+      ingresos,
+      costos,
+      ganancia,
+      margenPct: ingresos > 0 ? Math.round((ganancia / ingresos) * 100) : 0
+    };
+  }).filter(m => m.ingresos > 0);
 
   return {
-    kpis: {
-      facturacionTotal: Math.round(ventasTotales),
-      ticketPromedio: ventasCount > 0 ? Math.round(ventasTotales / ventasCount) : 0,
-      operaciones: ventasCount,
-      margenPromedio: margenPct,
-    },
-    evolucion: {
-      xAxis: (evolucion?.series ?? []).map((item) => item.period),
-      series: [{ data: (evolucion?.series ?? []).map((item) => toNumber(item.total)), label: 'Ventas (Millones $)' }],
-    },
-    formaPago: (formaPago?.methods ?? []).map((item, index) => ({
-      id: index,
-      value: toNumber(item.total),
-      label: item.method ?? item.metodo ?? `Método ${index + 1}`,
-      color: colorByIndex(index, ['#12684e', '#4cbf93', '#dfa758', '#a39d93']),
-    })),
-    categorias: (categoria?.categories ?? []).map((item) => ({
-      label: item.category ?? item.categoria ?? item.Nombre ?? 'Sin categoría',
-      value: toNumber(item.total),
-    })),
-    sucursales: (sucursal?.branches ?? []).map((item) => ({
-      nombre: item.sucursal ?? item.branch ?? item.Nombre ?? 'Sucursal',
-      facturacion: toNumber(item.revenue),
-      margen: toNumber(item.marginPct ?? item.margin),
-    })),
+    kpis: { facturacionTotal: Math.round(ventasTotales), ticketPromedio: ventasCount > 0 ? Math.round(ventasTotales / ventasCount) : 0, operaciones: ventasCount, margenPromedio: margenPct },
+    evolucion: { xAxis: (evolucion?.series ?? []).map((item) => item.period), series: [{ data: (evolucion?.series ?? []).map((item) => toNumber(item.total)), label: 'Ventas (Millones $)' }] },
+    formaPago: (formaPago?.methods ?? []).map((item, index) => ({ id: index, value: toNumber(item.total), label: item.method ?? item.metodo ?? `Método ${index + 1}`, color: colorByIndex(index, ['#12684e', '#4cbf93', '#dfa758', '#a39d93']) })),
+    categorias: (categoria?.categories ?? []).map((item) => ({ label: item.category ?? item.categoria ?? item.Nombre ?? 'Sin categoría', value: toNumber(item.total) })),
+    sucursales: (sucursal?.branches ?? []).map((item) => ({ nombre: item.sucursal ?? item.branch ?? item.Nombre ?? 'Sucursal', facturacion: toNumber(item.revenue), margen: toNumber(item.marginPct ?? item.margin) })),
     empleados: rankingEmpleados,
-    pareto: {
-      productos: (pareto?.entries ?? []).map((item) => item.product ?? item.producto ?? 'Producto'),
-      ventasAbsolutas: (pareto?.entries ?? []).map((item) => toNumber(item.total)),
-      porcentajeAcumulado: (pareto?.entries ?? []).map((item) => toNumber(item.cumulativePercentage)),
-    },
-    elasticidad: dispersionSeries.map((item, index) => ({
-      x: toNumber(item.baseAvgPrice ?? item.compareAvgPrice ?? item.avgPrice),
-      y: toNumber(item.baseQty ?? item.compareQty ?? item.quantity),
-      id: item.id ?? index,
-    })),
-    mockEvolucion: {
-      xAxis: (evolucion?.series ?? []).map((item) => item.period),
-      series: [{ data: (evolucion?.series ?? []).map((item) => toNumber(item.total)), label: 'Ventas (Millones $)' }],
-    },
-    formaPago: (formaPago?.methods ?? []).map((item, index) => ({
-      id: index,
-      value: toNumber(item.total),
-      label: item.method ?? item.metodo ?? `Método ${index + 1}`,
-      color: colorByIndex(index, ['#12684e', '#4cbf93', '#dfa758', '#a39d93']),
-    })),
-    categorias: (categoria?.categories ?? []).map((item) => ({
-      label: item.category ?? item.categoria ?? item.Nombre ?? 'Sin categoría',
-      value: toNumber(item.total),
-    })),
-    sucursales: (sucursal?.branches ?? []).map((item) => ({
-      nombre: item.sucursal ?? item.branch ?? item.Nombre ?? 'Sucursal',
-      facturacion: toNumber(item.revenue),
-      margen: toNumber(item.marginPct ?? item.margin),
-    })),
-    empleados: rankingEmpleados,
-    pareto: {
-      productos: (pareto?.entries ?? []).map((item) => item.product ?? item.producto ?? 'Producto'),
-      ventasAbsolutas: (pareto?.entries ?? []).map((item) => toNumber(item.total)),
-      porcentajeAcumulado: (pareto?.entries ?? []).map((item) => toNumber(item.cumulativePercentage)),
-    },
-    elasticidad: dispersionSeries.map((item, index) => ({
-      x: toNumber(item.baseAvgPrice ?? item.compareAvgPrice ?? item.avgPrice),
-      y: toNumber(item.baseQty ?? item.compareQty ?? item.quantity),
-      id: item.id ?? index,
-    })),
+    pareto: { productos: paretoEntries.map((item) => item.product ?? item.producto ?? 'Producto'), ventasAbsolutas: paretoEntries.map((item) => toNumber(item.total)), porcentajeAcumulado: paretoEntries.map((item) => toNumber(item.cumulativePercentage)) },
+    elasticidad: dispersionSeries.map((item, index) => ({ x: toNumber(item.baseAvgPrice ?? item.compareAvgPrice ?? item.avgPrice), y: toNumber(item.baseQty ?? item.compareQty ?? item.quantity), id: String(item.id ?? index), nombre: item.product ?? 'Producto' })),
+    abc: abcVentas,
+    margenes: margenesVentas,
   }
 }
 
-export async function loadComprasDashboard(range = null) {
+export async function getEvolucionPrecioGraph(range, productId, branchId = '') {
+  if (!productId) return { xAxis: [], series: [{ data: [], label: 'Precio Compra (U$S)' }] };
+  const range180 = normalizeUiRange(range, 180);
+  const data = await fetchData(`/dashboard/compras/evolucion-precio?${buildQuery({ ...range180, productoId: productId, idSucursal: branchId || undefined, granularity: 'month' })}`);
+  return {
+    xAxis: (data?.series ?? []).map((item) => item.period),
+    series: [{ data: (data?.series ?? []).map((item) => toNumber(item.avgPrecio)), label: 'Precio Compra (U$S)' }],
+  };
+}
+
+export async function getDispersionPreciosGraph(range, productId, branchId = '') {
+  if (!productId) return [];
+  const range180 = normalizeUiRange(range, 180);
+  const variacionPrecio = await fetchData(`/dashboard/compras/variacion-precio-proveedor?${buildQuery({ ...range180, productoId: productId, idSucursal: branchId || undefined })}`);
+  return (variacionPrecio?.data ?? []).flatMap((provider, providerIndex) =>
+    (provider.prices ?? []).map((price, priceIndex) => ({
+      x: providerIndex + 1,
+      y: toNumber(price),
+      id: `${provider.id ?? provider.proveedor ?? providerIndex}-${priceIndex}`,
+    }))
+  );
+}
+
+export async function loadComprasDashboard(range = null, branchId = '') {
   const range30 = normalizeUiRange(range, 30)
   const range90 = normalizeUiRange(range, 90)
   const range180 = normalizeUiRange(range, 180)
-  const query30 = buildQuery(range30)
-  const query90 = buildQuery(range90)
-  const query180 = buildQuery(range180)
+  
+  const query30 = buildQuery({ ...range30, idSucursal: branchId || undefined })
+  const query90 = buildQuery({ ...range90, idSucursal: branchId || undefined })
+  const query180 = buildQuery({ ...range180, idSucursal: branchId || undefined })
+  
   const [evolucionCosto, rankingProveedores, abc, variacionPrecio, bajaRotacion] = await Promise.all([
     fetchData(`/dashboard/compras/evolucion-costo?${query30}`),
     fetchData(`/dashboard/compras/ranking-proveedores?${query30}`),
     fetchData(`/dashboard/compras/abc?${query180}`),
     fetchData(`/dashboard/compras/variacion-precio-proveedor?${query180}`),
-    fetchData(`/dashboard/inventario/baja-rotacion?days=90`),
+    fetchData(`/dashboard/inventario/baja-rotacion?days=90&idSucursal=${branchId || ''}`),
   ])
 
-  const topProductId = abc?.entries?.[0]?.id ?? bajaRotacion?.entries?.[0]?.idProducto ?? bajaRotacion?.entries?.[0]?.id ?? null
-  const [evolucionPrecio, eoq, puntoReposicion, stockSeguridad] = topProductId
+  const listaProductos = (abc?.entries ?? []).map(p => ({
+    id: p.id,
+    nombre: p.producto
+  }));
+
+  const topProductId = listaProductos[0]?.id ?? null;
+  const topProductNombre = listaProductos[0]?.nombre ?? '';
+
+  const [evolucionPrecio, puntoReposicion, stockSeguridad] = topProductId
     ? await Promise.all([
-      fetchData(`/dashboard/compras/evolucion-precio?${buildQuery({ ...range180, productoId: topProductId, granularity: 'month' })}`),
-      fetchData(`/dashboard/compras/eoq?${buildQuery({ productoId: topProductId })}`),
-      fetchData(`/dashboard/compras/punto-reposicion?${buildQuery({ productoId: topProductId })}`),
-      fetchData(`/dashboard/compras/stock-seguridad?${buildQuery({ productoId: topProductId })}`),
+      fetchData(`/dashboard/compras/evolucion-precio?${buildQuery({ ...range180, productoId: topProductId, idSucursal: branchId || undefined, granularity: 'month' })}`),
+      fetchData(`/dashboard/compras/punto-reposicion?${buildQuery({ productoId: topProductId, idSucursal: branchId || undefined })}`),
+      fetchData(`/dashboard/compras/stock-seguridad?${buildQuery({ productoId: topProductId, idSucursal: branchId || undefined })}`),
     ])
-    : [null, null, null, null]
+    : [null, null, null]
 
   const topRotationItems = (bajaRotacion?.entries ?? []).slice(0, 4)
   const focoInventario = await Promise.all(topRotationItems.map(async (item) => {
     const idProducto = item.idProducto ?? item.IdProducto ?? item.id ?? item.Id
     const [punto, seguridad] = await Promise.all([
-      fetchData(`/dashboard/compras/punto-reposicion?${buildQuery({ productoId: idProducto })}`).catch(() => null),
-      fetchData(`/dashboard/compras/stock-seguridad?${buildQuery({ productoId: idProducto })}`).catch(() => null),
+      fetchData(`/dashboard/compras/punto-reposicion?${buildQuery({ productoId: idProducto, idSucursal: branchId || undefined })}`).catch(() => null),
+      fetchData(`/dashboard/compras/stock-seguridad?${buildQuery({ productoId: idProducto, idSucursal: branchId || undefined })}`).catch(() => null),
     ])
     return {
       producto: item.producto ?? item.Producto ?? `Producto ${idProducto}`,
@@ -458,10 +444,7 @@ export async function loadComprasDashboard(range = null) {
 
   const totalGasto = sum(evolucionCosto?.series ?? [], (item) => item.totalCosto)
   const proveedorEntries = rankingProveedores?.entries ?? []
-  const maxFrecuencia = Math.max(...proveedorEntries.map((item) => toNumber(item.frecuencia)), 1)
-  const cumplimientoPromedio = proveedorEntries.length
-    ? Math.round(proveedorEntries.reduce((sumValue, item) => sumValue + (toNumber(item.frecuencia) / maxFrecuencia) * 100, 0) / proveedorEntries.length)
-    : 0
+  
   const alertasStock = focoInventario.filter((item) => item.stockActual <= item.puntoReposicion || item.stockActual <= item.stockSeguridad).length
 
   const classTotals = { A: 0, B: 0, C: 0 }
@@ -478,40 +461,23 @@ export async function loadComprasDashboard(range = null) {
   )
 
   return {
-    kpis: {
-      gastoMensual: Math.round(totalGasto),
-      proveedoresActivos: proveedorEntries.length,
-      cumplimientoPromedio,
-      alertasStock,
-    },
-    evolucionCosto: {
-      xAxis: (evolucionCosto?.series ?? []).map((item) => item.period),
-      series: [{ data: (evolucionCosto?.series ?? []).map((item) => toNumber(item.totalCosto)), label: 'Costo Total (Miles $)' }],
-    },
-    precioProducto: {
-      xAxis: (evolucionPrecio?.series ?? []).map((item) => item.period),
-      series: [{ data: (evolucionPrecio?.series ?? []).map((item) => toNumber(item.avgPrecio)), label: 'Precio Compra (U$S)' }],
-    },
-    proveedores: proveedorEntries.slice(0, 5).map((item) => ({
-      nombre: item.proveedor ?? item.Nombre ?? `Proveedor ${item.IdProveedor ?? ''}`.trim(),
-      monto: toNumber(item.monto ?? item.totalComprado),
-      cumplimiento: Math.round((toNumber(item.frecuencia) / maxFrecuencia) * 100),
-    })),
+    kpis: { gastoMensual: Math.round(totalGasto), proveedoresActivos: proveedorEntries.length, alertasStock },
+    evolucionCosto: { xAxis: (evolucionCosto?.series ?? []).map((item) => item.period), series: [{ data: (evolucionCosto?.series ?? []).map((item) => toNumber(item.totalCosto)), label: 'Costo Total (Miles $)' }] },
+    precioProducto: { xAxis: (evolucionPrecio?.series ?? []).map((item) => item.period), series: [{ data: (evolucionPrecio?.series ?? []).map((item) => toNumber(item.avgPrecio)), label: 'Precio Compra (U$S)' }] },
+    proveedores: proveedorEntries.slice(0, 5).map((item) => ({ nombre: item.proveedor ?? item.Nombre ?? `Proveedor ${item.IdProveedor ?? ''}`.trim(), monto: toNumber(item.monto ?? item.totalComprado) })),
     dispersionPrecios: dispersion,
-    abc: [
-      { id: 0, value: Math.round((classTotals.A / totalAbc) * 100), label: 'Clase A (Críticos)', color: '#a93b32' },
-      { id: 1, value: Math.round((classTotals.B / totalAbc) * 100), label: 'Clase B (Medios)', color: '#dfa758' },
-      { id: 2, value: Math.round((classTotals.C / totalAbc) * 100), label: 'Clase C (Bajos)', color: '#4cbf93' },
-    ],
+    abc: [ { id: 0, value: Math.round((classTotals.A / totalAbc) * 100), label: 'Clase A (Críticos)', color: '#a93b32' }, { id: 1, value: Math.round((classTotals.B / totalAbc) * 100), label: 'Clase B (Medios)', color: '#dfa758' }, { id: 2, value: Math.round((classTotals.C / totalAbc) * 100), label: 'Clase C (Bajos)', color: '#4cbf93' } ],
     inventario: focoInventario,
-    eoq: buildEOQCurve(eoq),
+    listaProductos,
+    productoSeleccionadoId: topProductId,
+    productoSeleccionadoNombre: topProductNombre
   }
 }
 
-export async function loadInventarioDashboard(range = null) {
+export async function loadInventarioDashboard(range = null, branchId = '') {
   const [summary, bajaRotacion, inventarios, precios, listas] = await Promise.all([
-    fetchData('/dashboard/summary'),
-    fetchData(`/dashboard/inventario/baja-rotacion?${buildQuery(normalizeUiRange(range, 90))}`),
+    fetchData(`/dashboard/summary${branchId ? `?idSucursal=${branchId}` : ''}`),
+    fetchData(`/dashboard/inventario/baja-rotacion?${buildQuery({ ...normalizeUiRange(range, 90), idSucursal: branchId || undefined })}`),
     fetchData('/inventario/inventarios').catch(() => []),
     preciosService.getPreciosArticulos().catch(() => []),
     preciosService.getListas().catch(() => []),
@@ -555,22 +521,14 @@ export async function loadInventarioDashboard(range = null) {
       riesgoObsolescencia: riskCount,
       indiceRotacion: rotationIndex,
     },
-    aging: {
-      categorias: buckets.map((bucket) => bucket.label),
-      cantidades: buckets.map((bucket) => bucket.value),
-    },
-    valorizacion: buckets.map((bucket, index) => ({
-      id: index,
-      value: Math.round(bucket.capital),
-      label: bucket.label,
-      color: bucket.color,
-    })),
+    aging: { categorias: buckets.map((bucket) => bucket.label), cantidades: buckets.map((bucket) => bucket.value) },
+    valorizacion: buckets.map((bucket, index) => ({ id: index, value: Math.round(bucket.capital), label: bucket.label, color: bucket.color })),
   }
 }
 
-export async function loadReparacionesDashboard(range = null) {
+export async function loadReparacionesDashboard(range = null, branchId = '') {
   const range30 = normalizeUiRange(range, 30)
-  const query30 = buildQuery(range30)
+  const query30 = buildQuery({ ...range30, idSucursal: branchId || undefined })
   const [evolucion, tipo, marca, pareto, tiempos, rentabilidad, ordenes] = await Promise.all([
     fetchData(`/dashboard/reparaciones/evolucion?${query30}`),
     fetchData(`/dashboard/reparaciones/tipo?${query30}`),
@@ -581,7 +539,10 @@ export async function loadReparacionesDashboard(range = null) {
     getOrdenes().catch(() => []),
   ])
 
-  const delivered = (ordenes ?? []).filter((orden) => {
+  // Filtramos las ordenes en el frontend si hay un branchId, ya que getOrdenes() trae todas
+  const filtradas = branchId ? (ordenes ?? []).filter(o => String(o.IdSucursal) === String(branchId) || String(o.empleado?.IdSucursal) === String(branchId)) : (ordenes ?? []);
+
+  const delivered = filtradas.filter((orden) => {
     const estado = String(orden.Estado ?? '').toLowerCase()
     return estado.includes('entreg') || Boolean(orden.FechaEntrega)
   })
@@ -591,54 +552,38 @@ export async function loadReparacionesDashboard(range = null) {
       return acc + Math.max(0, (new Date(orden.FechaEntrega) - new Date(orden.FechaEmision)) / 86400000)
     }, 0) / delivered.length
     : toNumber(tiempos?.mean)
-  const successRate = (ordenes?.length ?? 0) > 0 ? Number(((delivered.length / ordenes.length) * 100).toFixed(1)) : 0
+  const successRate = (filtradas.length ?? 0) > 0 ? Number(((delivered.length / filtradas.length) * 100).toFixed(1)) : 0
   const avgMargin = rentabilidad?.entries?.length
     ? Number((rentabilidad.entries.reduce((acc, item) => acc + toNumber(item.marginPct), 0) / rentabilidad.entries.length).toFixed(2))
     : 0
 
   const paretoEntries = pareto?.entries ?? []
   const matriz = repairDemandProfitMatrix(paretoEntries)
-  const dispositivoFalla = deviceFailureMatrix(ordenes)
-  const tecnicos = technicianPerformance(ordenes)
+  const dispositivoFalla = deviceFailureMatrix(filtradas)
+  const tecnicos = technicianPerformance(filtradas)
 
   return {
     kpis: {
-      reparacionesTotales: (ordenes ?? []).length || toNumber(evolucion?.series?.reduce((acc, item) => acc + toNumber(item.repairs), 0)),
+      reparacionesTotales: filtradas.length || toNumber(evolucion?.series?.reduce((acc, item) => acc + toNumber(item.repairs), 0)),
       tiempoPromedio: Number((avgDays || 0).toFixed(2)),
       tasaExito: successRate,
       margenGlobal: avgMargin,
     },
-    periodo: {
-      xAxis: (evolucion?.series ?? []).map((item) => item.period),
-      series: [{ data: (evolucion?.series ?? []).map((item) => toNumber(item.repairs)), label: 'Equipos Reparados' }],
-    },
-    dispositivos: (tipo?.categories ?? []).map((item) => ({
-      label: item.categoria ?? item.category ?? item.Nombre ?? 'Dispositivo',
-      value: toNumber(item.repairs),
-    })),
-    marcas: (marca?.marcas ?? []).map((item) => ({
-      label: item.marca ?? item.Nombre ?? 'Marca',
-      value: toNumber(item.repairs),
-    })),
+    periodo: { xAxis: (evolucion?.series ?? []).map((item) => item.period), series: [{ data: (evolucion?.series ?? []).map((item) => toNumber(item.repairs)), label: 'Equipos Reparados' }] },
+    dispositivos: (tipo?.categories ?? []).map((item) => ({ label: item.categoria ?? item.category ?? item.Nombre ?? 'Dispositivo', value: toNumber(item.repairs) })),
+    marcas: (marca?.marcas ?? []).map((item) => ({ label: item.marca ?? item.Nombre ?? 'Marca', value: toNumber(item.repairs) })),
     dispositivoFalla,
-    pareto: {
-      fallas: paretoEntries.map((item) => item.falla ?? item.product ?? 'Falla'),
-      absolutas: paretoEntries.map((item) => toNumber(item.count)),
-      acumulado: paretoEntries.map((item) => toNumber(item.cumulative ?? item.cumulativePercentage)),
-    },
-    distribucionTiempo: {
-      categorias: (tiempos?.histogram ?? []).map((item) => item.range),
-      frecuencia: (tiempos?.histogram ?? []).map((item) => toNumber(item.count)),
-    },
+    pareto: { fallas: paretoEntries.map((item) => item.falla ?? item.product ?? 'Falla'), absolutas: paretoEntries.map((item) => toNumber(item.count)), acumulado: paretoEntries.map((item) => toNumber(item.cumulative ?? item.cumulativePercentage)) },
+    distribucionTiempo: { categorias: (tiempos?.histogram ?? []).map((item) => item.range), frecuencia: (tiempos?.histogram ?? []).map((item) => toNumber(item.count)) },
     tecnicos,
     matriz,
   }
 }
 
-export async function loadControlDashboard(range = null) {
-  const current = await fetchData(`/dashboard/control/empleado-operacion?${buildQuery(normalizeUiRange(range, 30))}`).catch(() => null)
+export async function loadControlDashboard(range = null, branchId = '') {
+  const current = await fetchData(`/dashboard/control/empleado-operacion?${buildQuery({ ...normalizeUiRange(range, 30), idSucursal: branchId || undefined })}`).catch(() => null)
   const { rows, totals } = controlTotals(current)
-  const trend = await buildControlTrendFromRange(range)
+  const trend = await buildControlTrendFromRange(range, branchId)
 
   return {
     kpis: {
@@ -654,9 +599,9 @@ export async function loadControlDashboard(range = null) {
   }
 }
 
-export async function loadFinancieroDashboard(range = null) {
+export async function loadFinancieroDashboard(range = null, branchId = '') {
   const range180 = normalizeUiRange(range, 30)
-  const query180 = buildQuery(range180)
+  const query180 = buildQuery({ ...range180, idSucursal: branchId || undefined })
   const [flow, marginBruto, marginProd, marginCat, rentMarca] = await Promise.all([
     fetchData(`/dashboard/finanzas/ingresos-egresos?${query180}`),
     fetchData(`/dashboard/finanzas/margen-bruto?${query180}`),
@@ -672,30 +617,45 @@ export async function loadFinancieroDashboard(range = null) {
   const flujoNeto = ingresosTotales - egresosTotales
 
   return {
-    kpis: {
-      ingresosTotales: Math.round(ingresosTotales),
-      egresosTotales: Math.round(egresosTotales),
-      flujoNeto: Math.round(flujoNeto),
-      margenPromedio: toNumber(marginBruto?.margenPct),
-    },
-    ingresosEgresos: {
-      meses: (flow?.series ?? []).map((item) => item.period),
-      ingresos,
-      egresos,
-    },
-    margenProducto: (marginProd?.entries ?? []).map((item) => ({
-      nombre: item.producto ?? item.product ?? 'Producto',
-      ventas: toNumber(item.revenue),
-      margen: toNumber(item.marginPct),
-    })),
-    margenCategoria: (marginCat?.entries ?? []).map((item) => ({
-      categoria: item.categoria ?? item.category ?? 'Categoría',
-      costo: toNumber(item.cost),
-      margenNeto: toNumber(item.margin),
-    })),
-    rentabilidadMarca: (rentMarca?.entries ?? []).map((item) => ({
-      marca: item.marca ?? item.brand ?? 'Marca',
-      rentabilidad: toNumber(item.margin),
-    })),
+    kpis: { ingresosTotales: Math.round(ingresosTotales), egresosTotales: Math.round(egresosTotales), flujoNeto: Math.round(flujoNeto), margenPromedio: toNumber(marginBruto?.margenPct) },
+    ingresosEgresos: { meses: (flow?.series ?? []).map((item) => item.period), ingresos, egresos },
+    margenProducto: (marginProd?.entries ?? []).map((item) => ({ nombre: item.producto ?? item.product ?? 'Producto', ventas: toNumber(item.revenue), margen: toNumber(item.marginPct) })),
+    margenCategoria: (marginCat?.entries ?? []).map((item) => ({ categoria: item.categoria ?? item.category ?? 'Categoría', costo: toNumber(item.cost), margenNeto: toNumber(item.margin) })),
+    rentabilidadMarca: (rentMarca?.entries ?? []).map((item) => ({ marca: item.marca ?? item.brand ?? 'Marca', rentabilidad: toNumber(item.margin) })),
   }
+}
+
+// NUEVO: Función para agrupar el stock total de un modelo específico
+export async function getAnalisisStockGraph(productId, branchId = '', productName = '') {
+  if (!productId) return [];
+
+  const [punto, seguridad, inventarios] = await Promise.all([
+    fetchData(`/dashboard/compras/punto-reposicion?${buildQuery({ productoId: productId, idSucursal: branchId || undefined })}`).catch(() => null),
+    fetchData(`/dashboard/compras/stock-seguridad?${buildQuery({ productoId: productId, idSucursal: branchId || undefined })}`).catch(() => null),
+    fetchData('/inventario/inventarios').catch(() => [])
+  ]);
+
+  const pReposicion = toNumber(punto?.reorderPoint ?? punto?.puntoReposicion ?? 0);
+  const sSeguridad = toNumber(seguridad?.safetyStock ?? seguridad?.stockSeguridad ?? 0);
+
+  // Filtramos el inventario para encontrar TODAS las variaciones que pertenecen a este modelo
+  const variaciones = (inventarios || []).filter(inv => {
+    const invBranch = inv.IdSucursal ?? inv.idSucursal;
+    if (branchId && String(invBranch) !== String(branchId)) return false;
+
+    // Buscamos coincidencia exacta con el modelo seleccionado en el dropdown
+    const idMod = inv.articulo?.IdModeloArticulo ?? inv.articulo?.modelo?.Id ?? inv.modelo?.Id ?? inv.IdModeloArticulo ?? inv.IdArticulo;
+    return String(idMod) === String(productId);
+  });
+
+  // SUMAMOS el stock de todas las variaciones para obtener el volumen real del dispositivo
+  const stockTotalDelModelo = variaciones.reduce((sum, inv) => sum + toNumber(inv.Stock ?? inv.stock ?? 0), 0);
+
+  // Devolvemos un único bloque identificado directamente por el nombre del modelo
+  return [{
+    producto: productName || `Modelo ${productId}`, // Ej: "Apple iPhone 13 Pro"
+    stockActual: stockTotalDelModelo, // La suma de todos sus colores/capacidades
+    puntoReposicion: pReposicion,
+    stockSeguridad: sSeguridad
+  }];
 }
