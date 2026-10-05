@@ -2,7 +2,9 @@ import Joi from 'joi';
 
 export const loginSchema = Joi.object({
   Identificador: Joi.string().required(), 
-  Pwd: Joi.string().required()
+  Pwd: Joi.string().required(),
+  // Token de reCAPTCHA Enterprise; su presencia se exige en recaptcha.middleware.js
+  RecaptchaToken: Joi.string().allow('').optional()
 });
 
 export const forgotPasswordSchema = Joi.object({

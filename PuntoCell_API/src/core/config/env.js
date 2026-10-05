@@ -28,7 +28,10 @@ export const env = {
   APP: {
     PORT: process.env.PORT || 3000,
     NODE_ENV: process.env.NODE_ENV || 'development',
-    CORS_ORIGIN: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins
+    CORS_ORIGIN: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
+    // URL base del front para los links de los mails (reset de contraseña). Si no se
+    // define PUBLIC_FRONT_URL se usa el primer origen CORS (nunca la lista completa).
+    FRONTEND_URL: (process.env.PUBLIC_FRONT_URL || corsOrigins[0] || '').replace(/\/+$/, '')
   },
   DB: {
     DIALECT: process.env.DB_DIALECT || 'mssql',
@@ -42,6 +45,14 @@ export const env = {
   JWT: {
     SECRET: process.env.JWT_SECRET,
     EXPIRES_IN: process.env.JWT_EXPIRES_IN || '1d'
+  },
+  RECAPTCHA: {
+    // El captcha solo se exige si RECAPTCHA_ENABLED=true (apagado por defecto).
+    ENABLED: process.env.RECAPTCHA_ENABLED === 'true',
+    API_KEY: process.env.RECAPTCHA_API_KEY,
+    PROJECT_ID: process.env.RECAPTCHA_PROJECT_ID,
+    SITE_KEY: process.env.RECAPTCHA_SITE_KEY,
+    MIN_SCORE: Number(process.env.RECAPTCHA_MIN_SCORE) || 0.5
   },
   SECURITY: {
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY

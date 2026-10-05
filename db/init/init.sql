@@ -299,10 +299,18 @@ CREATE TABLE ListaPrecio ( -- Regla de formación de precio por categoría de pr
     Id                     INT           PRIMARY KEY IDENTITY,
     Nombre                 NVARCHAR(100) NOT NULL,
     PorcentajeRentabilidad DECIMAL(5, 2) NOT NULL CHECK (PorcentajeRentabilidad >= 0), -- % de ganancia que se aplica sobre el CostoReal.
+    FactorCostosVariables  DECIMAL(5, 2) NOT NULL DEFAULT 26.00 CHECK (FactorCostosVariables >= 0), -- % de costos variables que se suma al CostoBase para obtener el CostoReal.
     Activo                 BIT           NOT NULL DEFAULT 1,
     IdCategoriaProducto    INT           NULL, -- NULL = lista genérica, no atada a una categoría (ej. la lista Id=1 default).
     CONSTRAINT FK_ListaPrecio_Categoria FOREIGN KEY (IdCategoriaProducto) REFERENCES CategoriaProducto (Id)
 );
+GO
+
+-- Migración idempotente: en bases creadas antes de que existiera FactorCostosVariables
+-- (el CREATE TABLE de arriba falla por "ya existe") se agrega la columna con el default de 26%.
+IF COL_LENGTH('dbo.ListaPrecio', 'FactorCostosVariables') IS NULL
+    ALTER TABLE dbo.ListaPrecio ADD FactorCostosVariables DECIMAL(5, 2) NOT NULL
+        CONSTRAINT DF_ListaPrecio_FactorCostosVariables DEFAULT 26.00;
 GO
 
 CREATE TABLE PrecioArticulo ( -- Precio concreto vigente de un renglón de Inventario, aplicando una ListaPrecio. Con historial: nunca se pisa un registro, se cierra su vigencia (FechaHasta) y se crea uno nuevo.
