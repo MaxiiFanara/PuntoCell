@@ -200,6 +200,16 @@ CREATE TABLE Producto (
 );
 GO
 
+CREATE TABLE ImagenProducto (
+    Id                   INT           PRIMARY KEY IDENTITY, 
+    URLRelativa          VARCHAR(500)  NULL, 
+    EsPortada            BIT           NULL,
+    OrdenVisual          INT           NULL,
+    IdProducto           INT           NULL,
+    CONSTRAINT FK_ImagenProducto_Modelo     FOREIGN KEY (IdProducto)     REFERENCES Producto (Id)
+);
+GO
+
 CREATE TABLE Proveedor ( -- Quienes nos suministran el stock de artículos o repuestos.
     Id          INT           PRIMARY KEY IDENTITY, 
     Nombre      NVARCHAR(100) NOT NULL UNIQUE, 
@@ -299,18 +309,11 @@ CREATE TABLE ListaPrecio ( -- Regla de formación de precio por categoría de pr
     Id                     INT           PRIMARY KEY IDENTITY,
     Nombre                 NVARCHAR(100) NOT NULL,
     PorcentajeRentabilidad DECIMAL(5, 2) NOT NULL CHECK (PorcentajeRentabilidad >= 0), -- % de ganancia que se aplica sobre el CostoReal.
-    FactorCostosVariables  DECIMAL(5, 2) NOT NULL DEFAULT 26.00 CHECK (FactorCostosVariables >= 0), -- % de costos variables que se suma al CostoBase para obtener el CostoReal.
+    FactorCostosVariables   DECIMAL(5, 2) NOT NULL CHECK (FactorCostosVariables >= 0) DEFAULT 26.00,
     Activo                 BIT           NOT NULL DEFAULT 1,
     IdCategoriaProducto    INT           NULL, -- NULL = lista genérica, no atada a una categoría (ej. la lista Id=1 default).
     CONSTRAINT FK_ListaPrecio_Categoria FOREIGN KEY (IdCategoriaProducto) REFERENCES CategoriaProducto (Id)
 );
-GO
-
--- Migración idempotente: en bases creadas antes de que existiera FactorCostosVariables
--- (el CREATE TABLE de arriba falla por "ya existe") se agrega la columna con el default de 26%.
-IF COL_LENGTH('dbo.ListaPrecio', 'FactorCostosVariables') IS NULL
-    ALTER TABLE dbo.ListaPrecio ADD FactorCostosVariables DECIMAL(5, 2) NOT NULL
-        CONSTRAINT DF_ListaPrecio_FactorCostosVariables DEFAULT 26.00;
 GO
 
 CREATE TABLE PrecioArticulo ( -- Precio concreto vigente de un renglón de Inventario, aplicando una ListaPrecio. Con historial: nunca se pisa un registro, se cierra su vigencia (FechaHasta) y se crea uno nuevo.
@@ -320,7 +323,7 @@ CREATE TABLE PrecioArticulo ( -- Precio concreto vigente de un renglón de Inven
     ValorFinal          DECIMAL(18,2) NOT NULL CHECK (ValorFinal >= 0), -- Precio de venta resultante (lo que paga el cliente).
     CostoBase           DECIMAL(18,2) NOT NULL CHECK (CostoBase >= 0), -- Lo que costó comprarlo (viene de Compras).
     CostoVariables      DECIMAL(18,2) NOT NULL CHECK (CostoVariables >= 0), -- Costos indirectos calculados sobre el CostoBase.
-    CostoReal           DECIMAL(18,2) NOT NULL CHECK (CostoReal >= 0), -- CostoBase + CostoVariables.
+    CostoReal           DECIMAL(18,2) NOT NULL CHECK (CostoReal >= 0), -- CostoBase + CostosVariables.
     PorcentajeGanancia  DECIMAL(5,2)  NOT NULL CHECK (PorcentajeGanancia >= 0), -- Copiado de ListaPrecio.PorcentajeRentabilidad al momento de calcular.
     IdListaPrecio       INT           NOT NULL,
     IdInventario        INT           NOT NULL,
@@ -1130,196 +1133,194 @@ GO
 -- 11. Modelos
 IF NOT EXISTS (SELECT 1 FROM ModeloProducto)
 INSERT INTO ModeloProducto (Nombre, IdMarcaProducto, IdCategoriaProducto) VALUES 
-('iPhone 11', 1, 1),                 -- 1
-('iPhone 11 Pro', 1, 1),             -- 2
-('iPhone 11 Pro Max', 1, 1),         -- 3
-('iPhone 12', 1, 1),                 -- 4
-('iPhone 12 Pro', 1, 1),             -- 5
-('iPhone 12 Pro Max', 1, 1),         -- 6
-('iPhone 13', 1, 1),                 -- 7
-('iPhone 13 Pro', 1, 1),             -- 8
-('iPhone 13 Pro Max', 1, 1),         -- 9
-('iPhone 14', 1, 1),                 -- 10
-('iPhone 14 Pro', 1, 1),             -- 11
-('iPhone 14 Pro Max', 1, 1),         -- 12
-('iPhone 15', 1, 1),                 -- 13
-('iPhone 15 Pro', 1, 1),             -- 14
-('iPhone 15 Pro Max', 1, 1),         -- 15
-('iPhone 16', 1, 1),                 -- 16
-('iPhone 16 Pro', 1, 1),             -- 17
-('iPhone 16 Pro Max', 1, 1),         -- 18
-('iPhone 17', 1, 1),                 -- 19
-('iPhone 17 Pro', 1, 1),             -- 20
-('iPhone 17 Pro Max', 1, 1),         -- 21
--- Otros smartphones (Samsung, Xiaomi, Motorola, Google)
-('Galaxy S24', 2, 1),                -- 22
-('Galaxy S24 Ultra', 2, 1),          -- 23
-('Galaxy A55', 2, 1),                -- 24
-('Redmi Note 13', 4, 1),             -- 25
-('Redmi Note 13 Pro', 4, 1),         -- 26
-('Moto G84', 3, 1),                  -- 27
-('Moto G54', 3, 1),                  -- 28
-('Pixel 8', 6, 1),                   -- 29
--- Tablets (IdCat 2)
-('iPad (10ma Gen)', 1, 2),           -- 30
-('iPad Air M2', 1, 2),               -- 31
-('Galaxy Tab S9', 2, 2),             -- 32
--- Notebooks (IdCat 3)
-('MacBook Air M2', 1, 3),            -- 33
-('MacBook Pro 14 M3', 1, 3),         -- 34
-('Galaxy Book4', 2, 3),              -- 35
--- Accesorios (IdCat 4), marca genérica
-('Funda Silicona', 12, 4),                -- 36
-('Vidrio Templado 9H', 12, 4),            -- 37
-('Cargador 20W USB-C', 12, 4),            -- 38
-('Cable USB-C a Lightning', 12, 4),       -- 39
-('Auriculares Bluetooth', 12, 4),         -- 40
-('Power Bank 10000mAh', 12, 4),           -- 41
-('Soporte de Auto Magnético', 12, 4),     -- 42
--- Repuestos (IdCat 5), marca genérica: pantalla / batería / pin de carga / tapa trasera
--- para las generaciones de iPhone con más rotación en el taller, + un par de Samsung/genéricos.
-('Pantalla iPhone 11', 12, 5),            -- 43
-('Batería iPhone 11', 12, 5),             -- 44
-('Pin de Carga iPhone 11', 12, 5),        -- 45
-('Tapa Trasera iPhone 11', 12, 5),        -- 46
-('Pantalla iPhone 12', 12, 5),            -- 47
-('Batería iPhone 12', 12, 5),             -- 48
-('Pin de Carga iPhone 12', 12, 5),        -- 49
-('Tapa Trasera iPhone 12', 12, 5),        -- 50
-('Pantalla iPhone 13', 12, 5),            -- 51
-('Batería iPhone 13', 12, 5),             -- 52
-('Pin de Carga iPhone 13', 12, 5),        -- 53
-('Tapa Trasera iPhone 13', 12, 5),        -- 54
-('Pantalla iPhone 14', 12, 5),            -- 55
-('Batería iPhone 14', 12, 5),             -- 56
-('Pin de Carga iPhone 14', 12, 5),        -- 57
-('Tapa Trasera iPhone 14', 12, 5),        -- 58
-('Pantalla iPhone 15', 12, 5),            -- 59
-('Batería iPhone 15', 12, 5),             -- 60
-('Pin de Carga iPhone 15', 12, 5),        -- 61
-('Tapa Trasera iPhone 15', 12, 5),        -- 62
-('Pantalla iPhone 16', 12, 5),            -- 63
-('Batería iPhone 16', 12, 5),             -- 64
-('Pin de Carga iPhone 16', 12, 5),        -- 65
-('Tapa Trasera iPhone 16', 12, 5),        -- 66
-('Pantalla Galaxy S24', 12, 5),           -- 67
-('Batería Galaxy S24', 12, 5),            -- 68
-('Batería Universal 4000mAh', 12, 5),     -- 69
-('Flex de Carga Universal', 12, 5);       -- 70
+('iPhone 11', 1, 1), ('iPhone 11 Pro', 1, 1), ('iPhone 11 Pro Max', 1, 1), 
+('iPhone 12', 1, 1), ('iPhone 12 Pro', 1, 1), ('iPhone 12 Pro Max', 1, 1), 
+('iPhone 13', 1, 1), ('iPhone 13 Pro', 1, 1), ('iPhone 13 Pro Max', 1, 1), 
+('iPhone 14', 1, 1), ('iPhone 14 Pro', 1, 1), ('iPhone 14 Pro Max', 1, 1), 
+('iPhone 15', 1, 1), ('iPhone 15 Pro', 1, 1), ('iPhone 15 Pro Max', 1, 1), 
+('iPhone 16', 1, 1), ('iPhone 16 Pro', 1, 1), ('iPhone 16 Pro Max', 1, 1), 
+('iPhone 17', 1, 1), ('iPhone 17 Pro', 1, 1), ('iPhone 17 Pro Max', 1, 1),
+('Galaxy S24', 2, 1), ('Galaxy S24 Ultra', 2, 1), 
+('Galaxy A55', 2, 1), 
+('Redmi Note 13', 4, 1), ('Redmi Note 13 Pro', 4, 1), 
+('Moto G84', 3, 1), 
+('Moto G54', 3, 1), 
+('Pixel 8', 6, 1),
+('iPad (10ma Gen)', 1, 2), 
+('iPad Air M2', 1, 2), 
+('Galaxy Tab S9', 2, 2),
+('MacBook Air M2', 1, 3), 
+('MacBook Pro 14 M3', 1, 3), 
+('Galaxy Book4', 2, 3),
+('Funda Silicona', 12, 4), 
+('Vidrio Templado 9H', 12, 4), 
+('Cargador 20W USB-C', 12, 4), 
+('Cable USB-C a Lightning', 12, 4), 
+('Auriculares Bluetooth', 12, 4), 
+('Power Bank 10000mAh', 12, 4), 
+('Soporte de Auto Magnético', 12, 4),
+('Pantalla iPhone 11', 12, 5), ('Batería iPhone 11', 12, 5), ('Pin de Carga iPhone 11', 12, 5), ('Tapa Trasera iPhone 11', 12, 5), 
+('Pantalla iPhone 12', 12, 5), ('Batería iPhone 12', 12, 5), ('Pin de Carga iPhone 12', 12, 5), ('Tapa Trasera iPhone 12', 12, 5), 
+('Pantalla iPhone 13', 12, 5), ('Batería iPhone 13', 12, 5), ('Pin de Carga iPhone 13', 12, 5), ('Tapa Trasera iPhone 13', 12, 5), 
+('Pantalla iPhone 14', 12, 5), ('Batería iPhone 14', 12, 5), ('Pin de Carga iPhone 14', 12, 5), ('Tapa Trasera iPhone 14', 12, 5), 
+('Pantalla iPhone 15', 12, 5), ('Batería iPhone 15', 12, 5), ('Pin de Carga iPhone 15', 12, 5), ('Tapa Trasera iPhone 15', 12, 5), 
+('Pantalla iPhone 16', 12, 5), ('Batería iPhone 16', 12, 5), ('Pin de Carga iPhone 16', 12, 5), ('Tapa Trasera iPhone 16', 12, 5), 
+('Pantalla Galaxy S24', 12, 5), ('Batería Galaxy S24', 12, 5), 
+('Batería Universal 4000mAh', 12, 5), 
+('Flex de Carga Universal', 12, 5),
+-- Nuevos modelos agregados:
+('Cargador Magsafe', 1, 4), 
+('MacBook Air 13 M4', 1, 3), 
+('iPad Mini A17 Pro', 1, 2), 
+('iPhone 16e', 1, 1), ('iPhone 16-plus', 1, 1), 
+('iPhone Air', 1, 1), 
+('Edge 60', 3, 1), 
+('Moto G75', 3, 1), 
+('Moto G85', 3, 1), 
+('Razr 60', 3, 1), 
+('Galaxy S24fe', 2, 1), 
+('Galaxy S25', 2, 1), ('Galaxy S25fe', 2, 1), ('Galaxy S25 Edge', 2, 1), ('Galaxy S25 ultra', 2, 1), 
+('Galaxy S26', 2, 1), ('Galaxy S26 ultra', 2, 1);
 GO
 
 -- 12. Catálogos de Especificaciones
 IF NOT EXISTS (SELECT 1 FROM Color)
 INSERT INTO Color (Nombre) VALUES 
-('negro'), ('blanco'), ('azul'), ('plata'), ('rojo'),
-('verde'), ('dorado'), ('gris espacial'), ('morado'), ('rosa'),
-('titanio natural'), ('titanio azul'), ('titanio negro'), ('titanio blanco'),
-('medianoche'), ('blanco estrella'), ('amarillo'), ('coral'), ('grafito'), ('lavanda');
-GO
+('negro'), ('blanco'), ('azul'), ('plata'), 
+('rojo'), ('verde'), ('dorado'), ('gris espacial'), 
+('morado'), ('rosa'), ('titanio natural'), ('titanio azul'), 
+('titanio negro'), ('titanio blanco'), ('medianoche'), ('blanco estrella'), 
+('amarillo'), ('coral'), ('grafito'), ('lavanda');
 
 IF NOT EXISTS (SELECT 1 FROM Memoria)
-INSERT INTO Memoria (Capacidad) VALUES 
-('2gb'), ('3gb'), ('4gb'), ('6gb'), ('8gb'), ('12gb'), ('16gb'), ('18gb');
-GO
+INSERT INTO Memoria (Capacidad) VALUES ('2gb'), ('3gb'), ('4gb'), ('6gb'), ('8gb'), ('12gb'), ('16gb'), ('18gb');
 
 IF NOT EXISTS (SELECT 1 FROM Almacenamiento)
-INSERT INTO Almacenamiento (Capacidad) VALUES 
-('32gb'), ('64gb'), ('128gb'), ('256gb'), ('512gb'), ('1tb');
-GO
+INSERT INTO Almacenamiento (Capacidad) VALUES ('32gb'), ('64gb'), ('128gb'), ('256gb'), ('512gb'), ('1tb');
 
--- Bateria = estado/salud de la batería (para reacondicionados)
 IF NOT EXISTS (SELECT 1 FROM Bateria)
-INSERT INTO Bateria (Capacidad, Porcentaje, CiclosCarga) VALUES
-('100% (nueva)', 100.00, 0),
-('nueva original', 100.00, 0),
-('95%', 95.00, 120),
-('90%', 90.00, 250),
-('85%', 85.00, 400),
-('80%', 80.00, 600),
+INSERT INTO Bateria (Capacidad, Porcentaje, CiclosCarga) VALUES 
+('100% (nueva)', 100.00, 0), ('nueva original', 100.00, 0), 
+('95%', 95.00, 120), ('90%', 90.00, 250), 
+('85%', 85.00, 400), ('80%', 80.00, 600), 
 ('75%', 75.00, 850);
 GO
 
 -- 13. Productos
--- Recordar: los bits de tipo (serializado / vendible / repuesto) viven acá, en Producto,
--- no en ModeloProducto (evaluado y descartado — ver memoria "propuesta-mover-flags-tipo-a-modelo").
 IF NOT EXISTS (SELECT 1 FROM Producto)
 INSERT INTO Producto (Nombre, EsSerializado, EsVendible, EsRepuesto, Activo, IdModeloProducto) VALUES
--- Apple iPhone 11 → 17 (serializados, vendibles) — Producto.Id = ModeloProducto.Id (1:1)
-('Apple iPhone 11', 1, 1, 0, 1, 1),
-('Apple iPhone 11 Pro', 1, 1, 0, 1, 2),
-('Apple iPhone 11 Pro Max', 1, 1, 0, 1, 3),
-('Apple iPhone 12', 1, 1, 0, 1, 4),
-('Apple iPhone 12 Pro', 1, 1, 0, 1, 5),
-('Apple iPhone 12 Pro Max', 1, 1, 0, 1, 6),
-('Apple iPhone 13', 1, 1, 0, 1, 7),
-('Apple iPhone 13 Pro', 1, 1, 0, 1, 8),
-('Apple iPhone 13 Pro Max', 1, 1, 0, 1, 9),
-('Apple iPhone 14', 1, 1, 0, 1, 10),
-('Apple iPhone 14 Pro', 1, 1, 0, 1, 11),
-('Apple iPhone 14 Pro Max', 1, 1, 0, 1, 12),
-('Apple iPhone 15', 1, 1, 0, 1, 13),
-('Apple iPhone 15 Pro', 1, 1, 0, 1, 14),
-('Apple iPhone 15 Pro Max', 1, 1, 0, 1, 15),
-('Apple iPhone 16', 1, 1, 0, 1, 16),
-('Apple iPhone 16 Pro', 1, 1, 0, 1, 17),
-('Apple iPhone 16 Pro Max', 1, 1, 0, 1, 18),
-('Apple iPhone 17', 1, 1, 0, 1, 19),
-('Apple iPhone 17 Pro', 1, 1, 0, 1, 20),
-('Apple iPhone 17 Pro Max', 1, 1, 0, 1, 21),
--- Otros smartphones
-('Samsung Galaxy S24', 1, 1, 0, 1, 22),
-('Samsung Galaxy S24 Ultra', 1, 1, 0, 1, 23),
-('Samsung Galaxy A55', 1, 1, 0, 1, 24),
-('Xiaomi Redmi Note 13', 1, 1, 0, 1, 25),
-('Xiaomi Redmi Note 13 Pro', 1, 1, 0, 1, 26),
-('Motorola Moto G84', 1, 1, 0, 1, 27),
-('Motorola Moto G54', 1, 1, 0, 1, 28),
+('Apple iPhone 11', 1, 1, 0, 1, 1), ('Apple iPhone 11 Pro', 1, 1, 0, 1, 2), ('Apple iPhone 11 Pro Max', 1, 1, 0, 1, 3), 
+('Apple iPhone 12', 1, 1, 0, 1, 4), ('Apple iPhone 12 Pro', 1, 1, 0, 1, 5), ('Apple iPhone 12 Pro Max', 1, 1, 0, 1, 6), 
+('Apple iPhone 13', 1, 1, 0, 1, 7), ('Apple iPhone 13 Pro', 1, 1, 0, 1, 8), ('Apple iPhone 13 Pro Max', 1, 1, 0, 1, 9), 
+('Apple iPhone 14', 1, 1, 0, 1, 10), ('Apple iPhone 14 Pro', 1, 1, 0, 1, 11), ('Apple iPhone 14 Pro Max', 1, 1, 0, 1, 12), 
+('Apple iPhone 15', 1, 1, 0, 1, 13), ('Apple iPhone 15 Pro', 1, 1, 0, 1, 14), ('Apple iPhone 15 Pro Max', 1, 1, 0, 1, 15), 
+('Apple iPhone 16', 1, 1, 0, 1, 16), ('Apple iPhone 16 Pro', 1, 1, 0, 1, 17), ('Apple iPhone 16 Pro Max', 1, 1, 0, 1, 18), 
+('Apple iPhone 17', 1, 1, 0, 1, 19), ('Apple iPhone 17 Pro', 1, 1, 0, 1, 20), ('Apple iPhone 17 Pro Max', 1, 1, 0, 1, 21),
+('Samsung Galaxy S24', 1, 1, 0, 1, 22), ('Samsung Galaxy S24 Ultra', 1, 1, 0, 1, 23), 
+('Samsung Galaxy A55', 1, 1, 0, 1, 24), 
+('Xiaomi Redmi Note 13', 1, 1, 0, 1, 25), ('Xiaomi Redmi Note 13 Pro', 1, 1, 0, 1, 26), 
+('Motorola Moto G84', 1, 1, 0, 1, 27), 
+('Motorola Moto G54', 1, 1, 0, 1, 28), 
 ('Google Pixel 8', 1, 1, 0, 1, 29),
--- Tablets
-('Apple iPad (10ma Gen)', 1, 1, 0, 1, 30),
-('Apple iPad Air M2', 1, 1, 0, 1, 31),
+('Apple iPad (10ma Gen)', 1, 1, 0, 1, 30), 
+('Apple iPad Air M2', 1, 1, 0, 1, 31), 
 ('Samsung Galaxy Tab S9', 1, 1, 0, 1, 32),
--- Notebooks
-('Apple MacBook Air M2', 1, 1, 0, 1, 33),
-('Apple MacBook Pro 14 M3', 1, 1, 0, 1, 34),
+('Apple MacBook Air M2', 1, 1, 0, 1, 33), 
+('Apple MacBook Pro 14 M3', 1, 1, 0, 1, 34), 
 ('Samsung Galaxy Book4', 1, 1, 0, 1, 35),
--- Accesorios (no serializados, vendibles, no repuesto)
-('Funda Silicona', 0, 1, 0, 1, 36),
-('Vidrio Templado 9H', 0, 1, 0, 1, 37),
-('Cargador 20W USB-C', 0, 1, 0, 1, 38),
-('Cable USB-C a Lightning', 0, 1, 0, 1, 39),
-('Auriculares Bluetooth', 0, 1, 0, 1, 40),
-('Power Bank 10000mAh', 0, 1, 0, 1, 41),
+('Funda Silicona', 0, 1, 0, 1, 36), 
+('Vidrio Templado 9H', 0, 1, 0, 1, 37), 
+('Cargador 20W USB-C', 0, 1, 0, 1, 38), 
+('Cable USB-C a Lightning', 0, 1, 0, 1, 39), 
+('Auriculares Bluetooth', 0, 1, 0, 1, 40), 
+('Power Bank 10000mAh', 0, 1, 0, 1, 41), 
 ('Soporte de Auto Magnético', 0, 1, 0, 1, 42),
--- Repuestos de taller (no serializados, no vendibles al público, EsRepuesto=1)
-('Pantalla iPhone 11 (repuesto)', 0, 0, 1, 1, 43),
-('Batería iPhone 11 (repuesto)', 0, 0, 1, 1, 44),
-('Pin de Carga iPhone 11 (repuesto)', 0, 0, 1, 1, 45),
-('Tapa Trasera iPhone 11 (repuesto)', 0, 0, 1, 1, 46),
-('Pantalla iPhone 12 (repuesto)', 0, 0, 1, 1, 47),
-('Batería iPhone 12 (repuesto)', 0, 0, 1, 1, 48),
-('Pin de Carga iPhone 12 (repuesto)', 0, 0, 1, 1, 49),
-('Tapa Trasera iPhone 12 (repuesto)', 0, 0, 1, 1, 50),
-('Pantalla iPhone 13 (repuesto)', 0, 0, 1, 1, 51),
-('Batería iPhone 13 (repuesto)', 0, 0, 1, 1, 52),
-('Pin de Carga iPhone 13 (repuesto)', 0, 0, 1, 1, 53),
-('Tapa Trasera iPhone 13 (repuesto)', 0, 0, 1, 1, 54),
-('Pantalla iPhone 14 (repuesto)', 0, 0, 1, 1, 55),
-('Batería iPhone 14 (repuesto)', 0, 0, 1, 1, 56),
-('Pin de Carga iPhone 14 (repuesto)', 0, 0, 1, 1, 57),
-('Tapa Trasera iPhone 14 (repuesto)', 0, 0, 1, 1, 58),
-('Pantalla iPhone 15 (repuesto)', 0, 0, 1, 1, 59),
-('Batería iPhone 15 (repuesto)', 0, 0, 1, 1, 60),
-('Pin de Carga iPhone 15 (repuesto)', 0, 0, 1, 1, 61),
-('Tapa Trasera iPhone 15 (repuesto)', 0, 0, 1, 1, 62),
-('Pantalla iPhone 16 (repuesto)', 0, 0, 1, 1, 63),
-('Batería iPhone 16 (repuesto)', 0, 0, 1, 1, 64),
-('Pin de Carga iPhone 16 (repuesto)', 0, 0, 1, 1, 65),
-('Tapa Trasera iPhone 16 (repuesto)', 0, 0, 1, 1, 66),
-('Pantalla Galaxy S24 (repuesto)', 0, 0, 1, 1, 67),
-('Batería Galaxy S24 (repuesto)', 0, 0, 1, 1, 68),
-('Batería Universal 4000mAh (repuesto)', 0, 0, 1, 1, 69),
-('Flex de Carga Universal (repuesto)', 0, 0, 1, 1, 70);
+('Pantalla iPhone 11 (repuesto)', 0, 0, 1, 1, 43), ('Batería iPhone 11 (repuesto)', 0, 0, 1, 1, 44), ('Pin de Carga iPhone 11 (repuesto)', 0, 0, 1, 1, 45), ('Tapa Trasera iPhone 11 (repuesto)', 0, 0, 1, 1, 46), 
+('Pantalla iPhone 12 (repuesto)', 0, 0, 1, 1, 47), ('Batería iPhone 12 (repuesto)', 0, 0, 1, 1, 48), ('Pin de Carga iPhone 12 (repuesto)', 0, 0, 1, 1, 49), ('Tapa Trasera iPhone 12 (repuesto)', 0, 0, 1, 1, 50), 
+('Pantalla iPhone 13 (repuesto)', 0, 0, 1, 1, 51), ('Batería iPhone 13 (repuesto)', 0, 0, 1, 1, 52), ('Pin de Carga iPhone 13 (repuesto)', 0, 0, 1, 1, 53), ('Tapa Trasera iPhone 13 (repuesto)', 0, 0, 1, 1, 54), 
+('Pantalla iPhone 14 (repuesto)', 0, 0, 1, 1, 55), ('Batería iPhone 14 (repuesto)', 0, 0, 1, 1, 56), ('Pin de Carga iPhone 14 (repuesto)', 0, 0, 1, 1, 57), ('Tapa Trasera iPhone 14 (repuesto)', 0, 0, 1, 1, 58), 
+('Pantalla iPhone 15 (repuesto)', 0, 0, 1, 1, 59), ('Batería iPhone 15 (repuesto)', 0, 0, 1, 1, 60), ('Pin de Carga iPhone 15 (repuesto)', 0, 0, 1, 1, 61), ('Tapa Trasera iPhone 15 (repuesto)', 0, 0, 1, 1, 62), 
+('Pantalla iPhone 16 (repuesto)', 0, 0, 1, 1, 63), ('Batería iPhone 16 (repuesto)', 0, 0, 1, 1, 64), ('Pin de Carga iPhone 16 (repuesto)', 0, 0, 1, 1, 65), ('Tapa Trasera iPhone 16 (repuesto)', 0, 0, 1, 1, 66), 
+('Pantalla Galaxy S24 (repuesto)', 0, 0, 1, 1, 67), ('Batería Galaxy S24 (repuesto)', 0, 0, 1, 1, 68), 
+('Batería Universal 4000mAh (repuesto)', 0, 0, 1, 1, 69), 
+('Flex de Carga Universal (repuesto)', 0, 0, 1, 1, 70),
+-- Nuevos productos agregados:
+('Apple Cargador Magsafe', 0, 1, 0, 1, 71), 
+('Apple MacBook Air 13 M4', 1, 1, 0, 1, 72), 
+('Apple iPad Mini A17 Pro', 1, 1, 0, 1, 73), 
+('Apple iPhone 16e', 1, 1, 0, 1, 74), ('Apple iPhone 16-plus', 1, 1, 0, 1, 75), 
+('Apple iPhone Air', 1, 1, 0, 1, 76), 
+('Motorola Edge 60', 1, 1, 0, 1, 77), 
+('Motorola Moto G75', 1, 1, 0, 1, 78), 
+('Motorola Moto G85', 1, 1, 0, 1, 79), 
+('Motorola Razr 60', 1, 1, 0, 1, 80), 
+('Samsung Galaxy S24fe', 1, 1, 0, 1, 81), 
+('Samsung Galaxy S25', 1, 1, 0, 1, 82), ('Samsung Galaxy S25fe', 1, 1, 0, 1, 83), ('Samsung Galaxy S25 Edge', 1, 1, 0, 1, 84), ('Samsung Galaxy S25 ultra', 1, 1, 0, 1, 85), 
+('Samsung Galaxy S26', 1, 1, 0, 1, 86), ('Samsung Galaxy S26 ultra', 1, 1, 0, 1, 87);
+GO
+
+-- Imagenes de Productos
+IF NOT EXISTS (SELECT 1 FROM Proveedor)
+INSERT INTO ImagenProducto (URLRelativa, EsPortada, OrdenVisual, IdProducto) VALUES
+('smartphones/apple-iphone-11.webp', 1, 1, 1), ('smartphones/apple-iphone-11-2.webp', 0, 2, 1), ('smartphones/apple-iphone-11-3.webp', 0, 3, 1), ('smartphones/apple-iphone-11-4.webp', 0, 4, 1),
+('smartphones/apple-iphone-11-pro.webp', 1, 1, 2), ('smartphones/apple-iphone-11-pro-2.webp', 0, 2, 2), ('smartphones/apple-iphone-11-pro-3.webp', 0, 3, 2), ('smartphones/apple-iphone-11-pro-4.webp', 0, 4, 2),
+('smartphones/apple-iphone-11-pro-max.webp', 1, 1, 3), ('smartphones/apple-iphone-11-pro-max-2.webp', 0, 2, 3), ('smartphones/apple-iphone-11-pro-max-3.webp', 0, 3, 3), ('smartphones/apple-iphone-11-pro-max-4.webp', 0, 4, 3),
+('smartphones/apple-iphone-12.webp', 1, 1, 4), ('smartphones/apple-iphone-12-2.webp', 0, 2, 4), ('smartphones/apple-iphone-12-3.webp', 0, 3, 4), ('smartphones/apple-iphone-12-4.webp', 0, 4, 4),
+('smartphones/apple-iphone-12-pro.webp', 1, 1, 5), ('smartphones/apple-iphone-12-pro-2.webp', 0, 2, 5), ('smartphones/apple-iphone-12-pro-3.webp', 0, 3, 5), ('smartphones/apple-iphone-12-pro-4.webp', 0, 4, 5),
+('smartphones/apple-iphone-12-pro-max.webp', 1, 1, 6), ('smartphones/apple-iphone-12-pro-max-2.webp', 1, 2, 6), ('smartphones/apple-iphone-12-pro-max-3.webp', 0, 3, 6), ('smartphones/apple-iphone-12-pro-max-4.webp', 0, 4, 6),
+('smartphones/apple-iphone-13.webp', 1, 1, 7), ('smartphones/apple-iphone-13-2.webp', 0, 2, 7), ('smartphones/apple-iphone-13-3.webp', 0, 3, 7), ('smartphones/apple-iphone-13-4.webp', 0, 4, 7),
+('smartphones/apple-iphone-13-pro.webp', 1, 1, 8), ('smartphones/apple-iphone-13-pro-2.webp', 0, 2, 8), ('smartphones/apple-iphone-13-pro-3.webp', 0, 3, 8), ('smartphones/apple-iphone-13-pro-4.webp', 0, 4, 8),
+('smartphones/apple-iphone-13-pro-max.webp', 1, 1, 9), ('smartphones/apple-iphone-13-pro-max-2.webp', 0, 2, 9), ('smartphones/apple-iphone-13-pro-max-3.webp', 0, 3, 9), ('smartphones/apple-iphone-13-pro-max-4.webp', 0, 4, 9),
+('smartphones/apple-iphone-14.webp', 1, 1, 10), ('smartphones/apple-iphone-14-2.webp', 0, 2, 10), ('smartphones/apple-iphone-14-3.webp', 0, 3, 10), ('smartphones/apple-iphone-14-4.webp', 0, 4, 10),
+('smartphones/apple-iphone-14-pro.webp', 1, 1, 11), ('smartphones/apple-iphone-14-pro-2.webp', 0, 2, 11), ('smartphones/apple-iphone-14-pro-3.webp', 0, 3, 11), ('smartphones/apple-iphone-14-pro-4.webp', 0, 4, 11),
+('smartphones/apple-iphone-14-pro-max.webp', 1, 1, 12), ('smartphones/apple-iphone-14-pro-max-2.webp', 0, 2, 12), ('smartphones/apple-iphone-14-pro-max-3.webp', 0, 3, 12), ('smartphones/apple-iphone-14-pro-max-4.webp', 0, 4, 12),
+('smartphones/apple-iphone-15.webp', 1, 1, 13), ('smartphones/apple-iphone-15-2.webp', 0, 2, 13), ('smartphones/apple-iphone-15-3.webp', 0, 3, 13), ('smartphones/apple-iphone-15-4.webp', 0, 4, 13),
+('smartphones/apple-iphone-15-pro.webp', 1, 1, 14), ('smartphones/apple-iphone-15-pro-2.webp', 0, 2, 14), ('smartphones/apple-iphone-15-pro-3.webp', 0, 3, 14), ('smartphones/apple-iphone-15-pro-4.webp', 0, 4, 14),
+('smartphones/apple-iphone-15-pro-max.webp', 1, 1, 15), ('smartphones/apple-iphone-15-pro-max-2.webp', 0, 2, 15), ('smartphones/apple-iphone-15-pro-max-3.webp', 0, 3, 15), ('smartphones/apple-iphone-15-pro-max-4.webp', 0, 4, 15),
+('smartphones/apple-iphone-16.webp', 1, 1, 16), ('smartphones/apple-iphone-16-2.webp', 0, 2, 16), ('smartphones/apple-iphone-16-3.webp', 0, 3, 16), ('smartphones/apple-iphone-16-4.webp', 0, 4, 16),
+('smartphones/apple-iphone-16-pro.webp', 1, 1, 17), ('smartphones/apple-iphone-16-pro-2.webp', 0, 2, 17), ('smartphones/apple-iphone-16-pro-3.webp', 0, 3, 17), ('smartphones/apple-iphone-16-pro-4.webp', 0, 4, 17),
+('smartphones/apple-iphone-16-pro-max.webp', 1, 1, 18), ('smartphones/apple-iphone-16-pro-max-2.webp', 0, 2, 18), ('smartphones/apple-iphone-16-pro-max-3.webp', 0, 3, 18), ('smartphones/apple-iphone-16-pro-max-4.webp', 0, 4, 18),
+('smartphones/apple-iphone-17.webp', 1, 1, 19), ('smartphones/apple-iphone-17-2.webp', 0, 2, 19), ('smartphones/apple-iphone-17-3.webp', 0, 3, 19), ('smartphones/apple-iphone-17-4.webp', 0, 4, 19),
+('smartphones/apple-iphone-17-pro.webp', 1, 1, 20), ('smartphones/apple-iphone-17-pro-2.webp', 0, 2, 20), ('smartphones/apple-iphone-17-pro-3.webp', 0, 3, 20), ('smartphones/apple-iphone-17-pro-4.webp', 0, 4, 20),
+('smartphones/apple-iphone-17-pro-max.webp', 1, 1, 21), ('smartphones/apple-iphone-17-pro-max-2.webp', 0, 2, 21), ('smartphones/apple-iphone-17-pro-max-3.webp', 0, 3, 21), ('smartphones/apple-iphone-17-pro-max-4.webp', 0, 4, 21),
+('smartphones/samsung-galaxy-s24.webp', 1, 1, 22), ('smartphones/samsung-galaxy-s24-2.webp', 0, 2, 22), ('smartphones/samsung-galaxy-s24-3.webp', 0, 3, 22), ('smartphones/samsung-galaxy-s24-4.webp', 0, 4, 22),
+('smartphones/samsung-galaxy-s24-ultra.webp', 1, 1, 23), ('smartphones/samsung-galaxy-s24-ultra-2.webp', 0, 2, 23), ('smartphones/samsung-galaxy-s24-ultra-3.webp', 0, 3, 23), ('smartphones/samsung-galaxy-s24-ultra-4.webp', 0, 4, 23),
+('smartphones/samsung-galaxy-a55.webp', 1, 1, 24),
+('smartphones/xiaomi-redmi-note-13.webp', 1, 1, 25),
+('smartphones/xiaomi-redmi-note-13-pro.webp', 1, 1, 26),
+('smartphones/motorola-moto-g84.webp', 1, 1, 27), ('smartphones/motorola-moto-g84-2.webp', 0, 2, 27), ('smartphones/motorola-moto-g84-3.webp', 0, 3, 27), ('smartphones/motorola-moto-g84-4.webp', 0, 4, 27),
+('smartphones/motorola-moto-g54.webp', 1, 1, 28), ('smartphones/motorola-moto-g54-2.webp', 0, 2, 28), ('smartphones/motorola-moto-g54-3.webp', 0, 3, 28), ('smartphones/motorola-moto-g54-4.webp', 0, 4, 28),
+('smartphones/google-pixel-8.webp', 1, 1, 29),
+('tablets/apple-ipad-10ma-gen.webp', 1, 1, 30), ('tablets/apple-ipad-10ma-gen-2.webp', 0, 2, 30), ('tablets/apple-ipad-10ma-gen-3.webp', 0, 3, 30), ('tablets/apple-ipad-10ma-gen-4.webp', 0, 4, 30),
+('tablets/apple-ipad-air-m2.webp', 1, 1, 31), ('tablets/apple-ipad-air-m2-2.webp', 0, 2, 31), ('tablets/apple-ipad-air-m2-3.webp', 0, 3, 31), ('tablets/apple-ipad-air-m2-4.webp', 0, 4, 31),
+('tablets/samsung-galaxy-tab-s9.webp', 1, 1, 32), ('tablets/samsung-galaxy-tab-s9-2.webp', 0, 2, 32), ('tablets/samsung-galaxy-tab-s9-3.webp', 0, 3, 32), ('tablets/samsung-galaxy-tab-s9-4.webp', 0, 4, 32),
+('notebooks/apple-macbook-air-m2.webp', 1, 1, 33), ('notebooks/apple-macbook-air-m2-2.webp', 0, 2, 33), ('notebooks/apple-macbook-air-m2-3.webp', 0, 3, 33), ('notebooks/apple-macbook-air-m2-4.webp', 0, 4, 33),
+('notebooks/apple-macbook-pro-14-m3.webp', 1, 1, 34), ('notebooks/apple-macbook-pro-14-m3-2.webp', 0, 2, 34), ('notebooks/apple-macbook-pro-14-m3-3.webp', 0, 3, 34), ('notebooks/apple-macbook-pro-14-m3-4.webp', 0, 4, 34),
+('notebooks/samsung-galaxy-book4.webp', 1, 1, 35),
+('accesorios/funda-silicona.webp', 1, 1, 36),
+('accesorios/vidrio-templado-9h.webp', 1, 1, 37),
+('accesorios/cargador-20w-usb-c.webp', 1, 1, 38), ('accesorios/cargador-20w-usb-c-2.webp', 0, 2, 38), ('accesorios/cargador-20w-usb-c-3.webp', 0, 3, 38),
+('accesorios/cable-usb-c-a-lightning.webp', 1, 1, 39), ('accesorios/cable-usb-c-a-lightning-2.webp', 0, 2, 39), ('accesorios/cable-usb-c-a-lightning-3.webp', 0, 3, 39),
+('accesorios/auriculares-bluetooth.webp', 1, 1, 40), ('accesorios/auriculares-bluetooth-2.webp', 0, 2, 40), ('accesorios/auriculares-bluetooth-3.webp', 0, 3, 40), ('accesorios/auriculares-bluetooth-4.webp', 0, 4, 40),
+('accesorios/power-bank-10000mah.webp', 1, 1, 41), ('accesorios/power-bank-10000mah-2.webp', 0, 2, 41), ('accesorios/power-bank-10000mah-3.webp', 0, 3, 41), ('accesorios/power-bank-10000mah-4.webp', 0, 4, 41),
+('accesorios/soporte-de-auto-magnetico.webp', 1, 1, 42), ('accesorios/soporte-de-auto-magnetico-2.webp', 0, 2, 42), ('accesorios/soporte-de-auto-magnetico-3.webp', 0, 3, 42), ('accesorios/soporte-de-auto-magnetico-4.webp', 0, 4, 42),
+('accesorios/apple-cargador-magsafe-1.webp', 1, 1, 71), ('accesorios/apple-cargador-magsafe-2.webp', 0, 2, 71), ('accesorios/apple-cargador-magsafe-3.webp', 0, 3, 71), ('accesorios/apple-cargador-magsafe-4.webp', 0, 4, 71),
+('notebooks/apple-macbook-air-13-m4-1.webp', 1, 1, 72), ('notebooks/apple-macbook-air-13-m4-2.webp', 0, 2, 72), ('notebooks/apple-macbook-air-13-m4-3.webp', 0, 3, 72), ('notebooks/apple-macbook-air-13-m4-4.webp', 0, 4, 72),
+('tablets/apple-ipad-mini-a17-pro-1.webp', 1, 1, 73), ('tablets/apple-ipad-mini-a17-pro-2.webp', 0, 2, 73), ('tablets/apple-ipad-mini-a17-pro-3.webp', 0, 3, 73), ('tablets/apple-ipad-mini-a17-pro-4.webp', 0, 4, 73),
+('smartphones/apple-iphone-16e-1.webp', 1, 1, 74), ('smartphones/apple-iphone-16e-2.webp', 0, 2, 74), ('smartphones/apple-iphone-16e-3.webp', 0, 3, 74), ('smartphones/apple-iphone-16e-4.webp', 0, 4, 74),
+('smartphones/apple-iphone-16-plus-1.webp', 1, 1, 75), ('smartphones/apple-iphone-16-plus-2.webp', 0, 2, 75), ('smartphones/apple-iphone-16-plus-3.webp', 0, 3, 75), ('smartphones/apple-iphone-16-plus-4.webp', 0, 4, 75),
+('smartphones/apple-iphone-air-1.webp', 1, 1, 76), ('smartphones/apple-iphone-air-2.webp', 0, 2, 76), ('smartphones/apple-iphone-air-3.webp', 0, 3, 76), ('smartphones/apple-iphone-air-4.webp', 0, 4, 76),
+('smartphones/motorola-edge-60-1.webp', 1, 1, 77), ('smartphones/motorola-edge-60-2.webp', 0, 2, 77), ('smartphones/motorola-edge-60-3.webp', 0, 3, 77), ('smartphones/motorola-edge-60-4.webp', 0, 4, 77),
+('smartphones/motorola-moto-g75-1.webp', 1, 1, 78), ('smartphones/motorola-moto-g75-2.webp', 0, 2, 78), ('smartphones/motorola-moto-g75-3.webp', 0, 3, 78), ('smartphones/motorola-moto-g75-4.webp', 0, 4, 78),
+('smartphones/motorola-moto-g85-1.webp', 1, 1, 79), ('smartphones/motorola-moto-g85-2.webp', 0, 2, 79), ('smartphones/motorola-moto-g85-3.webp', 0, 3, 79), ('smartphones/motorola-moto-g85-4.webp', 0, 4, 79),
+('smartphones/motorola-razr-60-1.webp', 1, 1, 80), ('smartphones/motorola-razr-60-2.webp', 0, 2, 80), ('smartphones/motorola-razr-60-3.webp', 0, 3, 80), ('smartphones/motorola-razr-60-4.webp', 0, 4, 80),
+('smartphones/samsung-galaxy-s24-fe-1.webp', 1, 1, 81), ('smartphones/samsung-galaxy-s24-fe-2.webp', 0, 2, 81), ('smartphones/samsung-galaxy-s24-fe-3.webp', 0, 3, 81), ('smartphones/samsung-galaxy-s24-fe-4.webp', 0, 4, 81),
+('smartphones/samsung-galaxy-s25-1.webp', 1, 1, 82), ('smartphones/samsung-galaxy-s25-2.webp', 0, 2, 82), ('smartphones/samsung-galaxy-s25-3.webp', 0, 3, 82), ('smartphones/samsung-galaxy-s25-4.webp', 0, 4, 82),
+('smartphones/samsung-galaxy-s25-fe-1.webp', 1, 1, 83), ('smartphones/samsung-galaxy-s25-fe-2.webp', 0, 2, 83), ('smartphones/samsung-galaxy-s25-fe-3.webp', 0, 3, 83), ('smartphones/samsung-galaxy-s25-fe-4.webp', 0, 4, 83),
+('smartphones/samsung-galaxy-s25-edge-1.webp', 1, 1, 84), ('smartphones/samsung-galaxy-s25-edge-2.webp', 0, 2, 84), ('smartphones/samsung-galaxy-s25-edge-3.webp', 0, 3, 84), ('smartphones/samsung-galaxy-s25-edge-4.webp', 0, 4, 84),
+('smartphones/samsung-galaxy-s25-ultra-1.webp', 1, 1, 85), ('smartphones/samsung-galaxy-s25-ultra-2.webp', 0, 2, 85), ('smartphones/samsung-galaxy-s25-ultra-3.webp', 0, 3, 85), ('smartphones/samsung-galaxy-s25-ultra-4.webp', 0, 4, 85),
+('smartphones/samsung-galaxy-s26-1.webp', 1, 1, 86), ('smartphones/samsung-galaxy-s26-2.webp', 0, 2, 86), ('smartphones/samsung-galaxy-s26-3.webp', 0, 3, 86), ('smartphones/samsung-galaxy-s26-4.webp', 0, 4, 86),
+('smartphones/samsung-galaxy-s26-ultra-1.webp', 1, 1, 87), ('smartphones/samsung-galaxy-s26-ultra-2.webp', 0, 2, 87), ('smartphones/samsung-galaxy-s26-ultra-3.webp', 0, 3, 87), ('smartphones/samsung-galaxy-s26-ultra-4.webp', 0, 4, 87);
 GO
 
 -- 14. Proveedores
@@ -1352,7 +1353,8 @@ GO
 -- MÓDULO REPARACIONES CATÁLOGOS BASE
 IF NOT EXISTS (SELECT 1 FROM EstadoOrden)
 INSERT INTO EstadoOrden (Nombre) VALUES 
-('en espera'), ('en reparación'), ('terminado'), ('entregado'), ('anulado');
+('en espera'), ('en reparación'), ('terminado'), 
+('entregado'), ('anulado'), ('abandonado');
 
 IF NOT EXISTS (SELECT 1 FROM Falla)
 INSERT INTO Falla (Nombre, IdCategoriaProducto) VALUES 
@@ -1456,7 +1458,9 @@ INSERT INTO #Catalogo (IdProducto, CostoUSD) VALUES
 (22, 900), (23, 1100), (24, 400), (25, 250), (26, 300), (27, 280), (28, 220), (29, 650),
 (30, 450), (31, 600), (32, 800), (33, 1000), (34, 1500), (35, 1200),
 (36, 5), (37, 3), (38, 10), (39, 8), (40, 25), (41, 20), (42, 12),
-(43, 60), (44, 25), (45, 15), (46, 20), (47, 70), (48, 30), (49, 15), (50, 25), (51, 80), (52, 35), (53, 20), (54, 30), (55, 100), (56, 40), (57, 25), (58, 35), (59, 120), (60, 45), (61, 30), (62, 40), (63, 150), (64, 50), (65, 35), (66, 45), (67, 110), (68, 40), (69, 15), (70, 10);
+(43, 60), (44, 25), (45, 15), (46, 20), (47, 70), (48, 30), (49, 15), (50, 25), (51, 80), (52, 35), (53, 20), (54, 30), (55, 100), (56, 40), (57, 25), (58, 35), (59, 120), (60, 45), (61, 30), (62, 40), (63, 150), (64, 50), (65, 35), (66, 45), (67, 110), (68, 40), (69, 15), (70, 10),
+-- Precios base de los nuevos productos:
+(71, 35), (72, 1200), (73, 500), (74, 800), (75, 900), (76, 1000), (77, 450), (78, 350), (79, 400), (80, 850), (81, 650), (82, 1000), (83, 750), (84, 1100), (85, 1300), (86, 1100), (87, 1400);
 GO
 
 -- D. TURNOS DE CAJA MASIVOS (2021-2026, 150 turnos generados de a 12 días)
@@ -1495,7 +1499,7 @@ BEGIN
 END
 GO
 
--- E. COMPRAS MASIVAS (Inicial en Turnos 1 y 2, y luego cada 15 turnos)
+-- E. COMPRAS MASIVAS CON FLUCTUACIÓN DE PRECIOS
 IF OBJECT_ID('tempdb..#ComprasPlan') IS NOT NULL DROP TABLE #ComprasPlan;
 CREATE TABLE #ComprasPlan (NroPlan INT PRIMARY KEY, Fecha DATE, IdProveedor INT, IdSucursal INT, IdEmpleado INT, IdTurnoPlan INT, IdCompraGenerada INT NULL);
 
@@ -1518,16 +1522,16 @@ END
 IF OBJECT_ID('tempdb..#ComprasDetallePlan') IS NOT NULL DROP TABLE #ComprasDetallePlan;
 CREATE TABLE #ComprasDetallePlan (DetalleId INT IDENTITY(1,1) PRIMARY KEY, NroPlan INT, IdProducto INT, Cantidad INT, Procesado BIT NOT NULL DEFAULT 0);
 
--- Compra inicial enorme para soportar todos los años
-DECLARE @prod INT = 1; WHILE @prod <= 60 BEGIN INSERT INTO #ComprasDetallePlan (NroPlan, IdProducto, Cantidad) VALUES (1, @prod, 35); SET @prod = @prod + 1; END
-SET @prod = 1; WHILE @prod <= 40 BEGIN INSERT INTO #ComprasDetallePlan (NroPlan, IdProducto, Cantidad) VALUES (2, @prod, 25); SET @prod = @prod + 1; END
+-- Compra inicial enorme para soportar todos los años (incluye a los nuevos 17 productos)
+DECLARE @prod INT = 1; WHILE @prod <= 87 BEGIN INSERT INTO #ComprasDetallePlan (NroPlan, IdProducto, Cantidad) VALUES (1, @prod, 35); SET @prod = @prod + 1; END
+SET @prod = 1; WHILE @prod <= 60 BEGIN INSERT INTO #ComprasDetallePlan (NroPlan, IdProducto, Cantidad) VALUES (2, @prod, 25); SET @prod = @prod + 1; END
 
 -- Compras de reposición cíclicas
 DECLARE @cplan INT = 3;
 DECLARE @MaxCPlan INT = (SELECT MAX(NroPlan) FROM #ComprasPlan);
 WHILE @cplan <= @MaxCPlan
 BEGIN
-    INSERT INTO #ComprasDetallePlan (NroPlan, IdProducto, Cantidad) VALUES (@cplan, 45, 10), (@cplan, 52, 10), (@cplan, 10, 5), (@cplan, 38, 20), (@cplan, 36, 15), (@cplan, 69, 10);
+    INSERT INTO #ComprasDetallePlan (NroPlan, IdProducto, Cantidad) VALUES (@cplan, 45, 10), (@cplan, 52, 10), (@cplan, 10, 5), (@cplan, 38, 20), (@cplan, 36, 15), (@cplan, 69, 10), (@cplan, 72, 3), (@cplan, 85, 5);
     SET @cplan = @cplan + 1;
 END
 
@@ -1536,6 +1540,7 @@ DECLARE @IdCompraNuevo INT, @FechaC DATE, @ProvC INT, @SucC INT, @EmpC INT, @Tur
 DECLARE @DetalleIdActual INT, @IdProductoD INT, @CantidadD INT, @CostoUnit DECIMAL(18,2), @IdInvNuevo INT, @IdCatProd INT;
 DECLARE @ListaMin INT, @ListaMay INT, @PctMin DECIMAL(5,2), @PctMay DECIMAL(5,2), @CV DECIMAL(18,2), @CR DECIMAL(18,2);
 DECLARE @su INT, @TotalC DECIMAL(18,2), @IdPagoNuevo INT;
+DECLARE @FactorInflacion DECIMAL(18,4);
 
 WHILE @ci <= @nCompras
 BEGIN
@@ -1550,7 +1555,11 @@ BEGIN
     BEGIN
         SELECT TOP 1 @DetalleIdActual = DetalleId, @IdProductoD = IdProducto, @CantidadD = Cantidad FROM #ComprasDetallePlan WHERE NroPlan = @ci AND Procesado = 0 ORDER BY DetalleId;
         SET @CostoUnit = NULL; SET @IdCatProd = NULL;
-        SELECT @CostoUnit = CostoUSD FROM #Catalogo WHERE IdProducto = @IdProductoD;
+        
+        -- Simulamos una fluctuación de precios de mercado (entre -5% y +15% del costo base)
+        SET @FactorInflacion = 1.0 + (ABS(CHECKSUM(NEWID())) % 20 - 5) / 100.0;
+        SELECT @CostoUnit = CostoUSD * @FactorInflacion FROM #Catalogo WHERE IdProducto = @IdProductoD;
+        
         SELECT @IdCatProd = mo.IdCategoriaProducto FROM Producto p JOIN ModeloProducto mo ON p.IdModeloProducto = mo.Id WHERE p.Id = @IdProductoD;
 
         SELECT @ListaMin = CASE @IdCatProd WHEN 1 THEN 2 WHEN 2 THEN 4 WHEN 3 THEN 6 WHEN 4 THEN 8 WHEN 5 THEN 10 END, @ListaMay = CASE @IdCatProd WHEN 1 THEN 3 WHEN 2 THEN 5 WHEN 3 THEN 7 WHEN 4 THEN 9 WHEN 5 THEN 11 END;
@@ -1684,7 +1693,7 @@ BEGIN
 END
 GO
 
--- G. ÓRDENES DE REPARACIÓN MASIVAS 2021-2026 
+-- G. ÓRDENES DE REPARACIÓN MASIVAS CON TRAZABILIDAD DINÁMICA (2021-2026) 
 IF OBJECT_ID('tempdb..#ReparacionesPlan') IS NOT NULL DROP TABLE #ReparacionesPlan;
 CREATE TABLE #ReparacionesPlan (NroPlan INT PRIMARY KEY, FechaIngreso DATE, IdCliente INT, IdModeloProducto INT, IdFalla INT, IdTecnico INT, IdEstadoOrdenFinal INT, IdProductoRepuesto INT NULL, CantidadRepuesto INT NULL, PrecioManoObra DECIMAL(18,2));
 
@@ -1708,10 +1717,14 @@ DECLARE @FechaR DATE, @CliR INT, @ModeloR INT, @FallaR INT, @TecR INT, @EstadoFi
 DECLARE @IdDispR INT, @IdOrdenR INT, @CostoRepuestosARS DECIMAL(18,2), @PrecioCobradoR DECIMAL(18,2), @IdCotizR INT, @ValorCotizR DECIMAL(18,2);
 DECLARE @IdInvRepuesto INT, @FechaEntregaR DATETIME2, @TurnoIngresoR INT, @TurnoEntregaR INT, @SeniaR DECIMAL(18,2);
 
+-- Variables para tiempos dinámicos de seguimiento
+DECLARE @DiasParaReparar INT, @DiasParaTerminar INT, @DiasParaEntregar INT, @DiasParaAnular INT;
+DECLARE @FechaEstado2 DATETIME2, @FechaEstado3 DATETIME2, @FechaEstado5 DATETIME2;
+
 WHILE @ri <= @nRep
 BEGIN
     SELECT @FechaR=FechaIngreso, @CliR=IdCliente, @ModeloR=IdModeloProducto, @FallaR=IdFalla, @TecR=IdTecnico, @EstadoFinalR=IdEstadoOrdenFinal, @ProdRepR=IdProductoRepuesto, @CantRepR=CantidadRepuesto, @ManoObraR=PrecioManoObra FROM #ReparacionesPlan WHERE NroPlan = @ri;
-    INSERT INTO DispositivoCliente (Desbloqueo, Observaciones, Activo, IdCliente, IdModeloProducto) VALUES ('Patrón en L', 'Ingresado', 1, @CliR, @ModeloR);
+    INSERT INTO DispositivoCliente (Desbloqueo, Observaciones, Activo, IdCliente, IdModeloProducto) VALUES ('Patrón en L', 'Ingresado por técnico', 1, @CliR, @ModeloR);
     SET @IdDispR = SCOPE_IDENTITY();
 
     SET @CostoRepuestosARS = 0; SET @PrecioCobradoR = 0; SET @IdInvRepuesto = NULL;
@@ -1727,7 +1740,22 @@ BEGIN
         END
     END
 
-    SET @FechaEntregaR = CASE WHEN @EstadoFinalR = 4 THEN DATEADD(DAY, 6, CAST(@FechaR AS DATETIME2)) ELSE NULL END;
+    -- Generación de demoras aleatorias para trazabilidad realista
+    SET @DiasParaReparar = 1 + (ABS(CHECKSUM(NEWID())) % 3); -- Demora 1 a 3 días en diagnosticar
+    SET @DiasParaTerminar = @DiasParaReparar + 1 + (ABS(CHECKSUM(NEWID())) % 5); -- Tarda 1 a 5 días extra en arreglar
+    SET @DiasParaEntregar = @DiasParaTerminar + 1 + (ABS(CHECKSUM(NEWID())) % 7); -- El cliente tarda 1 a 7 días en buscarlo
+    SET @DiasParaAnular = 1 + (ABS(CHECKSUM(NEWID())) % 4); -- Si se rechaza, pasa en 1 a 4 días
+
+    SET @FechaEstado2 = DATEADD(DAY, @DiasParaReparar, CAST(@FechaR AS DATETIME2));
+    SET @FechaEstado3 = DATEADD(DAY, @DiasParaTerminar, CAST(@FechaR AS DATETIME2));
+    
+    IF @EstadoFinalR = 4 
+        SET @FechaEntregaR = DATEADD(DAY, @DiasParaEntregar, CAST(@FechaR AS DATETIME2));
+    ELSE 
+        SET @FechaEntregaR = NULL;
+
+    SET @FechaEstado5 = DATEADD(DAY, @DiasParaAnular, CAST(@FechaR AS DATETIME2));
+
     INSERT INTO OrdenReparacion (FechaEmision, FechaEntrega, CostoRepuestos, PrecioManoObra, TotalReparacion, IdEmpleado, IdDispositivoCliente, IdEstadoOrden) VALUES (CAST(@FechaR AS DATETIME2), @FechaEntregaR, @CostoRepuestosARS, @ManoObraR, @PrecioCobradoR + @ManoObraR, @TecR, @IdDispR, @EstadoFinalR);
     SET @IdOrdenR = SCOPE_IDENTITY();
 
@@ -1739,15 +1767,44 @@ BEGIN
         EXEC dbo.usp_Seed_ConsumoStock @IdInventario=@IdInvRepuesto, @Cantidad=@CantRepR, @Fecha=@FechaR, @IdEmpleado=@TecR, @Motivo='Consumo en Reparación';
     END
 
-    INSERT INTO SeguimientoOrden (FechaModificacion, ObservacionTecnico, IdOrdenReparacion, IdEmpleado, IdEstadoOrden) VALUES (CAST(@FechaR AS DATETIME2), 'Diagnóstico inicial', @IdOrdenR, @TecR, 1);
-    IF @EstadoFinalR = 4 INSERT INTO SeguimientoOrden (FechaModificacion, ObservacionTecnico, IdOrdenReparacion, IdEmpleado, IdEstadoOrden) VALUES (@FechaEntregaR, 'Equipo entregado', @IdOrdenR, @TecR, 4);
+    -- Trazabilidad de estados en escala de tiempo
+    INSERT INTO SeguimientoOrden (FechaModificacion, ObservacionTecnico, IdOrdenReparacion, IdEmpleado, IdEstadoOrden) 
+    VALUES (CAST(@FechaR AS DATETIME2), 'Equipo recibido en el mostrador', @IdOrdenR, @TecR, 1);
+
+    IF @EstadoFinalR IN (2, 3, 4)
+    BEGIN
+        INSERT INTO SeguimientoOrden (FechaModificacion, ObservacionTecnico, IdOrdenReparacion, IdEmpleado, IdEstadoOrden) 
+        VALUES (@FechaEstado2, 'Comienza el proceso de reparación por parte del técnico', @IdOrdenR, @TecR, 2);
+    END
+    
+    IF @EstadoFinalR IN (3, 4)
+    BEGIN
+        INSERT INTO SeguimientoOrden (FechaModificacion, ObservacionTecnico, IdOrdenReparacion, IdEmpleado, IdEstadoOrden) 
+        VALUES (@FechaEstado3, 'Reparación finalizada, el equipo se encuentra listo para retirar', @IdOrdenR, @TecR, 3);
+    END
+
+    IF @EstadoFinalR = 4
+    BEGIN
+        INSERT INTO SeguimientoOrden (FechaModificacion, ObservacionTecnico, IdOrdenReparacion, IdEmpleado, IdEstadoOrden) 
+        VALUES (@FechaEntregaR, 'El cliente retira el equipo reparado', @IdOrdenR, @TecR, 4);
+    END
+
+    IF @EstadoFinalR = 5
+    BEGIN
+        INSERT INTO SeguimientoOrden (FechaModificacion, ObservacionTecnico, IdOrdenReparacion, IdEmpleado, IdEstadoOrden) 
+        VALUES (@FechaEstado5, 'El cliente no aceptó el presupuesto, se anula la orden y se devuelve', @IdOrdenR, @TecR, 5);
+    END
 
     SET @TurnoIngresoR = (SELECT TOP 1 IdTurnoCaja FROM #Turnos WHERE Fecha <= @FechaR ORDER BY Fecha DESC);
     SET @SeniaR = ROUND((@PrecioCobradoR + @ManoObraR) * 0.3, 2);
     IF @SeniaR > 0 INSERT INTO PagoReparacion (Monto, Senia, FechaPago, Observacion, IdOrdenReparacion, IdMetodoPago, IdTurnoCaja) VALUES (@SeniaR, @SeniaR, CAST(@FechaR AS DATETIME2), 'Seña inicial', @IdOrdenR, 1, @TurnoIngresoR);
+    
     IF @EstadoFinalR = 4
     BEGIN
         SET @TurnoEntregaR = (SELECT TOP 1 IdTurnoCaja FROM #Turnos WHERE Fecha <= CAST(@FechaEntregaR AS DATE) ORDER BY Fecha DESC);
+        -- Fallback de seguridad si la suma aleatoria empuja la entrega más allá de la fecha del último turno generado
+        IF @TurnoEntregaR IS NULL SET @TurnoEntregaR = @TurnoIngresoR;
+
         INSERT INTO PagoReparacion (Monto, Senia, FechaPago, Observacion, IdOrdenReparacion, IdMetodoPago, IdTurnoCaja) VALUES (((@PrecioCobradoR + @ManoObraR) - @SeniaR), 0, @FechaEntregaR, 'Saldo final', @IdOrdenR, 1, @TurnoEntregaR);
     END
     SET @ri = @ri + 1;

@@ -36,16 +36,12 @@ export const ProductProvider = ({ children }) => {
             id: p.id,
             name: p.name,
             description: `${p.modelo || p.categoria}${p.memoria ? ' - Memoria: ' + p.memoria : ''}${color ? ' - Color: ' + color : ''}`,
-            // `priceUsd` es un nombre engañoso del endpoint: PrecioArticulo.ValorFinal
-            // ya viene en PESOS (iPhone 14 Pro = 1.871.100, Funda = 3.024). Multiplicarlo
-            // por la cotización lo convertía de nuevo y dejaba toda la vitrina 1450x
-            // inflada. Se toma tal cual llega.
-            // Si el backend algún día pasa ValorFinal a dólares, acá hay que volver a
-            // multiplicar por la cotización; el cambio es de ellos, no nuestro.
             price: p.priceUsd,
             comparePrice: null,
             category: p.categoria,
-            gallery: [],
+            imagenes: (p.imagenes || []).map(img => img.startsWith('http') ? img : `https://puntocell-catalogo-imagenes.s3.us-east-2.amazonaws.com/${img}`),
+            imagenPortada: p.imagenPortada ? (p.imagenPortada.startsWith('http') ? p.imagenPortada : `https://puntocell-catalogo-imagenes.s3.us-east-2.amazonaws.com/${p.imagenPortada}`) : null,
+            gallery: (p.imagenes || []).map(img => img.startsWith('http') ? img : `https://puntocell-catalogo-imagenes.s3.us-east-2.amazonaws.com/${img}`),
             stock: p.stock,
             material: color || 'Estándar',
             sucursal: p.sucursal,
