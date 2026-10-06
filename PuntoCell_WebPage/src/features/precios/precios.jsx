@@ -19,6 +19,7 @@ import StatusPill from '../../components/ui/StatusPill';
 import Money from '../../components/ui/Money';
 import NumberField from '../../components/ui/NumberField';
 import { useVenta } from '../punto-venta/context/VentaContext';
+import { toast } from 'sonner';
 
 const fmt = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -66,7 +67,7 @@ export default function PreciosScreen() {
       setPreciosMap(mapVigentePorInventario(precios));
     } catch (e) {
       console.error('Error cargando precios:', e);
-      alert('No se pudieron cargar los datos de precios: ' + (e.message || ''));
+      toast.warning('No se pudieron cargar los datos de precios: ' + (e.message || ''));
     } finally {
       setCargando(false);
     }
@@ -162,16 +163,16 @@ export default function PreciosScreen() {
         }
       }
       
-      if (updates.length === 0) return alert('No se encontraron datos válidos en el CSV. Asegúrate de que el formato sea correcto.');
+      if (updates.length === 0) return toast.warning('No se encontraron datos válidos en el CSV. Asegúrate de que el formato sea correcto.');
       
       if (window.confirm(`¿Actualizar los costos base de ${updates.length} productos y recalcular todos sus precios de venta?`)) {
         setCargando(true);
         try {
           await preciosService.actualizarPreciosMasivo(updates);
           await cargarTodo();
-          alert('Precios actualizados con éxito.');
+          toast.success('Precios actualizados con éxito.');
         } catch (error) {
-          alert('Error al actualizar masivamente: ' + (error.message || ''));
+          toast.error('Error al actualizar masivamente: ' + (error.message || ''));
         } finally {
           setCargando(false);
         }
@@ -264,7 +265,7 @@ export default function PreciosScreen() {
                             onClick={async () => {
                               if (!window.confirm(`¿Eliminar la lista "${l.Nombre}"?`)) return;
                               try { await preciosService.eliminarLista(id); cargarTodo(); }
-                              catch (e) { alert('No se pudo eliminar: ' + (e.message || '')); }
+                              catch (e) { toast.error('No se pudo eliminar: ' + (e.message || '')); }
                             }}>
                             <DeleteIcon fontSize="small" />
                           </IconButton>
@@ -424,7 +425,7 @@ function ListaDialog({ lista, categorias, onClose, onSaved }) {
   const [guardando, setGuardando] = useState(false);
 
   const guardar = async () => {
-    if (!form.Nombre.trim()) return alert('El nombre es obligatorio.');
+    if (!form.Nombre.trim()) return toast.warning('El nombre es obligatorio.');
     setGuardando(true);
     try {
       const payload = {
@@ -438,7 +439,7 @@ function ListaDialog({ lista, categorias, onClose, onSaved }) {
       else await preciosService.actualizarLista(lista.Id ?? lista.id, payload);
       onSaved();
     } catch (e) {
-      alert('No se pudo guardar la lista: ' + (e.message || ''));
+      toast.error('No se pudo guardar la lista: ' + (e.message || ''));
     } finally {
       setGuardando(false);
     }
@@ -507,7 +508,7 @@ function PrecioDialog({ target, lista, onClose, onSaved }) {
   const preview = calcularPrecio(costoBase, lista.PorcentajeRentabilidad, lista.FactorCostosVariables);
 
   const guardar = async () => {
-    if (!costoBase || Number(costoBase) <= 0) return alert('Ingresá un costo base válido.');
+    if (!costoBase || Number(costoBase) <= 0) return toast.warning('Ingresá un costo base válido.');
     setGuardando(true);
     try {
       // Cierra el precio vigente anterior de esta (inventario, lista) antes de crear el nuevo.
@@ -522,7 +523,7 @@ function PrecioDialog({ target, lista, onClose, onSaved }) {
       });
       onSaved();
     } catch (e) {
-      alert('No se pudo guardar el precio: ' + (e.message || ''));
+      toast.error('No se pudo guardar el precio: ' + (e.message || ''));
     } finally {
       setGuardando(false);
     }

@@ -6,6 +6,7 @@ import HelpOutlineOutlinedIcon from '@mui/icons-material/HelpOutlineOutlined'
 import { useAuth } from '../../context/AuthContext'
 import { useVenta } from '../../features/punto-venta/context/VentaContext'
 import { useDolarOficial } from '../../hooks/useDolarOficial'
+import { toast } from 'sonner';
 
 const fmtPeso = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 
@@ -36,7 +37,7 @@ const Navbar = ({ onAbrirMenu, onAbrirAyuda }) => {
     try {
       await actualizarCotizacion(montoDolar)
     } catch (err) {
-      alert('❌ ' + (err.message || 'No se pudo actualizar el valor del dólar.'))
+      toast.error('❌ ' + (err.message || 'No se pudo actualizar el valor del dólar.'))
       setMontoDolar(dolarGlobal ? String(dolarGlobal) : '')
     } finally {
       setGuardandoDolar(false)

@@ -21,6 +21,7 @@ import Money from '../../../components/ui/Money';
 import FilterBar, { FilterField } from '../../../components/ui/FilterBar';
 import TablePager from '../../../components/ui/TablePager';
 import ImeiScannerModal from '../../../components/modals/ImeiScannerModal'; // 1. Importación del modal
+import { toast } from 'sonner';
 
 const FILAS_POR_PAGINA = 10;
 
@@ -137,13 +138,13 @@ const InventarioList = () => {
         IdEmpleado: usuario?.userID,
       };
       await inventarioService.ejecutarTraspaso(payload);
-      alert(`✅ ¡Traspaso completado! Se enviaron ${payload.Cantidad} unidades.`);
+      toast.success(`✅ ¡Traspaso completado! Se enviaron ${payload.Cantidad} unidades.`);
       setOpenModal(false);
       setProductoTransferir(null);
       await cargarInventario();
     } catch (error) {
       console.error("Error en traspaso:", error);
-      alert(`❌ No se pudo hacer el traspaso: ${error.message || 'Error desconocido'}`);
+      toast.error(`❌ No se pudo hacer el traspaso: ${error.message || 'Error desconocido'}`);
     }
   };
 

@@ -6,6 +6,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import { inventarioService } from '../../../services/inventarioServices';
 import { esImeiValido } from '../../../utils/validators';
 import EntityAutocomplete from '../../../components/ui/EntityAutocomplete';
+import { toast } from 'sonner';
 
 const Campo = ({ label, children, hint, error, span = 1, sx }) => (
   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0, gridColumn: span > 1 ? `span ${span}` : undefined, ...sx }}>
@@ -147,20 +148,20 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
   const handleFormSubmit = (e) => {
     e.preventDefault();
     if (formData.esSerializado && !esImeiValido(formData.imei)) {
-      alert('⚠️ El IMEI es obligatorio y debe tener exactamente 15 dígitos.');
+      toast.error('⚠️ El IMEI es obligatorio y debe tener exactamente 15 dígitos.');
       return;
     }
     if (formData.esSerializado && imeiEstado.error) {
-      alert(`⚠️ ${imeiEstado.error}`);
+      toast.error(`⚠️ ${imeiEstado.error}`);
       return;
     }
     if (!formData.idProveedor) {
-      alert('⚠️ Seleccioná un proveedor. Es obligatorio para guardar el ingreso.');
+      toast.error('⚠️ Seleccioná un proveedor. Es obligatorio para guardar el ingreso.');
       return;
     }
     // En canje no se carga precio acá: el precio de toma se define en ModalCobro
     if (!modoCanje && (!formData.precioMenor || Number(formData.precioMenor) <= 0)) {
-      alert('⚠️ Ingresá un precio público válido, mayor a 0.');
+      toast.error('⚠️ Ingresá un precio público válido, mayor a 0.');
       return;
     }
     onSubmit(formData);

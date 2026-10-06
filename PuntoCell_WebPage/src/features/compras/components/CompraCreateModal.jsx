@@ -20,6 +20,7 @@ import { useVenta } from '../../punto-venta/context/VentaContext';
 
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import ImeiScannerModal from '../../../components/modals/ImeiScannerModal';
+import { toast } from 'sonner';
 
 const ID_TURNO_CAJA = 1; // seed fijo — el módulo de caja de la API todavía no está expuesto
 const hoy = () => new Date().toISOString().slice(0, 10);
@@ -289,7 +290,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
       };
 
       const res = await comprasService.crearCompra(payload);
-      if (res?.advertencias?.length) alert('Compra registrada con avisos:\n- ' + res.advertencias.join('\n- '));
+      if (res?.advertencias?.length) toast.warning('Compra registrada con avisos:\n- ' + res.advertencias.join('\n- '));
       reset();
       onGuardado();
     } catch (e) {

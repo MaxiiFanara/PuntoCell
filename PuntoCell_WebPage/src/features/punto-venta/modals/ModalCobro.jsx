@@ -13,6 +13,7 @@ import { inventarioService } from '../../../services/inventarioServices';
 import { fetchApi } from '../../../services/api';
 import StatusPill from '../../../components/ui/StatusPill';
 import NumberField from '../../../components/ui/NumberField';
+import { toast } from 'sonner';
 
 const pesos = (n) => `$ ${Math.round(n || 0).toLocaleString('es-AR')}`;
 const dolares = (n) => `U$S ${(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -112,9 +113,9 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
   const vuelto = esEfectivo ? Math.max(0, (parseFloat(montoPago) || 0) - restante) : 0;
 
   const agregarSubTransferencia = () => {
-    if (!banco || !subMonto) return alert('Completá banco y monto');
+    if (!banco || !subMonto) return toast.warning('Completá banco y monto');
     const monto = parseFloat(subMonto);
-    if (isNaN(monto) || monto <= 0) return alert('Monto inválido');
+    if (isNaN(monto) || monto <= 0) return toast.warning('Monto inválido');
     setSubTransferencias([...subTransferencias, { banco, monto }]);
     setBanco(''); setSubMonto('');
   };
@@ -127,21 +128,21 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
 
   const agregarPago = () => {
     const monto = parseFloat(montoPago);
-    if (isNaN(monto) || monto <= 0) return alert('Ingresá un monto válido');
+    if (isNaN(monto) || monto <= 0) return toast.warning('Ingresá un monto válido');
 
     // El total de los pagos no puede superar el total de la venta. En efectivo se admite
     // exceso solo como vuelto (lo aplicado se topea con Math.min más abajo); en el resto
     // de los métodos un monto mayor al saldo restante es un error.
     if (!esEfectivo && monto > restante + 0.01) {
-      return alert(`El pago (U$S ${monto.toFixed(2)}) supera lo que falta cobrar (U$S ${restante.toFixed(2)}).`);
+      return toast.warning(`El pago (U$S ${monto.toFixed(2)}) supera lo que falta cobrar (U$S ${restante.toFixed(2)}).`);
     }
 
     let observacionPago = ''; let datosExtra = {};
 
-    if (esTransferencia && subTransferencias.length === 0) return alert('Agregá al menos una cuenta de transferencia');
+    if (esTransferencia && subTransferencias.length === 0) return toast.warning('Agregá al menos una cuenta de transferencia');
 
     if (esPermuta) {
-      if (!equipoCanje) return alert('Cargá primero los datos del equipo recibido');
+      if (!equipoCanje) return toast.warning('Cargá primero los datos del equipo recibido');
       // El equipo se da de alta en Inventario recién al confirmar la venta (ver procesarVenta)
       observacionPago = `Canje pendiente: ${equipoCanje.resumen} (se registra en inventario al confirmar la venta)`;
       datosExtra = { equipoCanjePendiente: equipoCanje };
@@ -149,8 +150,8 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
 
     if (esCredito) {
       const cuotas = parseInt(cantidadCuotas) || 1;
-      if (!fechaVencimiento) return alert('Seleccioná la fecha de la primera cuota');
-      if (cuotas < 1) return alert('La cantidad de cuotas debe ser al menos 1');
+      if (!fechaVencimiento) return toast.warning('Seleccioná la fecha de la primera cuota');
+      if (cuotas < 1) return toast.warning('La cantidad de cuotas debe ser al menos 1');
       const partes = fechaVencimiento.split('-');
       observacionPago = cuotas === 1
         ? `A Pagar antes del: ${partes[2]}/${partes[1]}/${partes[0]}`
@@ -182,9 +183,9 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
   const eliminarPago = (index) => setPagos(pagos.filter((_, i) => i !== index));
 
   const procesarVenta = async () => {
-    if (!cliente?.id) return alert('⚠️ Seleccioná un cliente antes de cobrar.');
-    if (restante > 0.01) return alert(`⚠️ Aún falta cubrir U$S ${restante.toFixed(2)}`);
-    if (pagos.length === 0) return alert('No hay pagos registrados');
+    if (!cliente?.id) return toast.error('⚠️ Seleccioná un cliente antes de cobrar.');
+    if (restante > 0.01) return toast.error(`⚠️ Aún falta cubrir U$S ${restante.toFixed(2)}`);
+    if (pagos.length === 0) return toast.warning('No hay pagos registrados');
 
     // El cliente puede haber quedado cacheado (localStorage/estado del POS) apuntando a un
     // Id que ya no existe (ej. tras reinicializar la base). Antes revalidábamos solo al
@@ -196,15 +197,15 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
       if (!u || !(u.Id ?? u.id) || !(u.EsCliente ?? u.esCliente)) {
         setCliente(null);
         onClose();
-        return alert('⚠️ El cliente seleccionado ya no existe en el sistema. Buscalo o registralo de nuevo.');
+        return toast.error('⚠️ El cliente seleccionado ya no existe en el sistema. Buscalo o registralo de nuevo.');
       }
     } catch (err) {
       if (err?.status === 404) {
         setCliente(null);
         onClose();
-        return alert('⚠️ El cliente seleccionado ya no existe en el sistema. Buscalo o registralo de nuevo.');
+        return toast.error('⚠️ El cliente seleccionado ya no existe en el sistema. Buscalo o registralo de nuevo.');
       }
-      return alert('❌ No se pudo verificar el cliente: ' + (err?.message || 'error de red'));
+      return toast.error('❌ No se pudo verificar el cliente: ' + (err?.message || 'error de red'));
     }
 
     // Los equipos de canje se dan de alta en Inventario recién acá (si se cancela la venta
@@ -225,7 +226,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
         };
       }));
     } catch (error) {
-      alert('❌ No se pudo registrar el equipo de canje en inventario: ' + (error.message || ''));
+      toast.error('❌ No se pudo registrar el equipo de canje en inventario: ' + (error.message || ''));
       return;
     }
 
@@ -515,7 +516,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
                         try {
                           setProveedorCanjeId(await inventarioService.obtenerOCrearProveedorCanje());
                         } catch {
-                          return alert('No se pudo preparar el alta del equipo. Probá de nuevo.');
+                          return toast.error('No se pudo preparar el alta del equipo. Probá de nuevo.');
                         }
                       }
                       setModalIngresoCanjeOpen(true);

@@ -8,6 +8,7 @@ import { comprasService, ESTADO_PAGO } from '../../../services/comprasServices';
 import StatusPill from '../../../components/ui/StatusPill';
 import Money from '../../../components/ui/Money';
 import { useVenta } from '../../punto-venta/context/VentaContext';
+import { toast } from 'sonner';
 
 const tonoEstado = (ep) => (ep === 3 ? 'ok' : ep === 2 ? 'flat' : 'due');
 
@@ -23,7 +24,7 @@ export default function CompraDetalleModal({ open, onClose, compraId }) {
     setCargando(true);
     comprasService.getCompra(compraId)
       .then(setCompra)
-      .catch((e) => alert('No se pudo cargar el detalle: ' + (e.message || '')))
+      .catch((e) => toast.error('No se pudo cargar el detalle: ' + (e.message || '')))
       .finally(() => setCargando(false));
   }, [compraId]);
 

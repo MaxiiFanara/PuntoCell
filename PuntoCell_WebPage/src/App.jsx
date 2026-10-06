@@ -34,6 +34,7 @@ import PreciosScreen from './features/precios/precios';
 import { VentaProvider } from './features/punto-venta/context/VentaContext';
 import ThemeToggle from './components/ui/ThemeToggle';
 import CajaList from './features/caja/views/CajaList';
+import { Toaster } from 'sonner';
 
 // --- IMPORTACIONES DE DASHBOARDS
 import DashboardVentas from './features/dashboards/views/DashboardVentas';
@@ -62,6 +63,7 @@ const AdminRoute = ({ children }) => {
 
 const App = () => (
   <AuthProvider>
+    <Toaster richColors position="top-right" />
     {/* Único switch de tema del sistema: fuera de <Routes> para que aparezca en
         todas las pantallas, públicas e internas. */}
     

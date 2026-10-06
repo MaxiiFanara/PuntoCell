@@ -9,6 +9,7 @@ import { Add, Remove, LockOpen, Lock, Payments, AccountBalance, Savings, Trendin
 import dayjs from 'dayjs';
 
 import PageHeader from '../../../components/ui/PageHeader';
+import { toast } from 'sonner';
 import { 
   getCajaMovimientos, 
   getTurnoActual, 
@@ -83,7 +84,7 @@ export default function CajaList() {
       setModalAbrir({ open: false, monto: '' });
       loadData(); // Refresca la vista
     } catch (error) {
-      alert(error.message || "Error al abrir la caja");
+      toast.error(error.message || "Error al abrir la caja");
     }
   };
 
@@ -97,7 +98,7 @@ export default function CajaList() {
       setModalCerrar({ open: false, monto: '', observaciones: '' });
       loadData(); // Refresca la vista
     } catch (error) {
-      alert(error.message || "Error al cerrar la caja");
+      toast.error(error.message || "Error al cerrar la caja");
     }
   };
 
@@ -115,7 +116,7 @@ export default function CajaList() {
       setFormMovimiento({ open: false, tipo: 'ingreso', monto: '', metodoPago: 'efectivo', descripcion: '' });
       loadData(); // Recarga la grilla para mostrar el nuevo movimiento
     } catch (error) {
-      alert(error.message || "Error al registrar el movimiento");
+      toast.error(error.message || "Error al registrar el movimiento");
     }
   };
 

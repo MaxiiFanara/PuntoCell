@@ -1,6 +1,7 @@
 import { Box, Button, Paper, Switch, Typography } from '@mui/material';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import { useVenta } from '../context/VentaContext';
+import { toast } from 'sonner';
 
 export const TotalSection = ({ onCobrar }) => {
   const { totalVenta, esMayorista, dolarGlobal, carrito, cliente, toggleMayorista } = useVenta();
@@ -12,8 +13,8 @@ export const TotalSection = ({ onCobrar }) => {
   const carritoVacio = carrito.length === 0;
 
   const handleCobrar = () => {
-    if (carritoVacio) return alert('⚠️ El carrito está vacío.');
-    if (faltaCliente) return alert('⚠️ Falta seleccionar el CLIENTE.');
+    if (carritoVacio) return toast.error('⚠️ El carrito está vacío.');
+    if (faltaCliente) return toast.error('⚠️ Falta seleccionar el CLIENTE.');
     onCobrar();
   };
 

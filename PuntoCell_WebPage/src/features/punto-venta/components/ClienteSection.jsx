@@ -4,6 +4,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import { useVenta } from '../context/VentaContext';
 import { clientesService } from '../../../services/clientesServices';
+import { toast } from 'sonner';
 
 export const ClienteSection = ({ onOpenNuevoCliente }) => {
   const { cliente, setCliente } = useVenta();
@@ -14,7 +15,7 @@ export const ClienteSection = ({ onOpenNuevoCliente }) => {
 
   const handleBuscar = async () => {
     if (!dni || dni.length < 7) {
-      alert('El DNI debe tener al menos 7 números');
+      toast.warning('El DNI debe tener al menos 7 números');
       return;
     }
 
