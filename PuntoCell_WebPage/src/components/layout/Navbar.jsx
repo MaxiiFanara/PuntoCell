@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useVenta } from '../../features/punto-venta/context/VentaContext'
 import { useDolarOficial } from '../../hooks/useDolarOficial'
 import { toast } from 'sonner';
+import FontSizeSelect from '../ui/FontSizeSelect'
 
 const fmtPeso = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 
@@ -73,6 +74,8 @@ const Navbar = ({ onAbrirMenu, onAbrirAyuda }) => {
       >
         <MenuIcon fontSize="small" />
       </IconButton>
+
+      <FontSizeSelect />
 
       {/* Dólar oficial de referencia (dolarapi.com) — solo lectura, no toca la cotización operativa */}
       {dolarOficial && (

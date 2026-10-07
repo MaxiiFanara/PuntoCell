@@ -8,6 +8,7 @@ import { Link, useLocation } from 'react-router-dom'
 
 import { useCart } from '../../features/catalogo/context/CartContext'
 import { btn, shell } from './publicStyles'
+import FontSizeSelect from './FontSizeSelect'
 
 export default function PublicNavbar() {
   const { pathname } = useLocation()
@@ -84,6 +85,8 @@ export default function PublicNavbar() {
           >
             Gestión
           </Button>
+
+          <Box sx={{ mx: 0.5 }}><FontSizeSelect /></Box>
 
           {/* Botón de cambio de tema en la barra pública */}
           <Tooltip title={esOscuro ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}>
