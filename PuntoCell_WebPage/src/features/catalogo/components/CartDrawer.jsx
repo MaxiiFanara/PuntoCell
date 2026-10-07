@@ -15,7 +15,7 @@ import { buildWhatsAppLink, formatCurrency } from '../utils/whatsapp';
 import { btn, muted } from '../../../components/ui/publicStyles';
 
 // Importamos exactamente el servicio que ya tienes en el sistema
-import { ventasService } from '../../../services/ventasServices';
+import { catalogoService } from '../../../services/catalogoServices';
 
 const stepper = {
   width: 30,
@@ -50,7 +50,7 @@ export default function CartDrawer() {
     if (isOpen) {
       const cargarDolarSistema = async () => {
         try {
-          const resCotizaciones = await ventasService.getCotizaciones();
+          const resCotizaciones = await catalogoService.getCotizaciones();
           let listaCotizaciones = resCotizaciones.data || resCotizaciones || [];
           if (listaCotizaciones.data && Array.isArray(listaCotizaciones.data)) {
             listaCotizaciones = listaCotizaciones.data;

@@ -11,4 +11,13 @@ export default class CatalogoController {
       next(err);
     }
   };
+
+  getCotizaciones = async (req, res, next) => {
+    try {
+      const data = await this.service.getCotizaciones();
+      return res.status(200).json({ status: 'success', data });
+    } catch (err) {
+      next(err);
+    }
+  };
 }

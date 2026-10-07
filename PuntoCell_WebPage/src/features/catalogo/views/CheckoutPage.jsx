@@ -8,7 +8,7 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { useCart } from '../context/CartContext';
 import { formatCurrency } from '../utils/whatsapp';
 import { pagosService } from '../../../services/pagosServices';
-import { ventasService } from '../../../services/ventasServices'; // <--- Importamos el servicio para la cotización
+import { catalogoService } from '../../../services/catalogoServices'; // <--- Importamos el servicio para la cotización
 import { btn, field, muted } from '../../../components/ui/publicStyles';
 
 const MOTIVOS = {
@@ -52,7 +52,7 @@ export default function CheckoutPage() {
     let mounted = true;
     const cargarDolarSistema = async () => {
       try {
-        const resCotizaciones = await ventasService.getCotizaciones();
+        const resCotizaciones = await catalogoService.getCotizaciones();
         let listaCotizaciones = resCotizaciones.data || resCotizaciones || [];
         if (listaCotizaciones.data && Array.isArray(listaCotizaciones.data)) {
           listaCotizaciones = listaCotizaciones.data;
