@@ -137,11 +137,21 @@ BEGIN TRY
     PRINT 'Generando curva de cotizaciones históricas...';
     DECLARE @ValorDolar DECIMAL(18,2) = 200.00;
     DECLARE @FechaDolar DATETIME2 = @FechaInicio;
+    DECLARE @TotalDiasDolar INT = DATEDIFF(DAY, @FechaInicio, @FechaFin);
+    DECLARE @DiaActualDolar INT = 0;
+    
     WHILE @FechaDolar <= @FechaFin
     BEGIN
+        -- Crecimiento lineal de $200 a $1400 a lo largo de los 4 años
+        SET @ValorDolar = 200.0 + (1200.0 * CAST(@DiaActualDolar AS FLOAT) / @TotalDiasDolar);
+        -- Ruido diario (+- 5 pesos)
+        SET @ValorDolar = @ValorDolar + ((ABS(CHECKSUM(NEWID())) % 11) - 5);
+        IF @ValorDolar < 200 SET @ValorDolar = 200;
+
         INSERT INTO Cotizacion (Clave, Valor, CreatedAt) VALUES ('DolarBlue', @ValorDolar, @FechaDolar);
-        SET @ValorDolar = @ValorDolar * (1.0 + (0.001 * (ABS(CHECKSUM(NEWID())) % 5)));
+        
         SET @FechaDolar = DATEADD(DAY, 1, @FechaDolar);
+        SET @DiaActualDolar = @DiaActualDolar + 1;
     END
 
     -- 3. BUCLE PRINCIPAL (TIME-SERIES)
@@ -340,13 +350,13 @@ BEGIN TRY
                     BEGIN
                         SET @MetodoPagoRandom = 1 + (ABS(CHECKSUM(NEWID())) % 5);
                         INSERT INTO PagoVenta (Monto, FechaPago, Observacion, Pagado, IdVenta, IdMetodoPago, IdTurnoCaja)
-                        VALUES ((@PrecioUSD * @CantVender) * @ValorCotizDia, @FechaActual, 'Pago simulado', 1, @IdVenta, @MetodoPagoRandom, @TurnoVenta);
+                        VALUES (@PrecioUSD * @CantVender, @FechaActual, 'Pago simulado', 1, @IdVenta, @MetodoPagoRandom, @TurnoVenta);
                     END
                     ELSE
                     BEGIN
                         -- Generar 3 Cuotas con un 15% de recargo sobre el total en Pesos
                         SET @CantCuotas = 3;
-                        SET @MontoCuota = (((@PrecioUSD * @CantVender) * @ValorCotizDia) * 1.15) / @CantCuotas;
+                        SET @MontoCuota = ((@PrecioUSD * @CantVender) * 1.15) / @CantCuotas;
                         SET @c_cuota = 1;
                         WHILE @c_cuota <= @CantCuotas
                         BEGIN
