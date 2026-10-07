@@ -107,7 +107,8 @@ export default function LoginPage() {
     e.preventDefault()
     if (!form.usuario || !form.password) { setError('Por favor completá todos los campos.'); return }
     const recaptchaToken = recaptchaRef.current?.getToken() || ''
-    if (recaptchaConfigurado && !recaptchaToken) { setError('Completá el captcha para continuar.'); return }
+    // Sin token el backend rechaza el login con el mismo mensaje ("Completá el captcha...")
+    // y deja constancia del intento en la bitácora; por eso ya no se corta acá.
     setLoading(true); setError('')
 
 

@@ -5,8 +5,12 @@ export default class BitacoraService {
 	}
 
 	async getAll(query = {}) {
-		const { page, limit } = query;
-		return await this.dao.getAll({ page, limit, attributes: this.ATTRIBUTES, order: [['Fecha', 'DESC']] });
+		const { page, limit, origen } = query;
+		// Por defecto solo la auditoría de usuarios (lo que muestra el front). Los logs técnicos
+		// de Winston se piden con ?origen=SISTEMA, o todo junto con ?origen=TODOS.
+		const origenPedido = String(origen ?? 'AUDITORIA').toUpperCase();
+		const where = origenPedido === 'TODOS' ? {} : { Origen: origenPedido === 'SISTEMA' ? 'SISTEMA' : 'AUDITORIA' };
+		return await this.dao.getAll({ page, limit, where, attributes: this.ATTRIBUTES, order: [['Fecha', 'DESC']] });
 	}
 
 	async create(data) {

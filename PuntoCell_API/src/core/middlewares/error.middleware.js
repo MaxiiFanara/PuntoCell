@@ -1,4 +1,5 @@
 import { registerAudit } from '../utils/audit.util.js';
+import logger from '../utils/logger.js';
 
 // Status que representan un "fallo de permisos/negocio" y que sí se auditan:
 // 401 (sin sesión), 403 (sin permiso), 404 (recurso inexistente), 409 (conflicto).
@@ -34,7 +35,13 @@ export const createErrorMiddleware = (bitacoraService = null) => (err, req, res,
 
   // Solo se loguea si es un 500 no esperado, para no ensuciar la consola con 404/400
   if (statusCode === 500) {
-    console.error('🔥 [ERROR CRÍTICO DEL SERVIDOR]:', err);
+    logger.error(`[ERROR CRÍTICO] ${req.method} ${req.originalUrl}: ${err.message}`, {
+      stack: err.stack,
+      sqlMessage: err.original?.message,
+      IdEmpleado: req.user?.id,
+      IdSucursal: req.user?.sucursal,
+      Ip: req.ip
+    });
   }
 
   // Auditoría centralizada de fallos de permisos/negocio (los éxitos los audita
@@ -43,6 +50,7 @@ export const createErrorMiddleware = (bitacoraService = null) => (err, req, res,
     registerAudit(bitacoraService, {
       Accion: `Intento rechazado (${statusCode}): ${req.method} ${req.originalUrl}`.slice(0, 150),
       detalle: message,
+      Nivel: 'warn',
       IdEmpleado: req.user?.id ?? null,
       IdSucursal: req.user?.sucursal ?? null,
       IpAddress: req.ip

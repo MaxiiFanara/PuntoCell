@@ -1,5 +1,6 @@
 import { verifyToken, generateToken } from '../utils/jwt.util.js';
 import { env } from '../config/env.js';
+import logger from '../../core/utils/logger.js';
 
 export const requireAuth = (req, res, next) => {
   try {
@@ -48,7 +49,7 @@ export const requireAuth = (req, res, next) => {
     next();
 
   } catch (error) {
-    console.error('Error en middleware de autenticación:', error);
+    logger.error('Error en middleware de autenticación:', error);
     return res.status(500).json({ 
       status: 'error', 
       message: 'Error interno de autenticación.' 

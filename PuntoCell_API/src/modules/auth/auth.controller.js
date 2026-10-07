@@ -23,8 +23,6 @@ export default class AuthController {
       
       const { token, user } = data;
 
-      console.log('Token generado:', token);
-
       res.cookie('jwt_punto_cell', token, this.cookieOptions);
 
       return res.status(200).json({ 

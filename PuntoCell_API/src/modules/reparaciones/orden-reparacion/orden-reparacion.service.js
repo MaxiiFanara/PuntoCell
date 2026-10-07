@@ -1,6 +1,7 @@
 import { sequelize } from '../../../models/index.js';
 import { auditar } from '../../../core/utils/audit.util.js';
 import { reprecificarInventario, resolverListasPrecioCategoria } from '../../../core/utils/precios.util.js';
+import logger from '../../../core/utils/logger.js';
 
 const ESTADO_TERMINADO = 3;
 const ESTADO_ABANDONADO = 6;
@@ -246,12 +247,12 @@ export default class OrdenReparacionService {
         if (email) {
           this.notificacionService
             .enviarCambioEstado(email, nombre, ordenBloqueada.Id, estadoAbandonado.Id)
-            .catch((err) => console.error(`❌ No se pudo notificar el abandono de la orden #${ordenBloqueada.Id}:`, err.message));
+            .catch((err) => logger.error(`❌ No se pudo notificar el abandono de la orden #${ordenBloqueada.Id}:`, err.message));
         }
       } catch (error) {
         await transaction.rollback();
         resumen.errores += 1;
-        console.error(`❌ Error al procesar la orden abandonada #${orden.Id}:`, error.message);
+        logger.error(`❌ Error al procesar la orden abandonada #${orden.Id}:`, error.message);
       }
     }
 
@@ -518,7 +519,7 @@ if (!idClienteAsignado) {
         if (email) {
           this.notificacionService
             .enviarCambioEstado(email, nombre, idOrden, nuevoEstado)
-            .catch(err => console.error('❌ Notificación fallida:', err.message));
+            .catch(err => logger.error('❌ Notificación fallida:', err.message));
         }
       }
 

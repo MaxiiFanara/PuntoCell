@@ -14,7 +14,7 @@ export default class AuditoriaDashboardService {
     const { from, to } = this._resolveRange(query, 1)
     const idSucursal = resolveIdSucursal(query)
     const rows = plainList(await models.Bitacora.findAll({
-      where: { Fecha: { [Op.between]: [from, to] }, ...(idSucursal === null ? {} : { IdSucursal: idSucursal }) },
+      where: { Origen: 'AUDITORIA', Fecha: { [Op.between]: [from, to] }, ...(idSucursal === null ? {} : { IdSucursal: idSucursal }) },
       include: [{ model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido'], required: false }],
       order: [['Fecha', 'ASC']],
       limit: 5000

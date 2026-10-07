@@ -1,4 +1,5 @@
 import { registerAudit } from '../../../core/utils/audit.util.js';
+import logger from '../../../core/utils/logger.js';
 
 export default class DevolucionVentaService {
   constructor(devolucionDAO, detalleDAO, bitacoraService = null) {
@@ -101,8 +102,8 @@ export default class DevolucionVentaService {
       return created;
     } catch (err) {
       await t.rollback();
-      console.error('Error creando devolucion transactional:', err && (err.stack || err.message || err));
-      if (err.original) console.error('SQL Error detail:', err.original);
+      logger.error('Error creando devolucion transactional:', err && (err.stack || err.message || err));
+      if (err.original) logger.error('SQL Error detail:', err.original);
       const message = (err.original && (err.original.message || err.original.sqlMessage)) || err.message || 'Error al crear devolucion';
       await registerAudit(this.bitacoraService, {
         detalle: `Error creando devolucion - ${message}`,

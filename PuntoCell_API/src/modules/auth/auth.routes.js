@@ -7,9 +7,6 @@ export default (container) => {
   const router = Router();
   const { authController, verifyRecaptcha } = container.auth;
 
-  console.log('resetPassword:', typeof authController.resetPassword);
-console.log('forgotPassword:', typeof authController.forgotPassword);
-
   router.post('/login',preventDoubleLogin,validateFields(loginSchema), verifyRecaptcha, authController.login);
   router.get('/me', authController.me);
   router.post('/logout', authController.logout);

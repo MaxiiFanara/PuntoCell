@@ -1,4 +1,5 @@
 import { registerAudit } from '../../../core/utils/audit.util.js';
+import logger from '../../../core/utils/logger.js';
 
 export default class CuotaService {
   constructor(cuotaDAO, bitacoraService = null) {
@@ -64,8 +65,8 @@ export default class CuotaService {
       return created;
     } catch (err) {
       await t.rollback();
-      console.error('Error creando Cuota:', err && (err.stack || err.message || err));
-      if (err.original) console.error('SQL Error detail:', err.original);
+      logger.error('Error creando Cuota:', err && (err.stack || err.message || err));
+      if (err.original) logger.error('SQL Error detail:', err.original);
       const message = (err.original && (err.original.message || err.original.sqlMessage)) || err.message || 'Error al crear cuota';
       await registerAudit(this.bitacoraService, {
         detalle: `Error creando Cuota - ${message}`,

@@ -120,9 +120,21 @@ CREATE TABLE Bitacora ( -- El "Gran Hermano". Registra todas las operaciones cr�
     Fecha      DATETIME2     NOT NULL DEFAULT SYSDATETIME(), -- Momento exacto.
     IdEmpleado INT           NULL, -- Quién fue.
     IdSucursal INT           NULL, -- Dónde estaba logueado.
-    CONSTRAINT FK_Bitacora_Empleado FOREIGN KEY (IdEmpleado) REFERENCES Usuario (Id), 
+    Nivel      NVARCHAR(10)  NOT NULL CONSTRAINT DF_Bitacora_Nivel  DEFAULT 'info',      -- Gravedad: info | warn | error.
+    Origen     NVARCHAR(15)  NOT NULL CONSTRAINT DF_Bitacora_Origen DEFAULT 'AUDITORIA', -- AUDITORIA (acciones de usuarios) | SISTEMA (logs técnicos de Winston).
+    CONSTRAINT FK_Bitacora_Empleado FOREIGN KEY (IdEmpleado) REFERENCES Usuario (Id),
     CONSTRAINT FK_Bitacora_Sucursal FOREIGN KEY (IdSucursal) REFERENCES Sucursal (Id)
 );
+GO
+
+-- Migración idempotente para bases que ya tenían Bitacora sin Nivel/Origen. El CREATE TABLE
+-- de arriba falla con "ya existe" en esas bases (sqlcmd sigue con el resto del script), así
+-- que acá se agregan las columnas sin tocar los datos: las filas viejas quedan 'info' / 'AUDITORIA'.
+IF COL_LENGTH('Bitacora', 'Nivel') IS NULL
+    ALTER TABLE Bitacora ADD Nivel NVARCHAR(10) NOT NULL CONSTRAINT DF_Bitacora_Nivel DEFAULT 'info';
+GO
+IF COL_LENGTH('Bitacora', 'Origen') IS NULL
+    ALTER TABLE Bitacora ADD Origen NVARCHAR(15) NOT NULL CONSTRAINT DF_Bitacora_Origen DEFAULT 'AUDITORIA';
 GO
 
 CREATE TABLE TurnoCaja ( -- Controla el ciclo de vida del dinero diario en una caja física.

@@ -1,4 +1,5 @@
 import { registerAudit } from '../../../core/utils/audit.util.js';
+import logger from '../../../core/utils/logger.js';
 
 export default class PagoVentaService {
   constructor(pagoDAO, bitacoraService = null, cajaService = null) {
@@ -75,8 +76,8 @@ export default class PagoVentaService {
       return pago;
     } catch (err) {
       await t.rollback();
-      console.error('Error creando PagoVenta:', err && (err.stack || err.message || err));
-      if (err.original) console.error('SQL Error detail:', err.original);
+      logger.error('Error creando PagoVenta:', err && (err.stack || err.message || err));
+      if (err.original) logger.error('SQL Error detail:', err.original);
       const message = (err.original && (err.original.message || err.original.sqlMessage)) || err.message || 'Error al crear pago';
       await registerAudit(this.bitacoraService, {
         detalle: `Error creando PagoVenta - ${message}`,
@@ -131,7 +132,7 @@ export default class PagoVentaService {
       return updated;
     } catch (err) {
       await t.rollback();
-      console.error('Error actualizando PagoVenta:', err && (err.stack || err.message || err));
+      logger.error('Error actualizando PagoVenta:', err && (err.stack || err.message || err));
       await registerAudit(this.bitacoraService, {
         detalle: `Error actualizando PagoVenta - ${err.message}`,
         Accion: 'Actualizar PagoVenta',

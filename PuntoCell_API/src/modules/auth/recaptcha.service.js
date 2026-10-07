@@ -1,4 +1,5 @@
 import { env } from '../../core/config/env.js';
+import logger from '../../core/utils/logger.js';
 
 export const RECAPTCHA_LOGIN_ACTION = 'LOGIN';
 
@@ -29,7 +30,7 @@ export async function createAssessment({
   });
 
   if (!res.ok) {
-    console.error(`reCAPTCHA: CreateAssessment respondió ${res.status}`);
+    logger.error(`reCAPTCHA: CreateAssessment respondió ${res.status}`);
     return null;
   }
 
@@ -37,17 +38,17 @@ export async function createAssessment({
 
   // Verifica si el token es válido.
   if (!response.tokenProperties?.valid) {
-    console.log(`The CreateAssessment call failed because the token was: ${response.tokenProperties?.invalidReason}`);
+    logger.info(`The CreateAssessment call failed because the token was: ${response.tokenProperties?.invalidReason}`);
     return null;
   }
 
   // Verifica si se ejecutó la acción esperada.
   if (response.tokenProperties.action === recaptchaAction) {
-    console.log(`The reCAPTCHA score is: ${response.riskAnalysis?.score}`);
-    (response.riskAnalysis?.reasons || []).forEach((reason) => console.log(reason));
+    logger.info(`The reCAPTCHA score is: ${response.riskAnalysis?.score}`);
+    (response.riskAnalysis?.reasons || []).forEach((reason) => logger.info(reason));
     return response.riskAnalysis?.score ?? null;
   }
 
-  console.log('The action attribute in your reCAPTCHA tag does not match the action you are expecting to score');
+  logger.info('The action attribute in your reCAPTCHA tag does not match the action you are expecting to score');
   return null;
 }

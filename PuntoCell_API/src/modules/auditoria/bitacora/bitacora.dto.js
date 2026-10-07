@@ -6,5 +6,7 @@ export const bitacoraSchema = Joi.object({
 	Fecha: Joi.date().optional(),
 	IdEmpleado: Joi.number().integer().optional().allow(null),
 	IdSucursal: Joi.number().integer().optional().allow(null),
-	Accion: Joi.string().max(150).required()
+	Accion: Joi.string().max(150).required(),
+	Nivel: Joi.string().valid('info', 'warn', 'error').optional(),
+	Origen: Joi.string().valid('AUDITORIA', 'SISTEMA').optional()
 });

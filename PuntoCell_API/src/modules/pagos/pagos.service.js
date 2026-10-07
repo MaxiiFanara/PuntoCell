@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Op } from 'sequelize';
+import logger from '../../core/utils/logger.js';
 
 const error409 = (detalle) => {
   const err = new Error('Hay productos que ya no se pueden comprar');
@@ -305,7 +306,7 @@ export const crearPagosService = ({
       } catch (err) {
         // El cobro ya ocurrió y no se puede deshacer desde acá. Se informa al
         // comprador con el número de pago para que el local lo resuelva a mano.
-        console.error(`No se pudo registrar la venta del pago ${normalizado.paymentId}:`, err.message);
+        logger.error(`No se pudo registrar la venta del pago ${normalizado.paymentId}:`, err.message);
         normalizado.avisoRegistro =
           'Tu pago se acreditó, pero no pudimos registrar el pedido automáticamente. Guardá el número de pago y escribinos para coordinar la entrega.';
       }

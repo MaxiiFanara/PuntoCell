@@ -1,4 +1,5 @@
 import { registerAudit } from '../../../core/utils/audit.util.js';
+import logger from '../../../core/utils/logger.js';
 
 export default class ModeloArticuloService {
   constructor(modeloDAO, bitacoraService = null) {
@@ -22,7 +23,7 @@ export default class ModeloArticuloService {
         order: [['Nombre', 'ASC']]
       });
     } catch (error) {
-      console.error("🔥 ERROR EXACTO DE SQL:", error.message);
+      logger.error("🔥 ERROR EXACTO DE SQL:", error.message);
       await registerAudit(this.bitacoraService, {
         detalle: `Error obteniendo Modelos: ${error.message}`,
         Accion: 'Obtener Modelos',

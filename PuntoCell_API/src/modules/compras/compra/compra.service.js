@@ -1,5 +1,6 @@
 import { registerAudit } from '../../../core/utils/audit.util.js';
 import { resolverListasPrecioCategoria, reprecificarInventario } from '../../../core/utils/precios.util.js';
+import logger from '../../../core/utils/logger.js';
 
 const round2 = (value) => Number(Number(value || 0).toFixed(2));
 
@@ -303,7 +304,7 @@ export default class CompraService {
     } catch (err) {
       await t.rollback();
       if (err.statusCode) throw err; // error de negocio ya tipado -> se respeta su status
-      console.error('❌ Error registrando compra transaccional:', err);
+      logger.error('❌ Error registrando compra transaccional:', err);
       const message = (err.original && (err.original.message || err.original.sqlMessage)) || err.message || 'Error al registrar la compra';
       throw new Error(message);
     }

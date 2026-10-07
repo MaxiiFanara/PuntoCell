@@ -22,15 +22,33 @@ import KpiCard from '../../../../components/ui/KpiCard';
 import StatusPill from '../../../../components/ui/StatusPill';
 import FilterBar, { FilterField } from '../../../../components/ui/FilterBar';
 
-const getEstiloAccion = (accion = '') => {
+// El color depende del Nivel del registro: error = rojo, warn = naranja, info = verde.
+// Las filas viejas (todas 'info') cuyo texto indica un rechazo se tratan como 'warn'
+// para que sigan resaltando igual que los registros nuevos.
+const COLOR_NIVEL = { error: 'error.main', warn: 'warning.main', info: 'success.main' };
+
+// El backend arma los textos con identificadores internos ("... (#4)", "Id 1", "Id=1741")
+// que el usuario no debe ver. Se ocultan solo al mostrar; lo guardado no se modifica.
+const ocultarIds = (texto) => String(texto ?? '')
+  .replace(/\s*\((?:[^()#]*\s)?#\d+\)/g, '')   // "(#4)", "(devolución #5)"
+  .replace(/\s*#\d+/g, '')                      // "#4"
+  .replace(/\s*\(?\bId[ =]\d+\)?/gi, '')        // "Id 1", "Id=1741", "(Id 5)"
+  .replace(/\s{2,}/g, ' ')
+  .trim();
+
+const getEstiloAccion = (accion = '', nivel = 'info') => {
   const acc = accion.toLowerCase();
-  if (acc.includes('fallido') || acc.includes('rechaz')) return { color: 'error.main', Icono: Warning };
-  if (acc.includes('login') || acc.includes('inició sesión') || acc.includes('sesión')) return { color: 'info.main', Icono: Login };
-  if (acc.includes('venta')) return { color: 'success.main', Icono: ShoppingCart };
-  if (acc.includes('compra') || acc.includes('pago')) return { color: 'success.main', Icono: ShoppingCart };
-  if (acc.includes('inventario') || acc.includes('stock') || acc.includes('precio') || acc.includes('transferencia')) return { color: 'warning.main', Icono: Inventory };
-  if (acc.includes('elimin') || acc.includes('anul') || acc.includes('baja')) return { color: 'error.main', Icono: Delete };
-  return { color: 'text.secondary', Icono: Info };
+  const rechazo = acc.includes('fallido') || acc.includes('rechaz') || acc.includes('bloquead');
+  const nivelFinal = nivel === 'info' && rechazo ? 'warn' : (COLOR_NIVEL[nivel] ? nivel : 'info');
+  const color = COLOR_NIVEL[nivelFinal];
+
+  if (rechazo) return { color, Icono: Warning };
+  if (acc.includes('login') || acc.includes('inició sesión') || acc.includes('sesión')) return { color, Icono: Login };
+  if (acc.includes('venta')) return { color, Icono: ShoppingCart };
+  if (acc.includes('compra') || acc.includes('pago')) return { color, Icono: ShoppingCart };
+  if (acc.includes('inventario') || acc.includes('stock') || acc.includes('precio') || acc.includes('transferencia')) return { color, Icono: Inventory };
+  if (acc.includes('elimin') || acc.includes('anul') || acc.includes('baja')) return { color, Icono: Delete };
+  return { color, Icono: Info };
 };
 
 const BitacoraList = () => {
@@ -55,7 +73,7 @@ const BitacoraList = () => {
       ]);
       const mapEmp = {};
       (Array.isArray(emps) ? emps : []).forEach((u) => {
-        mapEmp[u.Id ?? u.id] = `${u.Nombre ?? ''} ${u.Apellido ?? ''}`.trim() || u.UsuarioEmpleado || `#${u.Id}`;
+        mapEmp[u.Id ?? u.id] = `${u.Nombre ?? ''} ${u.Apellido ?? ''}`.trim() || u.UsuarioEmpleado || 'Usuario';
       });
       const mapSuc = {};
       (Array.isArray(sucs) ? sucs : (sucs?.data || [])).forEach((s) => {
@@ -168,7 +186,7 @@ const BitacoraList = () => {
                     </TableCell>
                   </TableRow>
                 ) : visibles.map((item) => {
-                  const { color, Icono } = getEstiloAccion(item.Accion);
+                  const { color, Icono } = getEstiloAccion(item.Accion, item.Nivel);
                   const emp = empleados[item.IdEmpleado];
                   return (
                     <TableRow key={item.Id} hover>
@@ -176,7 +194,7 @@ const BitacoraList = () => {
                         {item.Fecha ? new Date(item.Fecha).toLocaleString('es-AR') : '—'}
                       </TableCell>
                       <TableCell>
-                        <StatusPill tone="neutral" label={sucursales[item.IdSucursal] || (item.IdSucursal ? `#${item.IdSucursal}` : 'Global')} />
+                        <StatusPill tone="neutral" label={sucursales[item.IdSucursal] || (item.IdSucursal ? 'Sucursal' : 'Global')} />
                       </TableCell>
                       <TableCell>
                         {emp ? (
@@ -192,14 +210,14 @@ const BitacoraList = () => {
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color }}>
                           <Icono sx={{ fontSize: 15 }} />
                           <Typography sx={{ fontSize: '.78rem', fontWeight: 700, color, whiteSpace: 'nowrap' }}>
-                            {item.Accion}
+                            {ocultarIds(item.Accion)}
                           </Typography>
                         </Box>
                       </TableCell>
                       <TableCell sx={{ color: 'text.secondary' }}>
-                        <Tooltip title={item.Detalle || ''}>
+                        <Tooltip title={ocultarIds(item.Detalle)}>
                           <Typography sx={{ fontSize: '.78rem', maxWidth: 320, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {item.Detalle}
+                            {ocultarIds(item.Detalle)}
                           </Typography>
                         </Tooltip>
                       </TableCell>

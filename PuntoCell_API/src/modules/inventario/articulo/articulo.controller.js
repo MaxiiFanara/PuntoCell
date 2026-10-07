@@ -1,3 +1,5 @@
+import logger from '../../../core/utils/logger.js';
+
 export default class ArticuloController {
   constructor(service) {
     this.service = service;
@@ -29,7 +31,7 @@ export default class ArticuloController {
       const data = await this.service.create(req.body, auditContext);
       return res.status(201).json({ status: 'success', data });
     } catch (err) {
-      console.log("🔥 ERROR SQL EXACTO:", err.original ? err.original.message : err.message);
+      logger.error("🔥 ERROR SQL EXACTO:", err.original ? err.original.message : err.message);
       next(err);
     }
   };

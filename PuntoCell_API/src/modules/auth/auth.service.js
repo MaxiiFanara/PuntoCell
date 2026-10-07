@@ -2,6 +2,7 @@ import { Op } from 'sequelize';
 import { comparePassword, hashPassword } from '../../core/utils/bcrypt.js';
 import { generateToken, verifyToken } from '../../core/utils/jwt.util.js';
 import { registerAudit } from '../../core/utils/audit.util.js';
+import logger from '../../core/utils/logger.js';
 
 export default class AuthService {
   constructor(usuarioDAO, notificacionService, bitacoraService = null) {
@@ -30,6 +31,7 @@ export default class AuthService {
       await registerAudit(this.bitacoraService, {
         Accion: `Login fallido: identificador "${identificador}" inexistente o inactivo`,
         detalle: `Intento de inicio de sesión rechazado (usuario no encontrado)`,
+        Nivel: 'warn',
         IpAddress: ctx.Ip
       });
       throw new Error('Credenciales inválidas');
@@ -41,6 +43,7 @@ export default class AuthService {
       await registerAudit(this.bitacoraService, {
         Accion: `Login fallido: contraseña incorrecta para ${this._nombreCompleto(user)}`,
         detalle: `Intento de inicio de sesión rechazado (contraseña incorrecta)`,
+        Nivel: 'warn',
         IdEmpleado: user.Id,
         IdSucursal: user.IdSucursal,
         IpAddress: ctx.Ip
@@ -91,7 +94,7 @@ export default class AuthService {
     // Por seguridad, no revelamos si el email existe o no (evita escaneo de correos)
     if (!user) {
       // Solo log de servidor: al cliente se le responde igual para no revelar qué emails existen.
-      console.warn(`ℹ️ Recuperación de contraseña: no hay un usuario activo con el email "${email}"`);
+      logger.warn(`ℹ️ Recuperación de contraseña: no hay un usuario activo con el email "${email}"`);
       return { message: 'Si el email existe, recibirás un correo de recuperación' };
     }
 
@@ -100,7 +103,7 @@ export default class AuthService {
 
     // 3. INTEGRACIÓN: Llamamos a la función de Nodemailer que acabas de crear
     const enviado = await this.notificacionService.enviarEmailRecuperacion(user.Email, user.Nombre, resetToken);
-    if (!enviado) console.error(`❌ Recuperación de contraseña: no se pudo enviar el mail a "${user.Email}" (ver error de SMTP arriba)`);
+    if (!enviado) logger.error(`❌ Recuperación de contraseña: no se pudo enviar el mail a "${user.Email}" (ver error de SMTP arriba)`);
 
     return {
       message: 'Se ha enviado un email con instrucciones para restablecer tu contraseña'

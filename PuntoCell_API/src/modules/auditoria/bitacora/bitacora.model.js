@@ -10,7 +10,11 @@ export default (sequelize) => {
     IdEmpleado: { type: DataTypes.INTEGER, allowNull: true },
     IdSucursal: { type: DataTypes.INTEGER, allowNull: true },
     // Texto que arma el backend describiendo qué pasó. Obligatorio.
-    Accion: { type: DataTypes.STRING(150), allowNull: false }
+    Accion: { type: DataTypes.STRING(150), allowNull: false },
+    // Gravedad del registro: info | warn | error.
+    Nivel: { type: DataTypes.STRING(10), allowNull: false, defaultValue: 'info' },
+    // AUDITORIA = acciones de usuarios (lo que lista el front); SISTEMA = logs técnicos de Winston.
+    Origen: { type: DataTypes.STRING(15), allowNull: false, defaultValue: 'AUDITORIA' }
   }, {
     tableName: 'Bitacora',
     timestamps: false

@@ -1,5 +1,6 @@
 import { Op } from 'sequelize';
 import { registerAudit, auditar } from '../../../core/utils/audit.util.js';
+import logger from '../../../core/utils/logger.js';
 
 const round2 = (v) => Number(Number(v || 0).toFixed(2));
 
@@ -170,7 +171,7 @@ export default class VentaService {
       return created;
     } catch (err) {
       await t.rollback();
-      console.error('❌ Error creando venta transactional:', err);
+      logger.error('❌ Error creando venta transactional:', err);
       const message = (err.original && (err.original.message || err.original.sqlMessage)) || err.message || 'Error al crear venta';
       await registerAudit(this.bitacoraService, {
         detalle: `Error creando venta - ${message}`,

@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { env } from '../../core/config/env.js';
+import logger from '../../core/utils/logger.js';
 
 export default class NotificacionService {
   constructor() {
@@ -41,7 +42,7 @@ export default class NotificacionService {
       await this.transporter.sendMail(mailOptions);
       return true;
     } catch (error) {
-      console.error('❌ Error al enviar el mail:', error);
+      logger.error('❌ Error al enviar el mail:', error);
       return false;
     }
   }
@@ -125,7 +126,7 @@ export default class NotificacionService {
       await this.transporter.sendMail(mailOptions);
       return true;
     } catch (error) {
-      console.error(`❌ Error al enviar notificación de estado ${nuevoEstado}:`, error.message);
+      logger.error(`❌ Error al enviar notificación de estado ${nuevoEstado}:`, error.message);
       return false;
     }
   }
@@ -164,10 +165,10 @@ export default class NotificacionService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Comprobante de orden #${numOrden} enviado a ${email}`);
+      logger.info(`✅ Comprobante de orden #${numOrden} enviado a ${email}`);
       return true;
     } catch (error) {
-      console.error(`❌ Error al enviar comprobante de orden #${numOrden}:`, error.message);
+      logger.error(`❌ Error al enviar comprobante de orden #${numOrden}:`, error.message);
       return false;
     }
   }
@@ -208,10 +209,10 @@ export default class NotificacionService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Mail de recuperación enviado exitosamente a ${email}`);
+      logger.info(`✅ Mail de recuperación enviado exitosamente a ${email}`);
       return true;
     } catch (error) {
-      console.error('❌ Error al enviar el mail de recuperación:', error);
+      logger.error('❌ Error al enviar el mail de recuperación:', error);
       return false;
     }
   }
