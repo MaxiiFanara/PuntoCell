@@ -90,6 +90,8 @@ export default class AuthService {
     
     // Por seguridad, no revelamos si el email existe o no (evita escaneo de correos)
     if (!user) {
+      // Solo log de servidor: al cliente se le responde igual para no revelar qué emails existen.
+      console.warn(`ℹ️ Recuperación de contraseña: no hay un usuario activo con el email "${email}"`);
       return { message: 'Si el email existe, recibirás un correo de recuperación' };
     }
 
@@ -97,7 +99,8 @@ export default class AuthService {
     const resetToken = generateToken({ id: user.Id, type: 'reset' }, '15m');
 
     // 3. INTEGRACIÓN: Llamamos a la función de Nodemailer que acabas de crear
-    await this.notificacionService.enviarEmailRecuperacion(user.Email, user.Nombre, resetToken);
+    const enviado = await this.notificacionService.enviarEmailRecuperacion(user.Email, user.Nombre, resetToken);
+    if (!enviado) console.error(`❌ Recuperación de contraseña: no se pudo enviar el mail a "${user.Email}" (ver error de SMTP arriba)`);
 
     return {
       message: 'Se ha enviado un email con instrucciones para restablecer tu contraseña'

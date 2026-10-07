@@ -107,9 +107,21 @@ export default function DashboardVentas() {
             />
           </DashboardCard>
           
-          <DashboardCard title="Ventas por método de cobro" height={390}>
+          <DashboardCard title="Ventas por medio de cobro" height={390}>
             <PieChart
-              series={[{ data: formaPago, innerRadius: '50%', outerRadius: '90%', paddingAngle: 3, cornerRadius: 6 }]}
+              series={[{ 
+                data: formaPago, 
+                innerRadius: '50%', 
+                outerRadius: '90%', 
+                paddingAngle: 3, 
+                cornerRadius: 6,
+                valueFormatter: (item) => {
+                  const val = typeof item === 'number' ? item : item?.value;
+                  const total = formaPago.reduce((acc, curr) => acc + (curr.value || 0), 0);
+                  if (!total) return '0%';
+                  return `${((val / total) * 100).toFixed(1)}%`;
+                }
+              }]}
               margin={{ top: 10, bottom: 60, left: 10, right: 10 }}
               slotProps={{ legend: { direction: 'row', position: { vertical: 'bottom', horizontal: 'middle' }, padding: 0 } }}
               sx={{ width: '100%', height: '100%' }}
@@ -117,7 +129,7 @@ export default function DashboardVentas() {
           </DashboardCard>
         </Box>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, 1fr)' }, gap: { xs: 2, md: 3 }, minWidth: 0 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' }, gap: { xs: 2, md: 3 }, minWidth: 0 }}>
           <DashboardCard title="Ventas por Categoría" height={getCategoryChartHeight(categorias.length)}>
             <BarChart
               layout="horizontal"

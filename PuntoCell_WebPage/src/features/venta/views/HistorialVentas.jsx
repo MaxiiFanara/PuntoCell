@@ -21,6 +21,7 @@ import Money from '../../../components/ui/Money';
 import NumberField from '../../../components/ui/NumberField';
 import FilterBar, { FilterField } from '../../../components/ui/FilterBar';
 import TablePager from '../../../components/ui/TablePager';
+import { toast } from 'sonner';
 
 const FILAS_POR_PAGINA = 10;
 const FILAS_POR_PAGINA_DEUDAS = 5;
@@ -241,9 +242,9 @@ const HistorialVentas = () => {
   };
 
   const confirmarCobro = async () => {
-    if (!cobroData.idMetodoPago) return alert('Seleccioná el método de pago.');
+    if (!cobroData.idMetodoPago) return toast.warning('Seleccioná el método de pago.');
     const monto = Number(cobroData.montoAAbonar);
-    if (isNaN(monto) || monto <= 0) return alert('Ingresá un monto válido.');
+    if (isNaN(monto) || monto <= 0) return toast.warning('Ingresá un monto válido.');
 
     setCobrando(true);
     try {
@@ -261,9 +262,9 @@ const HistorialVentas = () => {
       });
       setOpenCobro(false);
       await cargarDeudas();
-      alert(`✅ Pago de U$S ${monto.toFixed(2)} registrado para ${cobroData.cliente}`);
+      toast.success(`✅ Pago de U$S ${monto.toFixed(2)} registrado para ${cobroData.cliente}`);
     } catch (err) {
-      alert('❌ No se pudo registrar el cobro: ' + (err.message || ''));
+      toast.error('❌ No se pudo registrar el cobro: ' + (err.message || ''));
     } finally {
       setCobrando(false);
     }

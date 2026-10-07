@@ -23,7 +23,7 @@ const buildCompraIncludes = () => ([
         // CORRECCIÓN: Agregamos el Articulo para poder leer el nombre real
         model: models.Articulo,
         as: 'articulo',
-        attributes: ['Id', 'Nombre'],
+        attributes: ['Id', 'Nombre', 'IdModeloArticulo'],
         required: false
       }]
     }] 
@@ -34,11 +34,16 @@ const buildVentaDetalleIncludes = () => ([
   { model: models.DetalleVenta, as: 'detalles', attributes: ['Id', 'Cantidad', 'PrecioUnitario', 'IdArticulo'], required: false, include: [{ model: models.Inventario, as: 'inventario', attributes: ['Id', 'IdArticulo', 'IdSucursal', 'Stock'], required: false, include: [{ model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre', 'IdModeloArticulo'], required: false, include: [{ model: models.ModeloArticulo, as: 'modelo', attributes: ['Id', 'Nombre', 'IdMarcaArticulo', 'IdCategoriaArticulo'], required: false, include: [{ model: models.MarcaArticulo, as: 'marca', attributes: ['Id', 'Nombre'], required: false }, { model: models.CategoriaArticulo, as: 'categoria', attributes: ['Id', 'Nombre'], required: false }] }] }] }] },
 ])
 
-const getDetalleProductId = (detalle) => detalle?.inventario?.IdProducto ?? detalle?.inventario?.IdArticulo ?? detalle?.IdArticulo ?? null
+const detalleMatchesModel = (detalle, productId) => {
+  if (productId === null) return true;
+  const idArt = detalle?.inventario?.IdProducto ?? detalle?.inventario?.IdArticulo ?? detalle?.IdArticulo;
+  const idMod = detalle?.inventario?.articulo?.IdModeloArticulo;
+  return Number(idArt) === Number(productId) || (idMod != null && Number(idMod) === Number(productId));
+};
 
 const hasProductInPurchase = (compra, productId) => {
   if (productId === null) return true
-  return (compra.detalles ?? []).some((detalle) => Number(getDetalleProductId(detalle)) === Number(productId))
+  return (compra.detalles ?? []).some((detalle) => detalleMatchesModel(detalle, productId))
 }
 
 const filterPurchasesByProduct = (rows, productId) => (productId === null ? rows : rows.filter((row) => hasProductInPurchase(row, productId)))
@@ -133,8 +138,7 @@ export default class ComprasDashboardService {
     for (const compra of rows) {
       const key = periodKey(compra.Fecha, gran)
       for (const detalle of compra.detalles ?? []) {
-        const detalleProductId = detalle.inventario?.IdArticulo ?? detalle.IdArticulo
-        if (Number(detalleProductId) !== Number(productId)) continue
+        if (!detalleMatchesModel(detalle, productId)) continue
         if (!map.has(key)) map.set(key, { period: key, total: 0, count: 0 })
         const bucket = map.get(key)
         bucket.total += toNumber(detalle.PrecioCostoUnitario)
@@ -156,8 +160,7 @@ export default class ComprasDashboardService {
     const map = new Map()
     for (const compra of rows) {
       for (const detalle of compra.detalles ?? []) {
-        const detalleProductId = detalle.inventario?.IdArticulo ?? detalle.IdArticulo
-        if (productId !== null && Number(detalleProductId) !== Number(productId)) continue
+        if (!detalleMatchesModel(detalle, productId)) continue
         const id = compra.IdProveedor
         if (!map.has(id)) map.set(id, { id, proveedor: compra.proveedor?.Nombre ?? `Proveedor ${id}`, prices: [] })
         map.get(id).prices.push(toNumber(detalle.PrecioCostoUnitario))

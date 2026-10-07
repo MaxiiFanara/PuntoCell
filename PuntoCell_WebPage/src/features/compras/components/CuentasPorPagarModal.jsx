@@ -8,6 +8,7 @@ import { comprasService } from '../../../services/comprasServices';
 import { ventasService } from '../../../services/ventasServices';
 import { useVenta } from '../../punto-venta/context/VentaContext';
 import NumberField from '../../../components/ui/NumberField';
+import { toast } from 'sonner';
 
 const fmt = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtArs = (usd, dolarGlobal) => `$ ${Math.round((usd || 0) * dolarGlobal).toLocaleString('es-AR')}`;
@@ -37,9 +38,9 @@ export default function CuentasPorPagarModal({ open, onClose, compras, onPagado 
 
   const confirmarPago = async (deuda) => {
     const monto = Number(form.monto);
-    if (!monto || monto <= 0) return alert('Ingresá un monto válido.');
-    if (monto > deuda.saldo + 0.001) return alert(`El pago no puede superar el saldo (U$S ${fmt(deuda.saldo)} ≈ ${fmtArs(deuda.saldo, dolarGlobal)}).`);
-    if (!form.idMetodo) return alert('Elegí un método de pago.');
+    if (!monto || monto <= 0) return toast.warning('Ingresá un monto válido.');
+    if (monto > deuda.saldo + 0.001) return toast.warning(`El pago no puede superar el saldo (U$S ${fmt(deuda.saldo)} ≈ ${fmtArs(deuda.saldo, dolarGlobal)}).`);
+    if (!form.idMetodo) return toast.warning('Elegí un método de pago.');
     setGuardando(true);
     try {
       await comprasService.crearPago({
@@ -51,7 +52,7 @@ export default function CuentasPorPagarModal({ open, onClose, compras, onPagado 
       setAbierta(null);
       onPagado();
     } catch (e) {
-      alert('No se pudo registrar el pago: ' + (e.message || ''));
+      toast.error('No se pudo registrar el pago: ' + (e.message || ''));
     } finally {
       setGuardando(false);
     }

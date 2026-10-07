@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box, Card, CardContent, TextField, Button, Typography,
@@ -10,6 +10,7 @@ import {
 } from '@mui/icons-material'
 import { useAuth } from '../context/AuthContext'
 import { loginUsuario, getSesionActual, mapUsuario } from '../services/api'
+import RecaptchaWidget, { recaptchaConfigurado } from '../components/ui/RecaptchaWidget'
 
 // ─── Animaciones CSS + View Transition ────────────────────────────────────────
 const STYLES = `
@@ -63,7 +64,7 @@ const STYLES = `
   }
 `
 
-const TEST_USER = { usuario: 'admin', password: 'PuntoCell2026!' }
+const TEST_USER = { usuario: 'mfanara', password: 'talleres123456' }
 
 export default function LoginPage() {
   const { usuario, login } = useAuth()
@@ -80,6 +81,8 @@ export default function LoginPage() {
   const [error,         setError]         = useState('')
   const [success,       setSuccess]       = useState(false)
   const [form,          setForm]          = useState({ usuario: '', password: '' })
+  const recaptchaRef = useRef(null)
+
 
   useEffect(() => {
     if (document.getElementById('pc-login-styles')) return
@@ -103,9 +106,13 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.usuario || !form.password) { setError('Por favor completá todos los campos.'); return }
+    const recaptchaToken = recaptchaRef.current?.getToken() || ''
+    if (recaptchaConfigurado && !recaptchaToken) { setError('Completá el captcha para continuar.'); return }
     setLoading(true); setError('')
+
+
     try {
-      const res = await loginUsuario(form.usuario, form.password)
+      const res = await loginUsuario(form.usuario, form.password, recaptchaToken)
       login(mapUsuario(res.data.user))
       setSuccess(true)
     } catch (err) {
@@ -123,6 +130,8 @@ export default function LoginPage() {
         setError('No se pudo conectar con el servidor. Verificá tu conexión.')
       }
     } finally {
+      // El token es de un solo uso: tras cualquier intento hay que pedir uno nuevo.
+      recaptchaRef.current?.reset()
       setLoading(false)
     }
   }
@@ -209,7 +218,7 @@ export default function LoginPage() {
                       Usuario de prueba:
                     </Typography>
                     <Typography className="mono" variant="caption" sx={{ color: 'text.secondary', fontSize: '0.78rem' }}>
-                      admin / PuntoCell2026!
+                      {TEST_USER.usuario} / {TEST_USER.password}
                     </Typography>
                     <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 600, fontSize: '0.72rem', ml: 'auto' }}>
                       Completar →
@@ -267,6 +276,12 @@ export default function LoginPage() {
                     </Typography>
                   </Box>
 
+                  {recaptchaConfigurado && (
+                    <Box className="f5" sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+                      <RecaptchaWidget ref={recaptchaRef} action="LOGIN" />
+                    </Box>
+                  )}
+
                   <Box className="f6">
                     <Button type="submit" variant="contained" size="large" fullWidth disabled={loading}
                       sx={{ borderRadius: '12px', fontSize: '1rem', py: 1.5 }}>
@@ -290,6 +305,7 @@ export default function LoginPage() {
         <Typography className="anim-footer" variant="caption" sx={{ display: 'block', textAlign: 'center', mt: 3, color: 'text.disabled' }}>
           Proyecto final de carrera · Institución Cervantes
         </Typography>
+
       </Box>
     </Box>
   )

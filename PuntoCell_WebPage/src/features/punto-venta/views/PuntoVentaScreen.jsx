@@ -12,6 +12,7 @@ import PageHeader from '../../../components/ui/PageHeader';
 import { inventarioService } from '../../../services/inventarioServices';
 import { ventasService } from '../../../services/ventasServices';
 import { getLocalidades } from '../../../services/api';
+import { toast } from 'sonner';
 
 // Consume el VentaProvider único de App.jsx; envolver de nuevo acá creaba una
 // segunda instancia desincronizada del dólar del navbar.
@@ -56,7 +57,7 @@ const PuntoVentaContent = () => {
   };
 
   const handleCobrar = () => {
-    if (carrito.length === 0) return alert("El carrito está vacío");
+    if (carrito.length === 0) return toast.warning("El carrito está vacío");
     setModalCobroOpen(true);
   };
 
@@ -110,14 +111,14 @@ const PuntoVentaContent = () => {
       // antes se actualizaba a mano acá y quedaba duplicado y no atómico con la venta.
       await ventasService.create(ventaLimpia);
 
-      alert("🚀 ¡Venta realizada con éxito!");
+      toast.success("🚀 ¡Venta realizada con éxito!");
       vaciarTodo();
       handleCloseCobro();
 
     } catch (error) {
       console.error("❌ Error en el proceso de cobro:", error);
       // Condición de carrera con otra caja: el backend ya deja el mensaje en error.message
-      alert(`No se pudo procesar la venta: ${error.message || 'Error desconocido, revisá la consola.'}`);
+      toast.error(`No se pudo procesar la venta: ${error.message || 'Error desconocido, revisá la consola.'}`);
     }
   };
 

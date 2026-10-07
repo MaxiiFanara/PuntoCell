@@ -10,7 +10,7 @@ export const setupAssociations = (models) => {
     DevolucionCompra, DetalleDevolucionCompra, PagoCompra, CuentaCorrienteProveedor,
     ListaPrecio, PrecioArticulo
     ,
-    Bateria, Color, EstadoInventario, CategoriaArticulo, MarcaArticulo, Memoria, ModeloArticulo, Almacenamiento, Articulo, Inventario,
+    Bateria, Color, EstadoInventario, CategoriaArticulo, MarcaArticulo, Memoria, ModeloArticulo, Almacenamiento, Articulo, Inventario, ImagenProducto,
     MetodoPago,
     TurnoCaja, MovimientoCaja,
     Bitacora
@@ -250,6 +250,11 @@ export const setupAssociations = (models) => {
   if (ModeloArticulo && Articulo) {
     ModeloArticulo.hasMany(Articulo, { foreignKey: 'IdModeloArticulo', as: 'articulos' });
     Articulo.belongsTo(ModeloArticulo, { foreignKey: 'IdModeloArticulo', as: 'modelo' });
+  }
+
+  if (Articulo && ImagenProducto) {
+    Articulo.hasMany(ImagenProducto, { foreignKey: 'IdProducto', as: 'imagenes' });
+    ImagenProducto.belongsTo(Articulo, { foreignKey: 'IdProducto', as: 'articulo' });
   }
 
   if (Inventario && Articulo) {

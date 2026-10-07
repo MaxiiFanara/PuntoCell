@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Alert, Box, Button, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -31,6 +32,7 @@ export default function ProductDetail() {
   const { addToCart } = useCart();
 
   const product = products.find((p) => String(p.id) === String(id));
+  const [selectedImage, setSelectedImage] = useState(null);
 
   const relacionados = products
     .filter((p) => p.id !== product?.id && p.category === product?.category)
@@ -51,6 +53,8 @@ export default function ProductDetail() {
       </Box>
     );
   }
+
+  const currentImage = selectedImage || product.imagenPortada || product.imagenes?.[0];
 
   return (
     <Box>
@@ -73,9 +77,30 @@ export default function ProductDetail() {
       >
         <Box sx={{ gridColumn: { md: '1 / 8' } }}>
           {product.category && (
-            <Typography sx={{ ...muted, fontSize: '.8125rem' }}>
+            <Typography sx={{ ...muted, fontSize: '.8125rem', mb: 1 }}>
               {formatCategoria(product.category)}
             </Typography>
+          )}
+
+          {product.imagenes && product.imagenes.length > 0 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: { xs: 3, md: 4 } }}>
+              <Box sx={{ width: '100%', aspectRatio: '4/3', borderRadius: 2, overflow: 'hidden', bgcolor: 'background.paper', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 1, borderColor: 'divider' }}>
+                <img src={currentImage} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} loading="lazy" />
+              </Box>
+              {product.imagenes.length > 1 && (
+                <Box sx={{ display: 'flex', gap: 1.5, overflowX: 'auto', pb: 1 }}>
+                  {product.imagenes.map((img, idx) => (
+                    <Box 
+                      key={idx} 
+                      onClick={() => setSelectedImage(img)}
+                      sx={{ width: 80, height: 80, flexShrink: 0, borderRadius: 1, overflow: 'hidden', border: img === currentImage ? '2px solid' : '1px solid', borderColor: img === currentImage ? 'primary.main' : 'divider', cursor: 'pointer', bgcolor: 'background.paper' }}
+                    >
+                      <img src={img} alt={`${product.name} ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'contain' }} loading="lazy" />
+                    </Box>
+                  ))}
+                </Box>
+              )}
+            </Box>
           )}
 
           {/* Es el h1 de la vista: la página no tenía ninguno. */}

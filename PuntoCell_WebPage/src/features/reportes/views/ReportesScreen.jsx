@@ -14,6 +14,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import PageHeader from '../../../components/ui/PageHeader';
 import { getSucursales, fetchApi } from '../../../services/api';
+import { toast } from 'sonner';
 
 // ==========================================
 // 1. CONFIGURACIÓN DE REPORTES DISPONIBLES
@@ -208,20 +209,20 @@ export default function ReportesScreen() {
       else if (Array.isArray(result?.rows)) filas = result.rows;
 
       if (filas.length === 0) {
-        alert(`El reporte se generó con éxito, pero no hay datos registrados para el tipo "${tipoReporte}" en este rango de fechas.`);
+        toast.success(`El reporte se generó con éxito, pero no hay datos registrados para el tipo "${tipoReporte}" en este rango de fechas.`);
       }
 
       setReportData(filas);
     } catch (error) {
       console.error("Error al generar reporte:", error);
-      alert(`Hubo un error al conectar con el servidor: ${error.message || 'La ruta de este reporte aún no existe en el backend.'}`);
+      toast.error(`Hubo un error al conectar con el servidor: ${error.message || 'La ruta de este reporte aún no existe en el backend.'}`);
     } finally {
       setLoading(false);
     }
   };
 
   const exportarCSV = () => {
-    if (!reportData.length) return alert('No hay datos para exportar.');
+    if (!reportData.length) return toast.warning('No hay datos para exportar.');
     
     const totales = calcularFilaTotales(reportData);
 
@@ -243,7 +244,7 @@ export default function ReportesScreen() {
   };
 
   const exportarPDF = () => {
-    if (!reportData.length) return alert('No hay datos para exportar.');
+    if (!reportData.length) return toast.warning('No hay datos para exportar.');
 
     const doc = new jsPDF('l', 'mm', 'a4');
     const tituloModulo = REPORT_MODULES[moduloSeleccionado].label;

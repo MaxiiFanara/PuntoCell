@@ -57,7 +57,7 @@ export default function ProductCard({ product }) {
         },
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5, mb: 1.5 }}>
         <Typography sx={{ ...muted, fontSize: '.78rem' }}>
           {formatCategoria(product.category)}
         </Typography>
@@ -84,6 +84,29 @@ export default function ProductCard({ product }) {
           </Typography>
         )}
       </Box>
+
+      {product.imagenPortada && (
+        <Box
+          sx={{
+            width: '100%',
+            aspectRatio: '1',
+            mb: 2,
+            borderRadius: 1,
+            overflow: 'hidden',
+            bgcolor: 'background.paper',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <img
+            src={product.imagenPortada}
+            alt={product.name}
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            loading="lazy"
+          />
+        </Box>
+      )}
 
       <Typography
         component="h3"

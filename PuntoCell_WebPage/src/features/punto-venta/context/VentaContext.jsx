@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Snackbar, Alert } from '@mui/material';
+import { toast } from 'sonner';
 import { ventasService } from "../../../services/ventasServices";
 import { inventarioService } from "../../../services/inventarioServices";
 import { fetchApi } from "../../../services/api";
@@ -15,16 +15,10 @@ export const VentaProvider = ({ children }) => {
     const idSucursal = usuario?.sucursal ?? null;
     const [nombreSucursal, setNombreSucursal] = useState('');
 
-    // Estado global para notificaciones estéticas (Toasts)
-    const [toast, setToast] = useState({ open: false, mensaje: '', severity: 'warning' });
-
     const mostrarAlerta = (mensaje, severity = 'warning') => {
-        setToast({ open: true, mensaje, severity });
-    };
-
-    const handleCerrarToast = (event, reason) => {
-        if (reason === 'clickaway') return;
-        setToast(prev => ({ ...prev, open: false }));
+        if (severity === 'error') toast.error(mensaje);
+        else if (severity === 'success') toast.success(mensaje);
+        else toast.warning(mensaje);
     };
 
     useEffect(() => {
@@ -284,23 +278,6 @@ export const VentaProvider = ({ children }) => {
             mostrarAlerta // Exportado para usar en ProductoSearch o cualquier otro componente
         }}>
             {children}
-
-            <Snackbar
-                open={toast.open}
-                autoHideDuration={4000}
-                onClose={handleCerrarToast}
-                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-                sx={{ zIndex: 9999 }}
-            >
-                <Alert 
-                    onClose={handleCerrarToast} 
-                    severity={toast.severity} 
-                    variant="filled" 
-                    sx={{ width: '100%', boxShadow: 3, fontWeight: 500 }}
-                >
-                    {toast.mensaje}
-                </Alert>
-            </Snackbar>
         </VentaContext.Provider>
     );
 };

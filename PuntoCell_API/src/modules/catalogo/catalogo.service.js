@@ -30,6 +30,10 @@ export default class CatalogoService {
               // abajo; no toca modelos, asociaciones ni la base de datos.
               { association: 'categoria', attributes: ['Nombre'] },
             ]
+          }, {
+            association: 'imagenes',
+            attributes: ['URLRelativa', 'EsPortada', 'OrdenVisual'],
+            required: false
           }]
         }, {
           association: 'color', attributes: ['Nombre']
@@ -97,6 +101,9 @@ export default class CatalogoService {
       .map((inv) => {
         const precio = preciosMap[inv.Id];
         const priceUsd = precio ? Number(precio.ValorFinal) || 0 : 0;
+        const imagenes = (inv.articulo?.imagenes || [])
+          .sort((a, b) => (a.OrdenVisual || 99) - (b.OrdenVisual || 99));
+
         return {
           id: String(inv.Id),
           name: inv.articulo?.Nombre || 'Producto',
@@ -109,6 +116,8 @@ export default class CatalogoService {
           color: inv.color?.Nombre || null,
           memoria: inv.memoria?.Capacidad || null,
           bateria: inv.bateria?.Capacidad || null,
+          imagenes: imagenes.map(img => img.URLRelativa),
+          imagenPortada: imagenes.find(img => img.EsPortada)?.URLRelativa || imagenes[0]?.URLRelativa || null,
           almacenamiento: inv.almacenamiento?.Capacidad || null,
           estado: inv.estado?.Nombre || null,
           garantiaMarca: inv.MesesGarantiaMarca || null,
