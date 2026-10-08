@@ -25,8 +25,8 @@ export default class OrdenFallaService {
     });
     if (existe) { const e = new Error('Esta falla ya está registrada en la orden de reparación'); e.statusCode = 409; throw e; }
     const creada = await this.ordenFallaDAO.create(data);
-    await auditar(this.bitacoraService, ctx, `Asoció la falla #${data.IdFalla} a la orden de reparación #${data.IdOrdenReparacion}`,
-      `Alta de relación orden-falla #${creada.Id}`);
+    await auditar(this.bitacoraService, ctx, `Asoció la falla a la orden de reparación`,
+      `Alta de relación orden-falla`);
     return creada;
   }
 
@@ -34,7 +34,7 @@ export default class OrdenFallaService {
     const ordenFalla = await this.ordenFallaDAO.getById(id);
     if (!ordenFalla) throw noEncontrada();
     const actualizada = await this.ordenFallaDAO.update(id, data);
-    await auditar(this.bitacoraService, ctx, `Modificó la relación orden-falla #${id}`, `Campos: ${Object.keys(data).join(', ')}`);
+    await auditar(this.bitacoraService, ctx, `Modificó la relación orden-falla`, `Campos: ${Object.keys(data).join(', ')}`);
     return actualizada;
   }
 
@@ -43,7 +43,7 @@ export default class OrdenFallaService {
     if (!ordenFalla) throw noEncontrada();
     const eliminado = await this.ordenFallaDAO.remove(id);
     if (!eliminado) throw new Error('No se pudo eliminar la relación Orden-Falla');
-    await auditar(this.bitacoraService, ctx, `Quitó la falla de la orden de reparación (relación #${id})`, `Baja de relación orden-falla`);
+    await auditar(this.bitacoraService, ctx, `Quitó la falla de la orden de reparación`, `Baja de relación orden-falla`);
     return true;
   }
 }

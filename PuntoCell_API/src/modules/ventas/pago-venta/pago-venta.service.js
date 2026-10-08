@@ -18,7 +18,7 @@ export default class PagoVentaService {
     const item = await this.pagoDAO.getById(id, { attributes: this.ATTRIBUTES });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `PagoVenta no encontrado (Id=${id})`,
+        detalle: `PagoVenta no encontrado`,
         Accion: 'Obtener PagoVenta',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -66,7 +66,7 @@ export default class PagoVentaService {
 
       await t.commit();
       await registerAudit(this.bitacoraService, {
-        detalle: `PagoVenta creado Id=${pago.Id || pago.id || ''}`,
+        detalle: `PagoVenta creado`,
         Accion: 'Crear PagoVenta',
         IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
         IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -95,7 +95,7 @@ export default class PagoVentaService {
     const item = await this.pagoDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `PagoVenta no encontrado (Id=${id})`,
+        detalle: `PagoVenta no encontrado`,
         Accion: 'Actualizar PagoVenta',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -122,7 +122,7 @@ export default class PagoVentaService {
 
       await t.commit();
       await registerAudit(this.bitacoraService, {
-        detalle: `PagoVenta actualizado Id=${id}`,
+        detalle: `PagoVenta actualizado`,
         Accion: 'Actualizar PagoVenta',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -149,7 +149,7 @@ export default class PagoVentaService {
     const item = await this.pagoDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `PagoVenta no encontrado (Id=${id})`,
+        detalle: `PagoVenta no encontrado`,
         Accion: 'Eliminar PagoVenta',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -160,7 +160,7 @@ export default class PagoVentaService {
     }
     const removed = await this.pagoDAO.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `PagoVenta eliminado Id=${id}`,
+      detalle: `PagoVenta eliminado`,
       Accion: 'Eliminar PagoVenta',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

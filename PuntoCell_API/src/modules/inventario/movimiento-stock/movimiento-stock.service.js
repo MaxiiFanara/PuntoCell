@@ -32,7 +32,7 @@ export default class MovimientoStockService {
     ] });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `MovimientoStock no encontrado (Id=${id})`,
+        detalle: `MovimientoStock no encontrado`,
         Accion: 'Obtener MovimientoStock',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -49,7 +49,7 @@ export default class MovimientoStockService {
     const inv = await Inventario.findByPk(data.IdInventario);
     if (!inv) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Inventario no encontrado Id=${data.IdInventario}`,
+        detalle: `Inventario no encontrado`,
         Accion: 'Crear MovimientoStock',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -61,7 +61,7 @@ export default class MovimientoStockService {
     const emp = await Usuario.findByPk(data.IdEmpleado);
     if (!emp) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Empleado no encontrado Id=${data.IdEmpleado}`,
+        detalle: `Empleado no encontrado`,
         Accion: 'Crear MovimientoStock',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -73,7 +73,7 @@ export default class MovimientoStockService {
 
     const created = await this.movimientoStockDAO.create(data);
     await registerAudit(this.bitacoraService, {
-      detalle: `MovimientoStock creado Id=${created.Id || created.id || ''}`,
+      detalle: `MovimientoStock creado`,
       Accion: 'Crear MovimientoStock',
       IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
       IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -87,7 +87,7 @@ export default class MovimientoStockService {
     const item = await this.movimientoStockDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `MovimientoStock no encontrado (Id=${id})`,
+        detalle: `MovimientoStock no encontrado`,
         Accion: 'Actualizar MovimientoStock',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -101,7 +101,7 @@ export default class MovimientoStockService {
       const inv = await Inventario.findByPk(data.IdInventario);
       if (!inv) {
         await registerAudit(this.bitacoraService, {
-          detalle: `Inventario no encontrado Id=${data.IdInventario}`,
+          detalle: `Inventario no encontrado`,
           Accion: 'Actualizar MovimientoStock',
           IdEmpleado: auditContext?.IdEmpleado,
           IdSucursal: auditContext?.IdSucursal,
@@ -115,7 +115,7 @@ export default class MovimientoStockService {
       const emp = await Usuario.findByPk(data.IdEmpleado);
       if (!emp) {
         await registerAudit(this.bitacoraService, {
-          detalle: `Empleado no encontrado Id=${data.IdEmpleado}`,
+          detalle: `Empleado no encontrado`,
           Accion: 'Actualizar MovimientoStock',
           IdEmpleado: auditContext?.IdEmpleado,
           IdSucursal: auditContext?.IdSucursal,
@@ -128,7 +128,7 @@ export default class MovimientoStockService {
 
     const updated = await this.movimientoStockDAO.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `MovimientoStock actualizado Id=${id}`,
+      detalle: `MovimientoStock actualizado`,
       Accion: 'Actualizar MovimientoStock',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -142,7 +142,7 @@ export default class MovimientoStockService {
     const item = await this.movimientoStockDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `MovimientoStock no encontrado (Id=${id})`,
+        detalle: `MovimientoStock no encontrado`,
         Accion: 'Eliminar MovimientoStock',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -153,7 +153,7 @@ export default class MovimientoStockService {
     }
     const removed = await this.movimientoStockDAO.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `MovimientoStock eliminado Id=${id}`,
+      detalle: `MovimientoStock eliminado`,
       Accion: 'Eliminar MovimientoStock',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

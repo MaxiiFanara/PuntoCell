@@ -40,7 +40,7 @@ export default class PreciosArticulosService {
     const payload = { ...data, ...computed };
     const creado = await this.preciosArticulosDAO.create(payload);
     await auditar(this.bitacoraService, ctx,
-      `Cargó un precio para el inventario #${data.IdInventario} (precio #${creado.Id})`,
+      `Cargó un precio para el inventario`,
       `Lista ${data.IdListaPrecio} · costo ${computed.CostoBase} → venta ${computed.ValorFinal}`);
     return creado;
   }
@@ -54,14 +54,14 @@ export default class PreciosArticulosService {
     const computed = await this.computeFields(merged);
     const payload = { ...merged, ...computed };
     const actualizado = await this.preciosArticulosDAO.update(id, payload);
-    await auditar(this.bitacoraService, ctx, `Modificó el precio de artículo #${id}`,
+    await auditar(this.bitacoraService, ctx, `Modificó el precio de artículo`,
       `Nuevo costo ${computed.CostoBase} → venta ${computed.ValorFinal}`);
     return actualizado;
   }
 
   async remove(id, ctx = null) {
     const eliminado = await this.preciosArticulosDAO.remove(id);
-    await auditar(this.bitacoraService, ctx, `Eliminó el precio de artículo #${id}`, `Baja de precio de artículo`);
+    await auditar(this.bitacoraService, ctx, `Eliminó el precio de artículo`, `Baja de precio de artículo`);
     return eliminado;
   }
 

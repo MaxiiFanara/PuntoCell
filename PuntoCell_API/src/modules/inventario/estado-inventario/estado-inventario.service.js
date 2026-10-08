@@ -16,7 +16,7 @@ export default class EstadoInventarioService {
     const item = await this.dao.getById(id, { attributes: this.ATTRIBUTES });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `EstadoInventario no encontrado (Id=${id})`,
+        detalle: `EstadoInventario no encontrado`,
         Accion: 'Obtener EstadoInventario',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -43,7 +43,7 @@ export default class EstadoInventarioService {
     }
     const created = await this.dao.create(data);
     await registerAudit(this.bitacoraService, {
-      detalle: `EstadoInventario creado Id=${created.Id || created.id || ''}`,
+      detalle: `EstadoInventario creado`,
       Accion: 'Crear EstadoInventario',
       IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
       IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -57,7 +57,7 @@ export default class EstadoInventarioService {
     const item = await this.dao.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `EstadoInventario no encontrado (Id=${id})`,
+        detalle: `EstadoInventario no encontrado`,
         Accion: 'Actualizar EstadoInventario',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -82,7 +82,7 @@ export default class EstadoInventarioService {
     }
     const updated = await this.dao.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `EstadoInventario actualizado Id=${id}`,
+      detalle: `EstadoInventario actualizado`,
       Accion: 'Actualizar EstadoInventario',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -96,7 +96,7 @@ export default class EstadoInventarioService {
     const item = await this.dao.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `EstadoInventario no encontrado (Id=${id})`,
+        detalle: `EstadoInventario no encontrado`,
         Accion: 'Eliminar EstadoInventario',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -107,7 +107,7 @@ export default class EstadoInventarioService {
     }
     const removed = await this.dao.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `EstadoInventario eliminado Id=${id}`,
+      detalle: `EstadoInventario eliminado`,
       Accion: 'Eliminar EstadoInventario',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

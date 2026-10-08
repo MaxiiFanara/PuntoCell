@@ -42,7 +42,7 @@ export default class PagoReparacionService {
 
       await t.commit();
 
-      await auditar(this.bitacoraService, ctx, `Registró un pago de ${data.Monto} en la orden de reparación #${data.IdOrdenReparacion} (pago #${creado.Id})`,
+      await auditar(this.bitacoraService, ctx, `Registró un pago de ${data.Monto} en la orden de reparación`,
         `Método ${data.IdMetodoPago ?? '-'} · turno ${data.IdTurnoCaja ?? '-'}`);
       return creado;
     } catch (err) {
@@ -55,7 +55,7 @@ export default class PagoReparacionService {
     const pago = await this.pagoReparacionDAO.getById(id);
     if (!pago) throw noEncontrado();
     const actualizado = await this.pagoReparacionDAO.update(id, data);
-    await auditar(this.bitacoraService, ctx, `Modificó el pago de reparación #${id}`, `Campos: ${Object.keys(data).join(', ')}`);
+    await auditar(this.bitacoraService, ctx, `Modificó el pago de reparación`, `Campos: ${Object.keys(data).join(', ')}`);
     return actualizado;
   }
 
@@ -64,7 +64,7 @@ export default class PagoReparacionService {
     if (!pago) throw noEncontrado();
     const eliminado = await this.pagoReparacionDAO.remove(id);
     if (!eliminado) throw new Error('No se pudo eliminar el pago de reparación');
-    await auditar(this.bitacoraService, ctx, `Eliminó el pago de reparación #${id}`, `Baja de pago de reparación`);
+    await auditar(this.bitacoraService, ctx, `Eliminó el pago de reparación`, `Baja de pago de reparación`);
     return true;
   }
 }

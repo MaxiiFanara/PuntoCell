@@ -147,7 +147,7 @@ export default class CuentaCorrienteProveedorService {
       Haber: tipo === 'haber' ? Monto : 0
     });
     await auditar(this.bitacoraService, ctx,
-      `Ajuste manual en cuenta corriente del proveedor #${idProveedor} (${tipo} ${Monto})`,
+      `Ajuste manual en cuenta corriente del proveedor (${tipo} ${Monto})`,
       `${concepto} · saldo resultante ${mov.SaldoAcumulado}`);
     return mov;
   }

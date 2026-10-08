@@ -16,7 +16,7 @@ export default class AlmacenamientoService {
     const item = await this.almacenamientoDAO.getById(id, { attributes: this.ATTRIBUTES });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Almacenamiento no encontrado (Id=${id})`,
+        detalle: `Almacenamiento no encontrado`,
         Accion: 'Obtener Almacenamiento',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -43,7 +43,7 @@ export default class AlmacenamientoService {
     }
     const created = await this.almacenamientoDAO.create(data);
     await registerAudit(this.bitacoraService, {
-      detalle: `Almacenamiento creado Id=${created.Id || created.id || ''}`,
+      detalle: `Almacenamiento creado`,
       Accion: 'Crear Almacenamiento',
       IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
       IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -57,7 +57,7 @@ export default class AlmacenamientoService {
     const item = await this.almacenamientoDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Almacenamiento no encontrado (Id=${id})`,
+        detalle: `Almacenamiento no encontrado`,
         Accion: 'Actualizar Almacenamiento',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -82,7 +82,7 @@ export default class AlmacenamientoService {
     }
     const updated = await this.almacenamientoDAO.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `Almacenamiento actualizado Id=${id}`,
+      detalle: `Almacenamiento actualizado`,
       Accion: 'Actualizar Almacenamiento',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -96,7 +96,7 @@ export default class AlmacenamientoService {
     const item = await this.almacenamientoDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Almacenamiento no encontrado (Id=${id})`,
+        detalle: `Almacenamiento no encontrado`,
         Accion: 'Eliminar Almacenamiento',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -107,7 +107,7 @@ export default class AlmacenamientoService {
     }
     const removed = await this.almacenamientoDAO.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `Almacenamiento eliminado Id=${id}`,
+      detalle: `Almacenamiento eliminado`,
       Accion: 'Eliminar Almacenamiento',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

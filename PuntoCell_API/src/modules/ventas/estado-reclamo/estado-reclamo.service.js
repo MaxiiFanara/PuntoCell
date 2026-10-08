@@ -16,7 +16,7 @@ export default class EstadoReclamoService {
     const item = await this.dao.getById(id, { attributes: this.ATTRIBUTES });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `EstadoReclamo no encontrado (Id=${id})`,
+        detalle: `EstadoReclamo no encontrado`,
         Accion: 'Obtener EstadoReclamo',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -32,7 +32,7 @@ export default class EstadoReclamoService {
     try {
       const created = await this.dao.create(data);
       await registerAudit(this.bitacoraService, {
-        detalle: `EstadoReclamo creado Id=${created.Id || created.id || ''}`,
+        detalle: `EstadoReclamo creado`,
         Accion: 'Crear EstadoReclamo',
         IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
         IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -57,7 +57,7 @@ export default class EstadoReclamoService {
     const item = await this.dao.getById(id);
     if (!item) { const e = new Error('EstadoReclamo no encontrado'); e.statusCode = 404; throw e; }
     const actualizado = await this.dao.update(id, data);
-    await auditar(this.bitacoraService, ctx, `Modificó el estado de reclamo #${id}`, `Campos: ${Object.keys(data).join(', ')}`);
+    await auditar(this.bitacoraService, ctx, `Modificó el estado de reclamo`, `Campos: ${Object.keys(data).join(', ')}`);
     return actualizado;
   }
 
@@ -65,7 +65,7 @@ export default class EstadoReclamoService {
     const item = await this.dao.getById(id);
     if (!item) { const e = new Error('EstadoReclamo no encontrado'); e.statusCode = 404; throw e; }
     const eliminado = await this.dao.remove(id);
-    await auditar(this.bitacoraService, ctx, `Eliminó el estado de reclamo #${id}`, `Baja de estado de reclamo`);
+    await auditar(this.bitacoraService, ctx, `Eliminó el estado de reclamo`, `Baja de estado de reclamo`);
     return eliminado;
   }
 }

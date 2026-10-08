@@ -17,7 +17,7 @@ export default class ReclamoGarantiaService {
     const item = await this.dao.getById(id, { attributes: this.ATTRIBUTES });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `ReclamoGarantia no encontrado (Id=${id})`,
+        detalle: `ReclamoGarantia no encontrado`,
         Accion: 'Obtener ReclamoGarantia',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -50,7 +50,7 @@ export default class ReclamoGarantiaService {
       const created = await this.dao.create(data, { transaction: t });
       await t.commit();
       await registerAudit(this.bitacoraService, {
-        detalle: `ReclamoGarantia creado Id=${created.Id || created.id || ''}`,
+        detalle: `ReclamoGarantia creado`,
         Accion: 'Crear ReclamoGarantia',
         IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
         IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -79,7 +79,7 @@ export default class ReclamoGarantiaService {
     const item = await this.dao.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `ReclamoGarantia no encontrado (Id=${id})`,
+        detalle: `ReclamoGarantia no encontrado`,
         Accion: 'Actualizar ReclamoGarantia',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -90,7 +90,7 @@ export default class ReclamoGarantiaService {
     }
     const updated = await this.dao.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `ReclamoGarantia actualizado Id=${id}`,
+      detalle: `ReclamoGarantia actualizado`,
       Accion: 'Actualizar ReclamoGarantia',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -104,7 +104,7 @@ export default class ReclamoGarantiaService {
     const item = await this.dao.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `ReclamoGarantia no encontrado (Id=${id})`,
+        detalle: `ReclamoGarantia no encontrado`,
         Accion: 'Eliminar ReclamoGarantia',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -115,7 +115,7 @@ export default class ReclamoGarantiaService {
     }
     const removed = await this.dao.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `ReclamoGarantia eliminado Id=${id}`,
+      detalle: `ReclamoGarantia eliminado`,
       Accion: 'Eliminar ReclamoGarantia',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

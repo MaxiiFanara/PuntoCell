@@ -23,7 +23,7 @@ export default class EstadoOrdenService {
     const existe = await this.estadoOrdenDAO.findOne({ where: { Nombre: data.Nombre } });
     if (existe) { const e = new Error('Ya existe un estado con ese nombre'); e.statusCode = 409; throw e; }
     const creado = await this.estadoOrdenDAO.create(data);
-    await auditar(this.bitacoraService, ctx, `Creó el estado de orden "${data.Nombre}" (#${creado.Id})`, `Alta de estado de orden`);
+    await auditar(this.bitacoraService, ctx, `Creó el estado de orden "${data.Nombre}"`, `Alta de estado de orden`);
     return creado;
   }
 
@@ -35,7 +35,7 @@ export default class EstadoOrdenService {
       if (existe && existe.Id !== parseInt(id)) { const e = new Error('Ya existe un estado con ese nombre'); e.statusCode = 409; throw e; }
     }
     const actualizado = await this.estadoOrdenDAO.update(id, data);
-    await auditar(this.bitacoraService, ctx, `Modificó el estado de orden "${estado.Nombre}" (#${id})`, `Campos: ${Object.keys(data).join(', ')}`);
+    await auditar(this.bitacoraService, ctx, `Modificó el estado de orden "${estado.Nombre}"`, `Campos: ${Object.keys(data).join(', ')}`);
     return actualizado;
   }
 
@@ -44,7 +44,7 @@ export default class EstadoOrdenService {
     if (!estado) throw noEncontrado();
     const eliminado = await this.estadoOrdenDAO.remove(id);
     if (!eliminado) throw new Error('No se pudo eliminar el estado');
-    await auditar(this.bitacoraService, ctx, `Eliminó el estado de orden "${estado.Nombre}" (#${id})`, `Baja de estado de orden`);
+    await auditar(this.bitacoraService, ctx, `Eliminó el estado de orden "${estado.Nombre}"`, `Baja de estado de orden`);
     return true;
   }
 }

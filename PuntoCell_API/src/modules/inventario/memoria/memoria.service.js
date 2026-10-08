@@ -16,7 +16,7 @@ export default class MemoriaService {
     const item = await this.memoriaDAO.getById(id, { attributes: this.ATTRIBUTES });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Memoria no encontrada (Id=${id})`,
+        detalle: `Memoria no encontrada`,
         Accion: 'Obtener Memoria',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -43,7 +43,7 @@ export default class MemoriaService {
     }
     const created = await this.memoriaDAO.create(data);
     await registerAudit(this.bitacoraService, {
-      detalle: `Memoria creada Id=${created.Id || created.id || ''}`,
+      detalle: `Memoria creada`,
       Accion: 'Crear Memoria',
       IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
       IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -57,7 +57,7 @@ export default class MemoriaService {
     const item = await this.memoriaDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Memoria no encontrada (Id=${id})`,
+        detalle: `Memoria no encontrada`,
         Accion: 'Actualizar Memoria',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -82,7 +82,7 @@ export default class MemoriaService {
     }
     const updated = await this.memoriaDAO.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `Memoria actualizada Id=${id}`,
+      detalle: `Memoria actualizada`,
       Accion: 'Actualizar Memoria',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -96,7 +96,7 @@ export default class MemoriaService {
     const item = await this.memoriaDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Memoria no encontrada (Id=${id})`,
+        detalle: `Memoria no encontrada`,
         Accion: 'Eliminar Memoria',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -107,7 +107,7 @@ export default class MemoriaService {
     }
     const removed = await this.memoriaDAO.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `Memoria eliminada Id=${id}`,
+      detalle: `Memoria eliminada`,
       Accion: 'Eliminar Memoria',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

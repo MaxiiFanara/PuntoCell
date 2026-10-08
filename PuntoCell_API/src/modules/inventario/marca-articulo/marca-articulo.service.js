@@ -16,7 +16,7 @@ export default class MarcaArticuloService {
     const item = await this.marcaDAO.getById(id, { attributes: this.ATTRIBUTES });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `MarcaArticulo no encontrado (Id=${id})`,
+        detalle: `MarcaArticulo no encontrado`,
         Accion: 'Obtener MarcaArticulo',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -43,7 +43,7 @@ export default class MarcaArticuloService {
     }
     const created = await this.marcaDAO.create(data);
     await registerAudit(this.bitacoraService, {
-      detalle: `MarcaArticulo creada Id=${created.Id || created.id || ''}`,
+      detalle: `MarcaArticulo creada`,
       Accion: 'Crear MarcaArticulo',
       IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
       IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -57,7 +57,7 @@ export default class MarcaArticuloService {
     const item = await this.marcaDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `MarcaArticulo no encontrado (Id=${id})`,
+        detalle: `MarcaArticulo no encontrado`,
         Accion: 'Actualizar MarcaArticulo',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -82,7 +82,7 @@ export default class MarcaArticuloService {
     }
     const updated = await this.marcaDAO.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `MarcaArticulo actualizada Id=${id}`,
+      detalle: `MarcaArticulo actualizada`,
       Accion: 'Actualizar MarcaArticulo',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -96,7 +96,7 @@ export default class MarcaArticuloService {
     const item = await this.marcaDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `MarcaArticulo no encontrado (Id=${id})`,
+        detalle: `MarcaArticulo no encontrado`,
         Accion: 'Eliminar MarcaArticulo',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -107,7 +107,7 @@ export default class MarcaArticuloService {
     }
     const removed = await this.marcaDAO.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `MarcaArticulo eliminada Id=${id}`,
+      detalle: `MarcaArticulo eliminada`,
       Accion: 'Eliminar MarcaArticulo',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

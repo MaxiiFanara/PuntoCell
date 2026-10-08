@@ -292,7 +292,7 @@ export default class CompraService {
       });
 
       await registerAudit(this.bitacoraService, {
-        detalle: `Compra registrada Id=${compra.Id} (TotalCosto=${totalCosto}, EstadoPago=${estadoPago})`,
+        detalle: `Compra registrada (TotalCosto=${totalCosto}, EstadoPago=${estadoPago})`,
         Accion: 'Crear Compra',
         IdEmpleado: data.IdEmpleado || auditContext?.IdEmpleado,
         IdSucursal: data.IdSucursalDestino || auditContext?.IdSucursal,

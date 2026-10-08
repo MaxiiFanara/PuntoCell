@@ -17,7 +17,7 @@ export default class ListaPreciosService {
 
   async create(data, ctx = null) {
     const creada = await this.listaPreciosDAO.create(data);
-    await auditar(this.bitacoraService, ctx, `Creó la lista de precios "${data.Nombre}" (#${creada.Id})`,
+    await auditar(this.bitacoraService, ctx, `Creó la lista de precios "${data.Nombre}"`,
       `Rentabilidad ${data.PorcentajeRentabilidad}% · categoría ${data.IdCategoriaProducto ?? 'genérica'}`);
     return creada;
   }
@@ -59,7 +59,7 @@ export default class ListaPreciosService {
 
       await t.commit();
 
-      await auditar(this.bitacoraService, ctx, `Modificó la lista de precios #${id}`,
+      await auditar(this.bitacoraService, ctx, `Modificó la lista de precios`,
         cambiaCalculo
           ? `Recalculó ${afectados} precio(s) de venta por cambio de rentabilidad o costos variables`
           : `Campos: ${Object.keys(data).join(', ')}`);
@@ -73,7 +73,7 @@ export default class ListaPreciosService {
 
   async remove(id, ctx = null) {
     const eliminada = await this.listaPreciosDAO.remove(id);
-    await auditar(this.bitacoraService, ctx, `Eliminó la lista de precios #${id}`, `Baja de lista de precios`);
+    await auditar(this.bitacoraService, ctx, `Eliminó la lista de precios`, `Baja de lista de precios`);
     return eliminada;
   }
 }

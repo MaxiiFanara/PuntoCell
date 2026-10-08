@@ -1,7 +1,9 @@
 
 
 import { sequelize } from '../../../models/index.js';
-import { auditar } from '../../../core/utils/audit.util.js';
+import { auditar, nombresProductosDeInventario } from '../../../core/utils/audit.util.js';
+
+const round2 = (value) => Number(Number(value || 0).toFixed(2));
 
 export default class RepuestoOrdenService {
   constructor(repuestoOrdenDAO, ordenReparacionDAO, bitacoraService = null) {
@@ -83,14 +85,15 @@ export default class RepuestoOrdenService {
         IdInventario
       }, { transaction: t });
 
-      const nuevoCosto = Number(orden.CostoRepuestos) + (precioCobrado * Cantidad);
+      const nuevoCosto = round2(Number(orden.CostoRepuestos) + (precioCobrado * Cantidad));
       await orden.update({ CostoRepuestos: nuevoCosto }, { transaction: t });
 
       await t.commit();
 
+      const [repuestoAud] = await nombresProductosDeInventario(sequelize, [{ IdInventario, Cantidad: 1 }]);
       await auditar(this.bitacoraService, ctx,
-        `Agregó ${Cantidad} repuesto(s) a la orden de reparación #${IdOrdenReparacion} (repuesto #${nuevoRepuesto.Id})`,
-        `Inventario ${IdInventario} · precio cobrado ${precioCobrado}`);
+        `Agregó ${Cantidad} repuesto(s) a una orden de reparación`,
+        `${repuestoAud ?? 'Repuesto'} · precio cobrado ${precioCobrado}`);
 
       return nuevoRepuesto;
 
@@ -124,7 +127,7 @@ export default class RepuestoOrdenService {
       }
 
       const costoARestar = Number(repuesto.PrecioCobrado) * repuesto.Cantidad;
-      const nuevoCosto = Math.max(0, Number(orden.CostoRepuestos) - costoARestar);
+      const nuevoCosto = round2(Math.max(0, Number(orden.CostoRepuestos) - costoARestar));
       await orden.update({ CostoRepuestos: nuevoCosto }, { transaction: t });
 
       await this.repuestoOrdenDAO.remove(id, { transaction: t });
@@ -132,7 +135,7 @@ export default class RepuestoOrdenService {
       await t.commit();
 
       await auditar(this.bitacoraService, ctx,
-        `Quitó un repuesto de la orden de reparación #${repuesto.IdOrdenReparacion} (repuesto #${id})`,
+        'Quitó un repuesto de una orden de reparación',
         `Se devolvieron ${repuesto.Cantidad} unidad(es) al stock`);
 
       return true;

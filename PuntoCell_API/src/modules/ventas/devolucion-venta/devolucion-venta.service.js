@@ -20,7 +20,7 @@ export default class DevolucionVentaService {
     const item = await this.devolucionDAO.getById(id, { attributes: this.ATTRIBUTES, include: [ { model: Detalle, as: 'detalles' } ] });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `DevolucionVenta no encontrada (Id=${id})`,
+        detalle: `DevolucionVenta no encontrada`,
         Accion: 'Obtener DevolucionVenta',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -92,7 +92,7 @@ export default class DevolucionVentaService {
       const Detalle = sequelize.models.DetalleDevolucionVenta;
       const created = await this.devolucionDAO.getById(devolId, { include: [ { model: Detalle, as: 'detalles' } ] });
       await registerAudit(this.bitacoraService, {
-        detalle: `DevolucionVenta creada Id=${devolId}`,
+        detalle: `DevolucionVenta creada`,
         Accion: 'Crear DevolucionVenta',
         IdEmpleado: devolData?.IdEmpleado || auditContext?.IdEmpleado,
         IdSucursal: devolData?.IdSucursal || auditContext?.IdSucursal,
@@ -121,7 +121,7 @@ export default class DevolucionVentaService {
     const item = await this.devolucionDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `DevolucionVenta no encontrada (Id=${id})`,
+        detalle: `DevolucionVenta no encontrada`,
         Accion: 'Actualizar DevolucionVenta',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -132,7 +132,7 @@ export default class DevolucionVentaService {
     }
     const updated = await this.devolucionDAO.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `DevolucionVenta actualizada Id=${id}`,
+      detalle: `DevolucionVenta actualizada`,
       Accion: 'Actualizar DevolucionVenta',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -146,7 +146,7 @@ export default class DevolucionVentaService {
     const item = await this.devolucionDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `DevolucionVenta no encontrada (Id=${id})`,
+        detalle: `DevolucionVenta no encontrada`,
         Accion: 'Eliminar DevolucionVenta',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -157,7 +157,7 @@ export default class DevolucionVentaService {
     }
     const removed = await this.devolucionDAO.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `DevolucionVenta eliminada Id=${id}`,
+      detalle: `DevolucionVenta eliminada`,
       Accion: 'Eliminar DevolucionVenta',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

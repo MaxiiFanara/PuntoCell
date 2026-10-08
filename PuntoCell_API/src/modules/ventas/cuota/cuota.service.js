@@ -26,7 +26,7 @@ export default class CuotaService {
     const item = await this.cuotaDAO.getById(id, { attributes: this.ATTRIBUTES });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Cuota no encontrada (Id=${id})`,
+        detalle: `Cuota no encontrada`,
         Accion: 'Obtener Cuota',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -55,7 +55,7 @@ export default class CuotaService {
       const created = await this.cuotaDAO.create(data, { transaction: t });
       await t.commit();
       await registerAudit(this.bitacoraService, {
-        detalle: `Cuota creada Id=${created.Id || created.id || ''}`,
+        detalle: `Cuota creada`,
         Accion: 'Crear Cuota',
         IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
         IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -84,7 +84,7 @@ export default class CuotaService {
     const item = await this.cuotaDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Cuota no encontrada (Id=${id})`,
+        detalle: `Cuota no encontrada`,
         Accion: 'Actualizar Cuota',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -95,7 +95,7 @@ export default class CuotaService {
     }
     const updated = await this.cuotaDAO.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `Cuota actualizada Id=${id}`,
+      detalle: `Cuota actualizada`,
       Accion: 'Actualizar Cuota',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -109,7 +109,7 @@ export default class CuotaService {
     const item = await this.cuotaDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Cuota no encontrada (Id=${id})`,
+        detalle: `Cuota no encontrada`,
         Accion: 'Eliminar Cuota',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -120,7 +120,7 @@ export default class CuotaService {
     }
     const removed = await this.cuotaDAO.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `Cuota eliminada Id=${id}`,
+      detalle: `Cuota eliminada`,
       Accion: 'Eliminar Cuota',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

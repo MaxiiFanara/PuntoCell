@@ -1,5 +1,5 @@
 import { Op } from 'sequelize';
-import { registerAudit, auditar } from '../../../core/utils/audit.util.js';
+import { registerAudit, auditar, listaNatural, nombresProductosDeInventario } from '../../../core/utils/audit.util.js';
 import logger from '../../../core/utils/logger.js';
 
 const round2 = (v) => Number(Number(v || 0).toFixed(2));
@@ -47,7 +47,7 @@ export default class VentaService {
       });
       if (!item) {
         await registerAudit(this.bitacoraService, {
-          detalle: `Venta no encontrada (Id=${id})`,
+          detalle: `Venta no encontrada`,
           Accion: 'Obtener Venta',
           IdEmpleado: auditContext?.IdEmpleado,
           IdSucursal: auditContext?.IdSucursal,
@@ -59,7 +59,7 @@ export default class VentaService {
       return item;
     } catch (err) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Error al obtener venta (Id=${id}) - ${err.message}`,
+        detalle: `Error al obtener venta - ${err.message}`,
         Accion: 'Obtener Venta',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -159,8 +159,15 @@ export default class VentaService {
       const Detalle = sequelize.models.DetalleVenta;
       const created = await this.ventaDAO.getById(ventaId, { include: [ { model: Detalle, as: 'detalles' } ] });
 
+      // d.IdArticulo es en realidad el Id del renglón de Inventario (ver descuento de stock arriba)
+      const productos = await nombresProductosDeInventario(
+        sequelize,
+        detalles.map((d) => ({ IdInventario: d.IdArticulo, Cantidad: d.Cantidad }))
+      );
       await registerAudit(this.bitacoraService, {
-        detalle: `Venta creada Id=${ventaId}`,
+        detalle: productos.length
+          ? `Se registró una venta de: ${listaNatural(productos)}`
+          : 'Se registró una venta',
         Accion: 'Crear Venta',
         IdEmpleado: data.IdEmpleado || auditContext?.IdEmpleado,
         IdSucursal: data.IdSucursal || auditContext?.IdSucursal,
@@ -201,13 +208,13 @@ export default class VentaService {
       updateData.TotalVentaARS = round2(updateData.TotalVenta * cotizacion.Valor);
     }
     const actualizado = await this.ventaDAO.update(id, updateData);
-    await auditar(this.bitacoraService, ctx, `Modificó la venta #${id}`, `Campos: ${Object.keys(updateData).join(', ')}`);
+    await auditar(this.bitacoraService, ctx, `Modificó la venta`, `Campos: ${Object.keys(updateData).join(', ')}`);
     return actualizado;
   }
 
   async remove(id, ctx = null) {
     const eliminado = await this.ventaDAO.remove(id);
-    await auditar(this.bitacoraService, ctx, `Eliminó la venta #${id}`, `Baja de venta`);
+    await auditar(this.bitacoraService, ctx, `Eliminó la venta`, `Baja de venta`);
     return eliminado;
   }
 

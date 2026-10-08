@@ -29,7 +29,7 @@ export default class ArticuloService {
     ] });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Articulo no encontrado (Id=${id})`,
+        detalle: `Articulo no encontrado`,
         Accion: 'Obtener Articulo',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -46,7 +46,7 @@ export default class ArticuloService {
     const modelo = await ModeloArticulo.findByPk(data.IdModeloArticulo);
     if (!modelo) {
       await registerAudit(this.bitacoraService, {
-        detalle: `ModeloArticulo no encontrado Id=${data.IdModeloArticulo}`,
+        detalle: `ModeloArticulo no encontrado`,
         Accion: 'Crear Articulo',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -57,7 +57,7 @@ export default class ArticuloService {
     }
     const created = await this.articuloDAO.create(data);
     await registerAudit(this.bitacoraService, {
-      detalle: `Articulo creado Id=${created.Id || created.id || ''}`,
+      detalle: `Articulo creado`,
       Accion: 'Crear Articulo',
       IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
       IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -71,7 +71,7 @@ export default class ArticuloService {
     const item = await this.articuloDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Articulo no encontrado (Id=${id})`,
+        detalle: `Articulo no encontrado`,
         Accion: 'Actualizar Articulo',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -100,7 +100,7 @@ export default class ArticuloService {
       const modelo = await ModeloArticulo.findByPk(data.IdModeloArticulo);
       if (!modelo) {
         await registerAudit(this.bitacoraService, {
-          detalle: `ModeloArticulo no encontrado Id=${data.IdModeloArticulo}`,
+          detalle: `ModeloArticulo no encontrado`,
           Accion: 'Actualizar Articulo',
           IdEmpleado: auditContext?.IdEmpleado,
           IdSucursal: auditContext?.IdSucursal,
@@ -113,7 +113,7 @@ export default class ArticuloService {
 
     const updated = await this.articuloDAO.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `Articulo actualizado Id=${id}`,
+      detalle: `Articulo actualizado`,
       Accion: 'Actualizar Articulo',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -127,7 +127,7 @@ export default class ArticuloService {
     const item = await this.articuloDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Articulo no encontrado (Id=${id})`,
+        detalle: `Articulo no encontrado`,
         Accion: 'Eliminar Articulo',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -138,7 +138,7 @@ export default class ArticuloService {
     }
     const removed = await this.articuloDAO.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `Articulo eliminado Id=${id}`,
+      detalle: `Articulo eliminado`,
       Accion: 'Eliminar Articulo',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

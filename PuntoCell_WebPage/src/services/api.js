@@ -228,6 +228,20 @@ export const getClienteByDNI = async (dni) => {
   }
 }
 
+// Persona (cliente O empleado) activa con ese DNI. Empleados y clientes comparten la tabla Usuario
+// (DNI y Email son UNIQUE), así que un empleado puede ser cliente de una reparación usando su mismo
+// registro (DispositivoCliente.IdCliente -> Usuario.Id) sin duplicarlo ni cambiar su EsCliente.
+export const getPersonaByDNI = async (dni) => {
+  try {
+    const res = await fetchApi(`/usuarios?DNI=${encodeURIComponent(dni)}`)
+    const todos = res?.data ?? []
+    return todos.find(u => String(u.DNI) === String(dni)) ?? null
+  } catch (err) {
+    if (err.status === 403) return null
+    throw err
+  }
+}
+
 export const crearCliente = (datos) => fetchApi('/usuarios/', { method: 'POST', body: JSON.stringify({ ...datos, EsCliente: true }) })
 
 export const getOrdenById = async (id) => {

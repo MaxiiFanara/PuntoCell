@@ -83,7 +83,7 @@ export default class PagoCompraService {
       await t.commit();
 
       await auditar(this.bitacoraService, ctx,
-        `Registró un pago de ${monto} a la compra #${data.IdCompra} (pago #${pago.Id})`,
+        `Registró un pago de ${monto} a la compra`,
         `Saldo pendiente: ${nuevoSaldo} · estado ${nuevoEstado === 3 ? 'Pagado' : 'Parcial'}`);
 
       return await this.pagoCompraDAO.getById(pago.Id);

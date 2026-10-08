@@ -18,7 +18,7 @@ export default class BateriaService {
     const item = await this.bateriaDAO.getById(id, { attributes: this.ATTRIBUTES });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Batería no encontrada (Id=${id})`,
+        detalle: `Batería no encontrada`,
         Accion: 'Obtener Bateria',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -45,7 +45,7 @@ export default class BateriaService {
     }
     const created = await this.bateriaDAO.create(data);
     await registerAudit(this.bitacoraService, {
-      detalle: `Bateria creada Id=${created.Id || created.id || ''}`,
+      detalle: `Bateria creada`,
       Accion: 'Crear Bateria',
       IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
       IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -59,7 +59,7 @@ export default class BateriaService {
     const item = await this.bateriaDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Batería no encontrada (Id=${id})`,
+        detalle: `Batería no encontrada`,
         Accion: 'Actualizar Bateria',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -84,7 +84,7 @@ export default class BateriaService {
     }
     const updated = await this.bateriaDAO.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `Bateria actualizada Id=${id}`,
+      detalle: `Bateria actualizada`,
       Accion: 'Actualizar Bateria',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -98,7 +98,7 @@ export default class BateriaService {
     const item = await this.bateriaDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Batería no encontrada (Id=${id})`,
+        detalle: `Batería no encontrada`,
         Accion: 'Eliminar Bateria',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -109,7 +109,7 @@ export default class BateriaService {
     }
     const removed = await this.bateriaDAO.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `Bateria eliminada Id=${id}`,
+      detalle: `Bateria eliminada`,
       Accion: 'Eliminar Bateria',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

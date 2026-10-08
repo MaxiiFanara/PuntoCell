@@ -21,7 +21,7 @@ import InventoryIcon from '@mui/icons-material/Inventory'
 import LocalAtmIcon from '@mui/icons-material/LocalAtm'
 import DownloadIcon from '@mui/icons-material/Download'
 import {
-  getClienteByDNI, crearOrden, actualizarOrden, getFallasPorTipo,
+  getPersonaByDNI, crearOrden, actualizarOrden, getFallasPorTipo,
   getOrdenById, getRepuestosDisponibles, agregarRepuestoOrden, eliminarRepuestoOrden,
   getPagosOrden, enviarComprobanteEmail, getMetodosPagoReparacion,
 } from '../../services/api'
@@ -108,6 +108,7 @@ const ModalReparacion = ({
   const [form, setForm]                           = useState(EMPTY)
   const [clienteEncontrado, setClienteEncontrado] = useState(false)
   const [clienteNuevo, setClienteNuevo]           = useState(false)
+  const [esEmpleado, setEsEmpleado]               = useState(false)
   const [fallasPorTipo, setFallasPorTipo]         = useState([])
   const [loading, setLoading]                     = useState(false)
   const [buscandoCliente, setBuscandoCliente]     = useState(false)
@@ -274,6 +275,7 @@ const ModalReparacion = ({
       setForm(EMPTY)
       setClienteEncontrado(false)
       setClienteNuevo(false)
+      setEsEmpleado(false)
     }
   }, [open, modoEdicion, modoSoloLectura, ordenEditar])
 
@@ -302,7 +304,7 @@ const ModalReparacion = ({
     if (!form.dni.trim()) return
     setBuscandoCliente(true); setError('')
     try {
-      const c = await getClienteByDNI(form.dni.trim())
+      const c = await getPersonaByDNI(form.dni.trim())
       if (c) {
         clienteIdRef.current = c.Id ?? null
         setForm(f => ({
@@ -317,8 +319,10 @@ const ModalReparacion = ({
           deptoCliente:     c.Depto       || '',
           localidadCliente: c.IdLocalidad || '',
         }))
+        setEsEmpleado(!c.EsCliente)
         setClienteEncontrado(true); setClienteNuevo(false)
       } else {
+        setEsEmpleado(false)
         clienteIdRef.current = null
         setForm(f => ({
           ...f, nombreCliente: '', apellidoCliente: '', emailCliente: '',
@@ -614,7 +618,9 @@ const ModalReparacion = ({
                 {clienteEncontrado && !clienteNuevo && (
                   <>
                     <Alert severity="info" sx={{ mb: 1.5 }}>
-                      Cliente existente — estos datos no se pueden modificar desde acá.
+                      {esEmpleado
+                        ? 'Esta persona es empleado del sistema: se usará su registro como cliente. Los datos no se pueden modificar desde acá.'
+                        : 'Cliente existente — estos datos no se pueden modificar desde acá.'}
                     </Alert>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0,1fr))' }, gap: 1.5 }}>
                       <CampoReadonly label="Nombre" value={form.nombreCliente} />

@@ -3,6 +3,10 @@ import { auditar } from '../../../core/utils/audit.util.js';
 import { reprecificarInventario, resolverListasPrecioCategoria } from '../../../core/utils/precios.util.js';
 import logger from '../../../core/utils/logger.js';
 
+// Los importes se persisten en DECIMAL(18,2): sin redondear, la suma de flotantes (22.79 + 6.22 =
+// 29.009999999999998) hace que Sequelize/tedious arme un parámetro Numeric inválido.
+const round2 = (value) => Number(Number(value || 0).toFixed(2));
+
 const ESTADO_TERMINADO = 3;
 const ESTADO_ABANDONADO = 6;
 const NOMBRE_ESTADO_ABANDONADO = 'Abandonado';
@@ -238,8 +242,8 @@ export default class OrdenReparacionService {
         await auditar(
           this.bitacoraService,
           ctx ?? { IdEmpleado: ordenBloqueada.IdEmpleado, IdSucursal: sucursalId },
-          `Marcó la orden de reparación #${ordenBloqueada.Id} como abandonada y la reingresó al inventario`,
-          `Inventario ${inventario.Id} · IMEI ${dispositivo.IMEI || 'N/D'}`
+          'Marcó una orden de reparación como abandonada y reingresó el equipo al inventario',
+          `Equipo del cliente ${ordenBloqueada.dispositivo?.cliente?.Nombre ?? 'sin datos'}`
         ).catch(() => {});
 
         const email = ordenBloqueada.dispositivo?.cliente?.Email;
@@ -348,9 +352,16 @@ if (!idClienteAsignado) {
 
       await t.commit();
 
+      // Detalle legible (cliente y equipo por nombre, nunca por Id). Es solo auditoría: si falla la
+      // consulta, la orden ya está confirmada y se registra igual con un texto genérico.
+      const [clienteAud, modeloAud] = await Promise.all([
+        this.usuarioDAO.getById(idClienteAsignado, { attributes: ['Nombre', 'Apellido'] }).catch(() => null),
+        sequelize.models.ModeloArticulo.findByPk(dispositivo.IdModeloArticulo, { attributes: ['Nombre'] }).catch(() => null)
+      ]);
+      const nombreClienteAud = [clienteAud?.Nombre, clienteAud?.Apellido].filter(Boolean).join(' ');
       await auditar(this.bitacoraService, ctx ?? { IdEmpleado: idEmpleadoSesion },
-        `Creó la orden de reparación #${nuevaOrden.Id}`,
-        `Cliente ${idClienteAsignado} · dispositivo ${nuevoDispositivo.Id}`);
+        'Creó una orden de reparación',
+        `Ingreso de ${modeloAud?.Nombre ?? 'un equipo'}${nombreClienteAud ? ` del cliente ${nombreClienteAud}` : ''}`);
 
       return {
         IdOrden: nuevaOrden.Id,
@@ -436,9 +447,9 @@ if (!idClienteAsignado) {
         // PrecioManoObra debe cargarse en USD desde el frontend por el mismo motivo — de lo
         // contrario esta suma mezclaría monedas sin conversión.
         const costoRepuestos = Number(orden.CostoRepuestos);
-        const precioManoObra = Number(PrecioManoObra);
+        const precioManoObra = round2(PrecioManoObra);
         const senia = Number(orden.Senia || 0);
-        const totalReparacion = costoRepuestos + precioManoObra - senia;
+        const totalReparacion = round2(costoRepuestos + precioManoObra - senia);
 
         await orden.update({
           IdEstadoOrden: 3,
@@ -453,7 +464,7 @@ if (!idClienteAsignado) {
           transaction: t
         }) || 0;
 
-        const saldo = Number(orden.TotalReparacion) - Number(pagosAnteriores);
+        const saldo = round2(Number(orden.TotalReparacion) - Number(pagosAnteriores));
 
         if (saldo > 0) {
           if (!pagoFinal || !pagoFinal.IdMetodoPago || !pagoFinal.IdTurnoCaja) {
@@ -510,7 +521,7 @@ if (!idClienteAsignado) {
 
       const estados = { 1: 'En espera', 2: 'En reparación', 3: 'Terminado', 4: 'Entregado', 5: 'Anulado', 6: 'Abandonado' };
       await auditar(this.bitacoraService, ctx ?? { IdEmpleado: idEmpleadoSesion },
-        `Cambió la orden de reparación #${idOrden} a estado "${estados[nuevoEstado] ?? nuevoEstado}"`,
+        `Cambió una orden de reparación a estado "${estados[nuevoEstado] ?? nuevoEstado}"`,
         ObservacionTecnico || 'Actualización de estado');
 
       if (nuevoEstado !== estadoActual && nuevoEstado !== 4) {
