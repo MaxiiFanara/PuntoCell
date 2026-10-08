@@ -1129,8 +1129,13 @@ GO
 IF NOT EXISTS (SELECT 1 FROM Usuario WHERE UsuarioEmpleado = 'analista' OR Email = 'analista@puntocell.com.ar' OR DNI = '10000099')
     INSERT INTO Usuario (DNI, Apellido, Nombre, Email, Celular, EsCliente, UsuarioEmpleado, Pwd, IdRol, IdSucursal, IdLocalidad)
     VALUES ('10000099', 'Sistema', 'Analista', 'analista@puntocell.com.ar', '3510000099', 0, 'analista',
-            '$2b$10$/rXPzlswTxdIi6Y4ECX/CO.AcC0Qr1YVl3CbMnFNPVicAX/YO4lCm',
+            '$2b$10$gUgu/vOi91jfZjLiK.Va5uf..sahaabuSE8L9RuI7HHxr3/eq51Jy',
             (SELECT Id FROM Rol WHERE Nombre = 'analista'), (SELECT TOP 1 Id FROM Sucursal ORDER BY Id), NULL);
+ELSE
+    -- Si el usuario ya existía (base previa), se unifica la clave inicial: Punt0C311.iC
+    UPDATE Usuario
+    SET Pwd = '$2b$10$gUgu/vOi91jfZjLiK.Va5uf..sahaabuSE8L9RuI7HHxr3/eq51Jy'
+    WHERE UsuarioEmpleado = 'analista';
 GO
 
 --- MÓDULO INVENTARIO ---

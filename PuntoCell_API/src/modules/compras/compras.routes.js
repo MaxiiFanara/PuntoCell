@@ -40,6 +40,7 @@ export default (container) => {
 
   // Compra
   router.get('/compras', compraController.getAll);
+  //router.get('/compras', () => { throw new Error('Fallo simulado para probar el informe'); });
   router.get('/compras/:id', compraController.getById);
   router.post('/compras', validateFields(compraSchema), compraController.create);
   router.put('/compras/:id', validateFields(compraUpdateSchema), compraController.update);
