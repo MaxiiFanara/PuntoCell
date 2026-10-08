@@ -44,12 +44,25 @@ import DashboardReparaciones from './features/dashboards/views/DashboardReparaci
 import DashboardControl from './features/dashboards/views/DashboardControl';
 import DashboardFinanciero from './features/dashboards/views/DashboardFinanciero';
 import DashboardCaja from './features/dashboards/views/DashboardCaja';
+import InformeOperativoPage from './pages/InformeOperativoPage';
+import { ROL_ANALISTA, RUTA_INFORME_ANALISTA } from './utils/roles';
 
 // --- WRAPPERS DE SEGURIDAD ---
 const ProtectedRoute = ({ children }) => {
   const { usuario, loading } = useAuth();
   if (loading) return null;
   if (!usuario) return <Navigate to="/login" replace />;
+  // El analista (rol técnico) solo ve su informe: no entra al sistema operativo
+  if (usuario.rol === ROL_ANALISTA) return <Navigate to={RUTA_INFORME_ANALISTA} replace />;
+  return children;
+};
+
+// Exclusiva del rol analista (ni administrador ni owner)
+const AnalistaRoute = ({ children }) => {
+  const { usuario, loading } = useAuth();
+  if (loading) return null;
+  if (!usuario) return <Navigate to="/login" replace />;
+  if (usuario.rol !== ROL_ANALISTA) return <Navigate to="/app" replace />;
   return children;
 };
 
@@ -166,6 +179,9 @@ const App = () => (
         </Route>
 
       </Route>
+
+      {/* ---------------- INFORME TÉCNICO (rol analista) ---------------- */}
+      <Route path="/analista/informe" element={<AnalistaRoute><InformeOperativoPage /></AnalistaRoute>} />
 
       {/* ---------------- 404 ---------------- */}
       <Route path="*" element={<Navigate to="/" replace />} />

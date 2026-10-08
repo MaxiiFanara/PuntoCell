@@ -1111,6 +1111,28 @@ BEGIN
 END
 GO
 
+-- 7.b Rol y usuario "analista" (informe técnico de logs internos).
+-- Bloque idempotente e independiente del seed: se puede ejecutar solo, sobre una base ya existente.
+-- El código identifica el rol por su Id (5), igual que los roles 1 a 4 (ver ROL_ANALISTA en
+-- core/constants/roles.js). El rol no se lista en ningún módulo ni lleva permisos: solo accede
+-- al informe operativo. Es un usuario único. La restricción CHK_Usuario_Empleado_Sucursal exige
+-- sucursal a todo empleado, por eso se asigna a la primera existente (no se lista ni opera en ella).
+-- Pwd: hash bcrypt (10 rounds) de la clave inicial; cambiarla desde la base si hace falta.
+IF NOT EXISTS (SELECT 1 FROM Rol WHERE Nombre = 'analista')
+    INSERT INTO Rol (Nombre) VALUES ('analista');
+GO
+
+IF (SELECT Id FROM Rol WHERE Nombre = 'analista') <> 5
+    RAISERROR('El rol analista debe tener Id = 5 (ROL_ANALISTA en la API). Revisar la tabla Rol.', 16, 1);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM Usuario WHERE UsuarioEmpleado = 'analista' OR Email = 'analista@puntocell.com.ar' OR DNI = '10000099')
+    INSERT INTO Usuario (DNI, Apellido, Nombre, Email, Celular, EsCliente, UsuarioEmpleado, Pwd, IdRol, IdSucursal, IdLocalidad)
+    VALUES ('10000099', 'Sistema', 'Analista', 'analista@puntocell.com.ar', '3510000099', 0, 'analista',
+            '$2b$10$/rXPzlswTxdIi6Y4ECX/CO.AcC0Qr1YVl3CbMnFNPVicAX/YO4lCm',
+            (SELECT Id FROM Rol WHERE Nombre = 'analista'), (SELECT TOP 1 Id FROM Sucursal ORDER BY Id), NULL);
+GO
+
 --- MÓDULO INVENTARIO ---
 
 -- 8. Estados de Inventario

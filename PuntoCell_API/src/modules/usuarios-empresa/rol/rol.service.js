@@ -1,3 +1,5 @@
+import { Op } from 'sequelize';
+import { ROL_ANALISTA } from '../../../core/constants/roles.js';
 import { registerAudit } from '../../../core/utils/audit.util.js';
 
 export default class RolService {
@@ -12,7 +14,8 @@ export default class RolService {
     return await this.rolDAO.getAll({
       page,
       limit,
-      where: { Activo: true },
+      // El rol analista (técnico, único) no se lista ni se administra desde el sistema
+      where: { Activo: true, Id: { [Op.ne]: ROL_ANALISTA } },
       attributes: this.ATTRIBUTES,
       order: [['Nombre', 'ASC']]
     });
@@ -22,7 +25,7 @@ export default class RolService {
     const rol = await this.rolDAO.getById(id, {
       attributes: this.ATTRIBUTES
     });
-    if (!rol) {
+    if (!rol || rol.Id === ROL_ANALISTA) {
       try { await registerAudit(this.bitacoraService, { detalle: `Consulta de rol fallida: Rol ${id} no encontrado`, Accion: 'Consultar Rol', IdEmpleado: null, IdSucursal: null, IpAddress: null }); } catch(e){}
       throw new Error('Rol no encontrado');
     }
@@ -42,7 +45,7 @@ export default class RolService {
 
   async update(id, data, auditContext = {}) {
     const rol = await this.rolDAO.getById(id);
-    if (!rol) {
+    if (!rol || rol.Id === ROL_ANALISTA) {
       try { await registerAudit(this.bitacoraService, { detalle: `Modificación de rol fallida: Rol ${id} no encontrado`, Accion: 'Modificar Rol', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
       throw new Error('Rol no encontrado');
     }
@@ -57,7 +60,7 @@ export default class RolService {
 
   async delete(id, auditContext = {}) {
     const rol = await this.rolDAO.getById(id);
-    if (!rol) {
+    if (!rol || rol.Id === ROL_ANALISTA) {
       try { await registerAudit(this.bitacoraService, { detalle: `Baja de rol fallida: Rol ${id} no encontrado`, Accion: 'Eliminar Rol', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
       throw new Error('Rol no encontrado');
     }

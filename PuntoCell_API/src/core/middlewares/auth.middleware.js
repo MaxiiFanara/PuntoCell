@@ -1,5 +1,6 @@
 import { verifyToken, generateToken } from '../utils/jwt.util.js';
 import { env } from '../config/env.js';
+import { ROL_ANALISTA } from '../constants/roles.js';
 import logger from '../../core/utils/logger.js';
 
 export const requireAuth = (req, res, next) => {
@@ -89,6 +90,27 @@ export const isAdmin = (req, res, next) => {
     return next(error);
   }
 
+  next();
+};
+
+// Solo el rol analista (usuario técnico único): acceso exclusivo al informe operativo.
+export const isAnalista = (req, res, next) => {
+  if (req.user?.rol !== ROL_ANALISTA) {
+    const error = new Error('Acceso denegado. Esta sección es exclusiva del usuario analista.');
+    error.statusCode = 403;
+    return next(error);
+  }
+  next();
+};
+
+// Aislamiento del analista: tras requireAuth, su sesión solo puede llegar al informe operativo.
+// No afecta a ningún otro rol.
+export const restringirAnalista = (req, res, next) => {
+  if (req.user?.rol === ROL_ANALISTA && !req.path.startsWith('/auditoria/informe-operativo')) {
+    const error = new Error('Acceso denegado. Este usuario solo puede consultar el informe operativo.');
+    error.statusCode = 403;
+    return next(error);
+  }
   next();
 };
 

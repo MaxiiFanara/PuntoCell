@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth } from '../core/middlewares/auth.middleware.js';
+import { requireAuth, restringirAnalista } from '../core/middlewares/auth.middleware.js';
 
 // Importación de módulos
 import authRoutes from '../modules/auth/auth.routes.js';
@@ -32,6 +32,8 @@ export default (container) => {
 
   // Rutas privadas
   router.use(requireAuth);
+  // El rol analista solo puede llegar al informe operativo (no afecta a los demás roles)
+  router.use(restringirAnalista);
 
   router.use('/usuarios', usuariosEmpresaRoutes(container));
   router.use('/reparaciones', reparacionesRoutes(container));
