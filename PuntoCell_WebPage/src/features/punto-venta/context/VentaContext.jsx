@@ -182,14 +182,17 @@ export const VentaProvider = ({ children }) => {
     const totalCosto = carrito.reduce((sum, item) => sum + (item.CostoReal || 0) * item.Cantidad, 0);
 
     const agregarAlCarrito = (producto) => {
-        const idInventario = producto.Id; 
-        const idArticulo = producto.IdArticulo;
+        const idInventario = producto.Id ?? producto.id;
+        const idArticulo = producto.IdArticulo ?? producto.idArticulo;
         const stockDisponible = producto.Stock || 0;
 
         const nombreStr = producto.articulo?.Nombre || producto.NombreProducto || 'Producto';
         const { minorista: precioBase, mayorista: precioMayor, costoReal } = resolverPrecios(idInventario);
 
-        if (precioBase <= 0 && precioMayor <= 0) {
+        const min = precioBase || producto.PrecioMenor || 0;
+        const may = precioMayor || producto.PrecioMayor || min;
+
+        if (min <= 0 && may <= 0) {
             mostrarAlerta('Este producto no tiene un precio de venta vigente cargado. Definilo en la pantalla de Precios.', 'error');
             return;
         }
@@ -202,7 +205,7 @@ export const VentaProvider = ({ children }) => {
             return;
         }
 
-        const precioAUsar = esMayorista ? precioMayor : precioBase;
+        const precioAUsar = esMayorista ? may : min;
 
         if (existente) {
             setCarrito(carrito.map(item =>
@@ -210,6 +213,7 @@ export const VentaProvider = ({ children }) => {
                     ? {
                         ...item,
                         Cantidad: item.Cantidad + 1,
+                        PrecioUnitario: precioAUsar,
                         Subtotal: (item.Cantidad + 1) * precioAUsar
                       }
                     : item
@@ -222,9 +226,9 @@ export const VentaProvider = ({ children }) => {
                 Cantidad: 1,
                 PrecioUnitario: precioAUsar,
                 Subtotal: precioAUsar,
-                PrecioMenor: precioBase,
-                PrecioMayor: precioMayor,
-                CostoReal: costoReal,
+                PrecioMenor: min,
+                PrecioMayor: may,
+                CostoReal: costoReal || producto.CostoReal || 0,
                 StockMax: stockDisponible
             }]);
         }
@@ -233,14 +237,18 @@ export const VentaProvider = ({ children }) => {
     useEffect(() => {
         setCarrito(prev => prev.map(item => {
             const { minorista, mayorista, costoReal } = resolverPrecios(item.IdInventario);
-            const precio = (esMayorista ? mayorista : minorista) || item.PrecioUnitario || 0;
+            
+            const min = minorista || item.PrecioMenor || 0;
+            const may = mayorista || item.PrecioMayor || min;
+            const precio = esMayorista ? may : min;
+
             return {
                 ...item,
                 PrecioUnitario: precio,
                 Subtotal: precio * item.Cantidad,
-                PrecioMenor: minorista || item.PrecioMenor,
-                PrecioMayor: mayorista || item.PrecioMayor,
-                CostoReal: costoReal || item.CostoReal,
+                PrecioMenor: min,
+                PrecioMayor: may,
+                CostoReal: costoReal || item.CostoReal || 0,
             };
         }));
         // eslint-disable-next-line react-hooks/exhaustive-deps

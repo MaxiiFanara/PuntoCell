@@ -249,12 +249,14 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
         Subtotal: parseFloat(item.Subtotal)
       })),
 
-      Pagos: pagosFinales.map(p => ({
-        IdMetodoPago: p.IdMetodoPago,
-        Monto: p.Monto,
-        Cotizacion: p.Cotizacion,
-        Observacion: p.Observacion
-      })),
+      Pagos: pagosFinales
+        .filter(p => !p.cuotas && !/cuota/i.test(p.NombreMetodo || ''))
+        .map(p => ({
+          IdMetodoPago: p.IdMetodoPago,
+          Monto: p.Monto,
+          Cotizacion: p.Cotizacion,
+          Observacion: p.Observacion
+        })),
 
       // Cuotas de pagos financiados, para que el backend las cree junto con la venta
       Cuotas: pagos.flatMap(p => p.cuotas || []),

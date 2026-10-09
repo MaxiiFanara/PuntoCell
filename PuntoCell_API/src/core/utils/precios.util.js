@@ -33,7 +33,7 @@ export async function resolverListasPrecioCategoria(sequelize, idCategoria, t = 
 // Cierra los PrecioArticulo vigentes del renglón y crea uno nuevo por cada lista.
 // CostoBase es el mismo para todas, pero el CostoVariables y ValorFinal se calculan
 // individualmente usando el FactorCostosVariables y PorcentajeRentabilidad de cada lista.
-export async function reprecificarInventario(sequelize, { IdInventario, CostoBase, listas }, t = null) {
+export async function reprecificarInventario(sequelize, { IdInventario, CostoBase, listas, FijadoManual = false }, t = null) {
   const { PrecioArticulo } = sequelize.models;
   const opts = t ? { transaction: t } : {};
 
@@ -62,6 +62,7 @@ export async function reprecificarInventario(sequelize, { IdInventario, CostoBas
       CostoVariables: cv,
       CostoReal: cr,
       PorcentajeGanancia: pct,
+      FijadoManual: !!FijadoManual,
       ValorFinal: round2(cr * (1 + pct / 100)),
       FechaDesde: ahora,
       FechaHasta: null
@@ -76,7 +77,7 @@ export async function repreciarPorLista(sequelize, { IdListaPrecio, PorcentajeRe
   const { PrecioArticulo } = sequelize.models;
   const opts = t ? { transaction: t } : {};
 
-  const vigentes = await PrecioArticulo.findAll({ where: { IdListaPrecio, FechaHasta: null }, ...opts });
+  const vigentes = await PrecioArticulo.findAll({ where: { IdListaPrecio, FechaHasta: null, FijadoManual: false }, ...opts });
   if (!vigentes.length) return [];
 
   const ahora = new Date();
@@ -85,7 +86,7 @@ export async function repreciarPorLista(sequelize, { IdListaPrecio, PorcentajeRe
 
   await PrecioArticulo.update(
     { FechaHasta: ahora },
-    { where: { IdListaPrecio, FechaHasta: null }, ...opts }
+    { where: { IdListaPrecio, FechaHasta: null, FijadoManual: false }, ...opts }
   );
 
   const nuevos = vigentes.map((p) => {

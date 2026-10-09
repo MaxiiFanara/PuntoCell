@@ -9,6 +9,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import LockIcon from '@mui/icons-material/Lock';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
 
 import { preciosService, mapVigentePorInventario, LISTA_MINORISTA_ID } from '../../services/preciosServices';
 import { inventarioService } from '../../services/inventarioServices';
@@ -81,6 +83,7 @@ export default function PreciosScreen() {
   const [search, setSearch] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('todos'); // 'todos', 'con_precio', 'sin_precio'
+  const [filtroStock, setFiltroStock] = useState(false);
 
   // Actualizador de Precio: Filtrado y Ordenado (Categoría ASC → Nombre ASC).
   const inventarioFiltradoYOrdenado = useMemo(() => {
@@ -107,6 +110,10 @@ export default function PreciosScreen() {
       });
     }
 
+    if (filtroStock) {
+      filtrado = filtrado.filter(inv => Number(inv.Stock || 0) > 0);
+    }
+
     const catNombre = (idCat) => categorias.find((c) => (c.Id ?? c.id) === idCat)?.Nombre || '';
     return filtrado.sort((a, b) => {
       const cmpCat = catNombre(a.articulo?.modelo?.IdCategoriaArticulo)
@@ -115,13 +122,12 @@ export default function PreciosScreen() {
       return (a.articulo?.Nombre || '').localeCompare(b.articulo?.Nombre || '', 'es', { sensitivity: 'base' });
 
     });
-  }, [inventario, categorias, search, filtroCategoria, filtroEstado, preciosMap, listaSel]);
+  }, [inventario, categorias, search, filtroCategoria, filtroEstado, filtroStock, preciosMap, listaSel]);
   const pagInv = usePaginacion(inventarioFiltradoYOrdenado);
 
-
   const exportarCSV = () => {
-    let csv = 'IdInventario,Producto,IMEI,CostoBaseActualUSD\n';
-    inventarioFiltradoYOrdenado.forEach(inv => {
+    let csv = 'IdInventario,Articulo,IMEI,CostoBase\n';
+    inventario.forEach(inv => {
       const id = inv.Id ?? inv.id;
       // Resolvemos el precio base buscando en la lista 1 (o la primera que encontremos)
       // ya que el costo base es igual para todas las listas de un mismo renglón.
@@ -137,49 +143,6 @@ export default function PreciosScreen() {
     a.download = 'precios_base_inventario.csv';
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const importarCSV = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const text = evt.target.result;
-      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-      const updates = [];
-      // Saltar la fila de cabecera
-      for (let i = 1; i < lines.length; i++) {
-        // Separa por comas respetando comillas dobles (regex simple)
-        const row = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-        if (row.length < 2) continue;
-        
-        const idInv = parseInt(row[0]);
-        // El último valor siempre debe ser el costo
-        const costoStr = row[row.length - 1].replace(/"/g, '');
-        const costo = parseFloat(costoStr);
-        
-        if (!isNaN(idInv) && !isNaN(costo)) {
-           updates.push({ IdInventario: idInv, CostoBase: costo });
-        }
-      }
-      
-      if (updates.length === 0) return toast.warning('No se encontraron datos válidos en el CSV. Asegúrate de que el formato sea correcto.');
-      
-      if (window.confirm(`¿Actualizar los costos base de ${updates.length} productos y recalcular todos sus precios de venta?`)) {
-        setCargando(true);
-        try {
-          await preciosService.actualizarPreciosMasivo(updates);
-          await cargarTodo();
-          toast.success('Precios actualizados con éxito.');
-        } catch (error) {
-          toast.error('Error al actualizar masivamente: ' + (error.message || ''));
-        } finally {
-          setCargando(false);
-        }
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = null; // Reset input
   };
 
   const pagListas = usePaginacion(listas);
@@ -307,15 +270,16 @@ export default function PreciosScreen() {
                   <MenuItem value="con_precio">Con precio</MenuItem>
                   <MenuItem value="sin_precio">Sin precio</MenuItem>
                 </TextField>
+                <FormControlLabel
+                  sx={{ ml: 1, whiteSpace: 'nowrap' }}
+                  control={<Switch size="small" checked={filtroStock} onChange={(e) => setFiltroStock(e.target.checked)} />}
+                  label={<Typography variant="body2" sx={{ fontSize: '0.875rem' }}>Con stock</Typography>}
+                />
               </Box>
               
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Button variant="outlined" size="small" onClick={exportarCSV}>
                   Exportar CSV
-                </Button>
-                <Button variant="contained" size="small" component="label">
-                  Importar CSV
-                  <input type="file" hidden accept=".csv" onChange={importarCSV} />
                 </Button>
               </Box>
             </Box>
@@ -351,9 +315,18 @@ export default function PreciosScreen() {
                           {p ? <Money ars={p.CostoBase * dolarGlobal} usd={p.CostoBase} size="sm" /> : <span className="num">—</span>}
                         </TableCell>
                         <TableCell align="right">
-                          {p
-                            ? <Money ars={p.ValorFinal * dolarGlobal} usd={p.ValorFinal} size="sm" />
-                            : <Typography className="num" sx={{ fontWeight: 700, color: 'error.main' }}>Sin precio</Typography>}
+                          {p ? (
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+                              {p.FijadoManual && (
+                                <Tooltip title="Precio fijado manualmente">
+                                  <LockIcon sx={{ fontSize: 14, color: 'warning.main' }} />
+                                </Tooltip>
+                              )}
+                              <Money ars={p.ValorFinal * dolarGlobal} usd={p.ValorFinal} size="sm" />
+                            </Box>
+                          ) : (
+                            <Typography className="num" sx={{ fontWeight: 700, color: 'error.main' }}>Sin precio</Typography>
+                          )}
                         </TableCell>
                         <TableCell align="center" className="mono" sx={{ fontSize: 12, color: 'text.secondary' }}>
                           {p?.FechaDesde ? String(p.FechaDesde).slice(0, 10) : '—'}
@@ -503,6 +476,7 @@ function PrecioDialog({ target, lista, onClose, onSaved }) {
   const { inv, precioActual } = target;
   const idInventario = inv.Id ?? inv.id;
   const [costoBase, setCostoBase] = useState(precioActual ? String(precioActual.CostoBase) : '');
+  const [fijadoManual, setFijadoManual] = useState(precioActual ? !!precioActual.FijadoManual : false);
   const [guardando, setGuardando] = useState(false);
 
   const preview = calcularPrecio(costoBase, lista.PorcentajeRentabilidad, lista.FactorCostosVariables);
@@ -511,16 +485,11 @@ function PrecioDialog({ target, lista, onClose, onSaved }) {
     if (!costoBase || Number(costoBase) <= 0) return toast.warning('Ingresá un costo base válido.');
     setGuardando(true);
     try {
-      // Cierra el precio vigente anterior de esta (inventario, lista) antes de crear el nuevo.
-      if (precioActual?.Id) {
-        await preciosService.cerrarPrecio(precioActual.Id).catch(() => {});
-      }
-      await preciosService.crearPrecio({
+      await preciosService.actualizarPreciosMasivo([{
         IdInventario: idInventario,
-        IdListaPrecio: lista.Id ?? lista.id,
         CostoBase: Number(costoBase),
-        FechaDesde: new Date().toISOString(),
-      });
+        FijadoManual: fijadoManual,
+      }]);
       onSaved();
     } catch (e) {
       toast.error('No se pudo guardar el precio: ' + (e.message || ''));
@@ -539,10 +508,22 @@ function PrecioDialog({ target, lista, onClose, onSaved }) {
         <Alert severity="info" sx={{ mb: 2 }}>
           Lista <b>{lista.Nombre}</b> · rentabilidad <b>{fmt(lista.PorcentajeRentabilidad)} %</b>
         </Alert>
-        <NumberField label="Costo Base (U$S)" fullWidth size="small" autoFocus
-          value={costoBase} onChange={(e) => setCostoBase(e.target.value)}
-          InputProps={{ startAdornment: <InputAdornment position="start">U$S</InputAdornment> }}
-          helperText={Number(costoBase) > 0 ? `≈ $ ${Math.round(Number(costoBase) * dolarGlobal).toLocaleString('es-AR')}` : ''} />
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+          <NumberField label="Costo Base (U$S)" fullWidth size="small" autoFocus
+            value={costoBase} onChange={(e) => setCostoBase(e.target.value)}
+            InputProps={{ startAdornment: <InputAdornment position="start">U$S</InputAdornment> }}
+            helperText={Number(costoBase) > 0 ? `≈ $ ${Math.round(Number(costoBase) * dolarGlobal).toLocaleString('es-AR')}` : ''} />
+            
+          <Tooltip title={fijadoManual ? "Desvincular precio (actualizará con la categoría)" : "Fijar manual (ignorar cambios de categoría)"}>
+            <IconButton 
+              color={fijadoManual ? 'warning' : 'default'} 
+              onClick={() => setFijadoManual(!fijadoManual)}
+              sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}
+            >
+              {fijadoManual ? <LockIcon /> : <LockOpenIcon />}
+            </IconButton>
+          </Tooltip>
+        </Box>
 
         <Divider sx={{ my: 2 }}><Chip label="Cálculo" size="small" /></Divider>
         <Grid container spacing={1}>

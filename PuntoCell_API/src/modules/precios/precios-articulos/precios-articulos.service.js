@@ -37,7 +37,12 @@ export default class PreciosArticulosService {
 
   async create(data, ctx = null) {
     const computed = await this.computeFields(data);
-    const payload = { ...data, ...computed };
+    const payload = { 
+      ...data, 
+      ...computed, 
+      FechaDesde: data.FechaDesde || new Date(), 
+      FechaHasta: null 
+    };
     const creado = await this.preciosArticulosDAO.create(payload);
     await auditar(this.bitacoraService, ctx,
       `Cargó un precio para el inventario`,
@@ -90,6 +95,7 @@ export default class PreciosArticulosService {
         await reprecificarInventario(sequelize, {
           IdInventario: update.IdInventario,
           CostoBase: update.CostoBase,
+          FijadoManual: update.FijadoManual,
           listas
         }, t);
         

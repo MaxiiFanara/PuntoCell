@@ -66,12 +66,18 @@ export default class PagoCompraService {
         { transaction: t }
       );
 
+      let nombreProveedor = 'Proveedor Desconocido';
+      if (compra && compra.IdProveedor) {
+        const prov = await sequelize.models.Proveedor.findByPk(compra.IdProveedor, { transaction: t });
+        if (prov) nombreProveedor = prov.Nombre;
+      }
+
       if (this.cajaService) {
         await this.cajaService.registrarEgreso({
           IdTurnoCaja: data.IdTurnoCaja,
           IdEmpleado: ctx?.IdEmpleado || compra.IdEmpleado,
           Monto: monto,
-          Descripcion: `Pago de compra Id=${data.IdCompra}`,
+          Descripcion: `Pago a Proveedor: ${nombreProveedor} - Compra #${data.IdCompra}`,
           Fecha: pago.FechaPago
         }, { transaction: t });
       }

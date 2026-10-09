@@ -21,6 +21,7 @@ export default (sequelize) => {
     IdColor: { type: DataTypes.INTEGER, allowNull: true },
     IdMemoria: { type: DataTypes.INTEGER, allowNull: true },
     IdBateria: { type: DataTypes.INTEGER, allowNull: true },
+    BateriaPorcentaje: { type: DataTypes.INTEGER, allowNull: true },
     IdAlmacenamiento: { type: DataTypes.INTEGER, allowNull: true }
   }, {
     tableName: 'Inventario', schema: 'dbo', timestamps: false

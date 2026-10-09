@@ -289,6 +289,7 @@ CREATE TABLE Inventario ( -- Representa la cantidad FÍSICA actual de un product
     IdColor            INT            NULL, -- Opcional.
     IdMemoria          INT            NULL, -- Opcional.
     IdBateria          INT            NULL, -- Opcional.
+    BateriaPorcentaje  INT            NULL, -- Porcentaje exacto de vida útil de la batería (0-100).
     IdAlmacenamiento   INT            NULL, -- Opcional. 
     CONSTRAINT FK_Inventario_Color              FOREIGN KEY (IdColor)            REFERENCES Color (Id), 
     CONSTRAINT FK_Inventario_Memoria            FOREIGN KEY (IdMemoria)          REFERENCES Memoria (Id), 

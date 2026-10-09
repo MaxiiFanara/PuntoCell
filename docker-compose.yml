@@ -1,18 +1,18 @@
-name: puntocelltienda-dashboard
+name: puntocelltienda-v2
 
 services:
-  db-dashboard:
+  db-v2:
     image: mcr.microsoft.com/mssql/server:2022-latest
     platform: linux/amd64
-    container_name: puntocell_db_dashboard
+    container_name: puntocell_db_v2
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: ${DB_SA_PASSWORD}
       MSSQL_PID: Developer
     ports:
-      - "1435:1433"
+      - "1436:1433"
     volumes:
-      - db_data_dashboard:/var/opt/mssql
+      - db_data_v2:/var/opt/mssql
     healthcheck:
       test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' -b -o /dev/null"]
       interval: 10s
@@ -20,12 +20,12 @@ services:
       retries: 15
       start_period: 20s
 
-  db-init-dashboard:
+  db-init-v2:
     image: mcr.microsoft.com/mssql/server:2022-latest
     platform: linux/amd64
-    container_name: puntocell_db_init_dashboard
+    container_name: puntocell_db_init_v2
     depends_on:
-      db-dashboard:
+      db-v2:
         condition: service_healthy
     environment:
       MSSQL_SA_PASSWORD: ${DB_SA_PASSWORD}
@@ -33,22 +33,22 @@ services:
       - ./db/init:/init:ro
     entrypoint: ["/bin/bash", "-c"]
     command: >
-      "/opt/mssql-tools18/bin/sqlcmd -S db-dashboard -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -i /init/init.sql && /opt/mssql-tools18/bin/sqlcmd -S db-dashboard -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -i /init/seed_engine.sql"
+      "/opt/mssql-tools18/bin/sqlcmd -S db-v2 -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -i /init/init.sql && /opt/mssql-tools18/bin/sqlcmd -S db-v2 -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -i /init/seed_engine.sql"
     restart: "no"
 
-  api-dashboard:
+  api-v2:
     build:
       context: ./PuntoCell_API
-    container_name: puntocell_api_dashboard
+    container_name: puntocell_api_v2
     environment:
       PORT: 3000
-      PUBLIC_FRONT_URL: ${PUBLIC_FRONT_URL:-http://localhost:5175}
-      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:3002}
-      PUBLIC_DB_PORT: ${PUBLIC_DB_PORT:-1435}
+      PUBLIC_FRONT_URL: ${PUBLIC_FRONT_URL:-http://localhost:5176}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:3003}
+      PUBLIC_DB_PORT: ${PUBLIC_DB_PORT:-1436}
       NODE_ENV: development
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5175}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5176}
       DB_DIALECT: mssql
-      DB_HOST: db-dashboard
+      DB_HOST: db-v2
       DB_PORT: 1433
       DB_NAME: ${DB_NAME}
       DB_USER: sa
@@ -60,7 +60,7 @@ services:
       EMAIL_USER: ${EMAIL_USER}
       SMTP_PASS: ${SMTP_PASS}
       MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN}
-      MP_BACK_URL_BASE: ${MP_BACK_URL_BASE:-http://localhost:5175}
+      MP_BACK_URL_BASE: ${MP_BACK_URL_BASE:-http://localhost:5176}
       MP_WEBHOOK_URL: ${MP_WEBHOOK_URL:-}
       MP_ID_EMPLEADO: ${MP_ID_EMPLEADO:-}
       MP_ID_TURNO_CAJA: ${MP_ID_TURNO_CAJA:-}
@@ -75,33 +75,35 @@ services:
       OPENROUTER_SITE_URL: ${OPENROUTER_SITE_URL}
       OPENROUTER_APP_NAME: ${OPENROUTER_APP_NAME}
       RECAPTCHA_ENABLED: ${RECAPTCHA_ENABLED:-true}
+    command: sh -c "npm install && npm run dev"
     ports:
-      - "3002:3000"
+      - "3003:3000"
     volumes:
       - ./PuntoCell_API:/app
-      - api_node_modules_dashboard:/app/node_modules
+      - api_node_modules_v2:/app/node_modules
     depends_on:
-      db-init-dashboard:
+      db-init-v2:
         condition: service_completed_successfully
 
-  front-dashboard:
+  front-v2:
     build:
       context: ./PuntoCell_WebPage
-    container_name: puntocell_front_dashboard
+    container_name: puntocell_front_v2
     environment:
       VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
-      PUBLIC_FRONT_URL: ${PUBLIC_FRONT_URL:-http://localhost:5175}
-      API_PROXY_TARGET: ${API_PROXY_TARGET:-http://api-dashboard:3000}
+      PUBLIC_FRONT_URL: ${PUBLIC_FRONT_URL:-http://localhost:5176}
+      API_PROXY_TARGET: ${API_PROXY_TARGET:-http://api-v2:3000}
       VITE_API_URL: ${VITE_API_URL:-}
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
     ports:
-      - "5175:5173"
+      - "5176:5173"
     volumes:
       - ./PuntoCell_WebPage:/app
-      - front_node_modules_dashboard:/app/node_modules
+      - front_node_modules_v2:/app/node_modules
     depends_on:
-      - api-dashboard
+      - api-v2
 
 volumes:
-  db_data_dashboard:
-  api_node_modules_dashboard:
-  front_node_modules_dashboard:
+  db_data_v2:
+  api_node_modules_v2:
+  front_node_modules_v2:

@@ -73,7 +73,7 @@ const InventarioList = () => {
       const inventarioAdaptado = datosBackend.map(row => {
         const art = row.articulo || row.Articulo || {};
         const bat = row.bateria || row.Bateria;
-        const batPct = bat && bat.Porcentaje != null ? Number(bat.Porcentaje) : null;
+        const batPct = (row.BateriaPorcentaje != null) ? Number(row.BateriaPorcentaje) : (bat && bat.Porcentaje != null ? Number(bat.Porcentaje) : null);
         return {
           id: row.Id || row.id,
           idArticulo: art.Id || art.id,

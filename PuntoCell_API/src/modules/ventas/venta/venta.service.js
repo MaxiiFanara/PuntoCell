@@ -42,6 +42,7 @@ export default class VentaService {
             association: 'pagos',
             include: [{ association: 'metodoPago', attributes: ['Nombre'] }]
           },
+          { association: 'cuotas' },
           { association: 'turnoCaja', include: [{ association: 'sucursal', attributes: ['Nombre'] }] },
         ]
       });
@@ -117,6 +118,14 @@ export default class VentaService {
         await this.detalleDAO.create(detallePayload, { transaction: t });
       }
 
+      let nombreCliente = 'Consumidor Final';
+      if (ventaData.IdCliente) {
+        const clienteRecord = await sequelize.models.Usuario.findByPk(ventaData.IdCliente, { transaction: t });
+        if (clienteRecord) {
+          nombreCliente = `${clienteRecord.Nombre} ${clienteRecord.Apellido}`.trim();
+        }
+      }
+
       // Pagos asociados
       if (pagos.length > 0 && sequelize.models.PagoVenta) {
         for (const p of pagos) {
@@ -134,7 +143,7 @@ export default class VentaService {
               IdTurnoCaja: pagoVenta.IdTurnoCaja,
               IdEmpleado: ventaData.IdEmpleado,
               Monto: pagoVenta.Monto,
-              Descripcion: `Cobro de venta Id=${ventaId}`,
+              Descripcion: `Cobro de venta #${ventaId} - Cliente: ${nombreCliente}`,
               Fecha: pagoVenta.FechaPago
             }, { transaction: t });
           }

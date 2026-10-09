@@ -49,12 +49,22 @@ export default class PagoVentaService {
 
       const pago = await this.pagoDAO.create(payload, { transaction: t });
 
+      let nombreCliente = 'Consumidor Final';
+      if (venta && venta.IdCliente) {
+        const clienteRecord = await models.Usuario.findByPk(venta.IdCliente, { transaction: t });
+        if (clienteRecord) {
+          nombreCliente = `${clienteRecord.Nombre} ${clienteRecord.Apellido}`.trim();
+        }
+      }
+
       if (this.cajaService) {
         await this.cajaService.registrarIngreso({
           IdTurnoCaja: data.IdTurnoCaja,
           IdEmpleado: auditContext?.IdEmpleado || venta?.IdEmpleado,
           Monto: payload.Monto,
-          Descripcion: `Cobro de venta Id=${data.IdVenta}`,
+          Descripcion: data.Observacion && data.Observacion.toLowerCase().includes('cuota') 
+            ? `Cobro de cuota - Venta #${data.IdVenta} - Cliente: ${nombreCliente}` 
+            : `Cobro de venta #${data.IdVenta} - Cliente: ${nombreCliente}`,
           Fecha: payload.FechaPago
         }, { transaction: t });
       }

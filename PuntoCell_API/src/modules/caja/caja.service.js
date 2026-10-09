@@ -271,6 +271,15 @@ export default class CajaService {
       Observaciones: data.Observaciones || '',
       IdEmpleadoCierre: ctx?.IdEmpleado
     });
-    return turno;
+
+    const montoEsperado = Number(turno.MontoInicial) + Number(turno.TotalIngresos) - Number(turno.TotalEgresos);
+    const diferencia = montoCierreFisico - montoEsperado;
+
+    // Retornamos el turno junto con los datos del cálculo para que el frontend los muestre
+    return {
+      turno,
+      montoEsperado: round2(montoEsperado),
+      diferencia: round2(diferencia)
+    };
   }
 }

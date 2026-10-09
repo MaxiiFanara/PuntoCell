@@ -249,16 +249,27 @@ const HistorialVentas = () => {
     setCobrando(true);
     try {
       const ahora = new Date().toISOString();
-      // 1. Marcamos la cuota como pagada
-      await ventasService.pagarCuota(cobroData.idCuota, { FechaPago: ahora });
-      // 2. Registramos el ingreso de dinero contra la venta (mismo mecanismo que cualquier otro cobro)
+      const montoRestante = cobroData.montoDeuda - monto;
+
+      // 1. Si es pago total, marcamos pagada; si es parcial, restamos el monto a la cuota
+      const payloadCuota = montoRestante <= 0.01 
+        ? { FechaPago: ahora } 
+        : { MontoCuota: montoRestante };
+        
+      await ventasService.pagarCuota(cobroData.idCuota, payloadCuota);
+
+      const cuotasVenta = deudas.filter(d => d.idVenta === cobroData.idVenta);
+      const esUltimaCuota = cuotasVenta.length === 1 && montoRestante <= 0.01;
+
+      // 2. Registramos el ingreso de dinero contra la venta
       await ventasService.crearPago({
         Monto: monto,
         FechaPago: ahora,
-        Observacion: 'Cobro de cuota',
+        Observacion: montoRestante <= 0.01 ? 'Cobro de cuota' : 'Cobro parcial de cuota',
         IdVenta: cobroData.idVenta,
         IdMetodoPago: Number(cobroData.idMetodoPago),
         IdTurnoCaja: 1,
+        Pagado: esUltimaCuota
       });
       setOpenCobro(false);
       await cargarDeudas();

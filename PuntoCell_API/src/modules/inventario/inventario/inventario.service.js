@@ -207,8 +207,12 @@ export default class InventarioService {
       throw err;
     }
 
+
+    const nombreArt = art ? art.Nombre : 'Artículo';
+    const imeiStr = data.IMEI ? ` (IMEI: ${data.IMEI})` : '';
+    
     await registerAudit(this.bitacoraService, {
-      detalle: `Inventario creado${Number(CostoBase) > 0 ? ` (con precio, CostoBase=${CostoBase})` : ''}`,
+      detalle: `Ingresó al inventario: ${data.Stock || 1}x ${nombreArt}${imeiStr}${Number(CostoBase) > 0 ? ` [Costo: $${CostoBase}]` : ''}`,
       Accion: 'Crear Inventario',
       IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
       IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -288,7 +292,7 @@ export default class InventarioService {
 
     const updated = await this.inventarioDAO.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `Inventario actualizado`,
+      detalle: `Modificó datos del inventario #${id} (Campos: ${Object.keys(data).join(', ')})`,
       Accion: 'Actualizar Inventario',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

@@ -71,6 +71,8 @@ const ComboId = ({ label, options, valueId, onPick, disabled }) => (
   />
 );
 
+import ModalRegistroDispositivo from '../../../components/modals/ModalRegistroDispositivo';
+
 export default function CompraCreateModal({ open, onClose, onGuardado }) {
   const { usuario } = useAuth();
   // El costo cargado es USD (fuente de verdad, ver compra.service.js); dolarGlobal solo
@@ -81,6 +83,8 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
     proveedores: [], sucursales: [], articulos: [], categorias: [], marcas: [],
     modelos: [], colores: [], memorias: [], baterias: [], metodos: [],
   });
+
+  const [modalModeloTargetLine, setModalModeloTargetLine] = useState(null);
 
   const [idProveedor, setIdProveedor] = useState('');
   const fecha = hoy(); // fija: siempre el día de hoy, no editable
@@ -395,8 +399,22 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
                       valueId={l.idMarca} onPick={(v) => setLinea(i, { idMarca: v })} />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 4 }}>
-                    <ComboId label="Modelo *" options={modelosOpts(l)} disabled={!l.idCategoria}
-                      valueId={l.idModelo} onPick={(v) => setLinea(i, { idModelo: v })} />
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+                      <Box sx={{ flexGrow: 1 }}>
+                        <ComboId label="Modelo *" options={modelosOpts(l)} disabled={!l.idCategoria}
+                          valueId={l.idModelo} onPick={(v) => setLinea(i, { idModelo: v })} />
+                      </Box>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        sx={{ minWidth: '38px', p: '6px 0', height: '37px' }}
+                        disabled={!l.idCategoria}
+                        onClick={() => setModalModeloTargetLine(i)}
+                        title="Crear nuevo modelo"
+                      >
+                        +
+                      </Button>
+                    </Box>
                   </Grid>
                 </Grid>
               </>
@@ -551,6 +569,30 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
             const currentLine = lineas[lineaIndex];
             setLinea(lineaIndex, {
               imeis: currentLine.imeis.map((v, idx) => (idx === imeiIndex ? imeiLimpio : v))
+            });
+          }
+        }}
+      />
+
+      <ModalRegistroDispositivo
+        open={modalModeloTargetLine !== null}
+        onClose={() => setModalModeloTargetLine(null)}
+        tipos={cat.categorias.map(c => ({ id: c.Id ?? c.id, nombre: c.Nombre ?? c.nombre }))}
+        marcas={cat.marcas.map(m => ({ id: m.Id ?? m.id, nombre: m.Nombre ?? m.nombre }))}
+        onDispositivoGuardado={(nuevoModelo) => {
+          // El modal devuelve id y nombre. Lo agregamos a cat.modelos
+          const modeloCompleto = {
+            Id: nuevoModelo.id, id: nuevoModelo.id,
+            Nombre: nuevoModelo.nombre, nombre: nuevoModelo.nombre,
+            IdCategoriaArticulo: nuevoModelo.idTipo, IdMarcaArticulo: nuevoModelo.idMarca
+          };
+          setCat(prev => ({ ...prev, modelos: [...prev.modelos, modeloCompleto] }));
+          
+          // Lo seleccionamos en la línea que lo pidió
+          if (modalModeloTargetLine !== null) {
+            setLinea(modalModeloTargetLine, {
+              idModelo: nuevoModelo.id,
+              idMarca: nuevoModelo.idMarca // Actualizar la marca también si estaba vacía
             });
           }
         }}

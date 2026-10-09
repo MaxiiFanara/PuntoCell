@@ -92,7 +92,7 @@ const PuntoVentaContent = () => {
         TotalVentaARS: payloadVenta.TotalVenta * (datosConfig?.valorDolar || 1),
         TotalCosto: Number((totalCosto || 0).toFixed(2)),
         Observaciones: observaciones,
-        EstadoPago: true,
+        EstadoPago: payloadVenta.Cuotas && payloadVenta.Cuotas.length > 0 ? false : true,
         IdTurnoCaja: datosConfig?.idTurnoCaja,
         IdCliente: payloadVenta.IdCliente,
         IdEmpleado: usuario?.userID, // antes hardcodeado en 1

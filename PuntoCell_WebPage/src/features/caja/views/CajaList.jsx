@@ -40,12 +40,13 @@ export default function CajaList() {
       const turno = await getTurnoActual();
       setTurnoActual(turno);
 
-      // 2. Traemos los movimientos de hoy para el extracto
+      // 2. Traemos los movimientos de hoy (todos los turnos del día)
       const params = {
-        desde: dayjs().startOf('day').format('YYYY-MM-DD'),
-        hasta: dayjs().endOf('day').format('YYYY-MM-DD'),
+        desde: dayjs().startOf('day').toISOString(),
+        hasta: dayjs().endOf('day').toISOString(),
         limit: 200
       };
+      
       const movs = await getCajaMovimientos(params);
       setMovimientos(movs?.rows || []);
     } catch (error) {
@@ -66,13 +67,9 @@ export default function CajaList() {
   // CÁLCULOS PARA LOS KPIs
   // ==========================================
   const montoInicial = turnoActual?.MontoInicial || 0;
-  const totalIngresos = movimientos
-    .filter(m => m.TipoMovimiento === true)
-    .reduce((acc, mov) => acc + Number(mov.Monto), 0);
-  const totalEgresos = movimientos
-    .filter(m => m.TipoMovimiento === false)
-    .reduce((acc, mov) => acc + Number(mov.Monto), 0);
-  const saldoActual = montoInicial + totalIngresos - totalEgresos;
+  const totalIngresos = turnoActual?.TotalIngresos || 0;
+  const totalEgresos = turnoActual?.TotalEgresos || 0;
+  const saldoActual = Number(montoInicial) + Number(totalIngresos) - Number(totalEgresos);
 
   // ==========================================
   // HANDLERS REALES HACIA LA API
@@ -97,6 +94,7 @@ export default function CajaList() {
       });
       setModalCerrar({ open: false, monto: '', observaciones: '' });
       loadData(); // Refresca la vista
+      toast.success('Caja cerrada y arqueada correctamente.');
     } catch (error) {
       toast.error(error.message || "Error al cerrar la caja");
     }
@@ -113,8 +111,9 @@ export default function CajaList() {
       };
       
       await registrarMovimientoCaja(payload);
-      setFormMovimiento({ open: false, tipo: 'ingreso', monto: '', metodoPago: 'efectivo', descripcion: '' });
+      setFormMovimiento({ open: false, tipo: 'ingreso', monto: '', metodoPago: 1, descripcion: '' });
       loadData(); // Recarga la grilla para mostrar el nuevo movimiento
+      toast.success('Movimiento registrado correctamente');
     } catch (error) {
       toast.error(error.message || "Error al registrar el movimiento");
     }
@@ -214,7 +213,7 @@ export default function CajaList() {
       {/* GRILLA OPERATIVA DE MOVIMIENTOS */}
       <Paper sx={{ flex: 1, minHeight: 0, borderRadius: '12px', boxShadow: (t) => t.vars.palette.pc.lift, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'pc.surfaceMuted', display: 'flex', justifyContent: 'space-between' }}>
-          <Typography variant="subtitle1" fontWeight="bold">Detalle de Movimientos del Turno</Typography>
+          <Typography variant="subtitle1" fontWeight="bold">Detalle de Movimientos del Día</Typography>
           {cajaAbierta && turnoActual && (
             <Typography variant="body2" color="text.secondary">
               Apertura: {dayjs(turnoActual.FechaApertura).format('HH:mm')} hs | Fondo inicial: {currencyFormatter(turnoActual.MontoInicial)}
@@ -354,11 +353,29 @@ export default function CajaList() {
         <form onSubmit={handleCerrarCaja}>
           <DialogTitle fontWeight="bold">Cerrar y Arquear Caja</DialogTitle>
           <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Typography variant="body2" color="text.secondary">Contá los billetes en el cajón e ingresá el monto real. El sistema calculará la diferencia.</Typography>
+            <Box sx={{ mt: 1, p: 2, bgcolor: 'pc.surfaceMuted', borderRadius: 2 }}>
+              <Typography variant="body2" color="text.secondary">Saldo Esperado en Sistema:</Typography>
+              <Typography variant="h5" fontWeight="bold">{currencyFormatter(saldoActual)}</Typography>
+            </Box>
+            
+            <Typography variant="body2" color="text.secondary">Contá el dinero físico e ingresalo para ver la diferencia.</Typography>
             <TextField 
-              autoFocus fullWidth required label="Efectivo Físico Contado ($)" type="number" inputProps={{ step: "0.01", min: "0" }} 
+              autoFocus fullWidth required label="Dinero Físico Contado ($)" type="number" inputProps={{ step: "0.01", min: "0" }} 
               value={modalCerrar.monto} onChange={(e) => setModalCerrar({ ...modalCerrar, monto: e.target.value })}
             />
+            
+            {modalCerrar.monto !== '' && (
+              <Box sx={{ 
+                p: 2, borderRadius: 2, 
+                bgcolor: Number(modalCerrar.monto) === saldoActual ? 'success.light' : (Number(modalCerrar.monto) > saldoActual ? 'info.light' : 'error.light'),
+                color: Number(modalCerrar.monto) === saldoActual ? 'success.dark' : (Number(modalCerrar.monto) > saldoActual ? 'info.dark' : 'error.dark')
+              }}>
+                <Typography variant="body2" fontWeight="bold">
+                  Diferencia: {Number(modalCerrar.monto) === saldoActual ? 'Cuadre perfecto' : currencyFormatter(Number(modalCerrar.monto) - saldoActual)}
+                </Typography>
+              </Box>
+            )}
+
             <TextField 
               fullWidth multiline rows={2} label="Observaciones (Opcional)" placeholder="Ej: Faltan 100 pesos por vuelto mal dado." 
               value={modalCerrar.observaciones} onChange={(e) => setModalCerrar({ ...modalCerrar, observaciones: e.target.value })}

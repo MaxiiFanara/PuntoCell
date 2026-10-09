@@ -279,7 +279,7 @@ export default class CompraService {
             IdTurnoCaja: data.IdTurnoCaja,
             IdEmpleado: data.IdEmpleado,
             Monto: pagoCompra.Monto,
-            Descripcion: `Pago de compra Id=${compra.Id}`,
+            Descripcion: `Pago a Proveedor: ${proveedor.Nombre} - Compra #${compra.Id}`,
             Fecha: pagoCompra.FechaPago
           }, { transaction: t });
         }
@@ -291,8 +291,11 @@ export default class CompraService {
         include: [{ model: DetalleCompra, as: 'detalles' }]
       });
 
+      const prov = await sequelize.models.Proveedor.findByPk(data.IdProveedor);
+      const nombreProv = prov ? prov.Nombre : `Proveedor #${data.IdProveedor}`;
+      
       await registerAudit(this.bitacoraService, {
-        detalle: `Compra registrada (TotalCosto=${totalCosto}, EstadoPago=${estadoPago})`,
+        detalle: `Ingresó una compra a ${nombreProv} por $${totalCosto} (${detalles.length} renglones)`,
         Accion: 'Crear Compra',
         IdEmpleado: data.IdEmpleado || auditContext?.IdEmpleado,
         IdSucursal: data.IdSucursalDestino || auditContext?.IdSucursal,
