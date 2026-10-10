@@ -257,15 +257,33 @@ BEGIN TRY
                         
                         UPDATE PrecioArticulo SET FechaHasta = @FechaActual WHERE IdInventario = @IdInvNuevo AND FechaHasta IS NULL;
                         
-                        SET @IdLista = (SELECT TOP 1 Id FROM ListaPrecio WHERE IdCategoriaProducto = (SELECT TOP 1 mo.IdCategoriaProducto FROM Producto p JOIN ModeloProducto mo ON p.IdModeloProducto = mo.Id WHERE p.Id = @IdProd) AND Activo = 1);
-                        IF @IdLista IS NULL SET @IdLista = 1;
-                        
-                        SET @PctGanancia = ISNULL((SELECT PorcentajeRentabilidad FROM ListaPrecio WHERE Id = @IdLista), 30);
                         SET @CostoReal = @PrecioCostoUnit * 1.05;
-                        SET @ValorFinal = @CostoReal * (1 + (@PctGanancia/100));
                         
                         INSERT INTO PrecioArticulo (FechaDesde, FechaHasta, ValorFinal, CostoBase, CostoVariables, CostoReal, PorcentajeGanancia, IdListaPrecio, IdInventario)
-                        VALUES (@FechaActual, NULL, @ValorFinal, @PrecioCostoUnit, @CostoReal - @PrecioCostoUnit, @CostoReal, @PctGanancia, @IdLista, @IdInvNuevo);
+                        SELECT 
+                            @FechaActual, 
+                            NULL, 
+                            @CostoReal * (1 + (ISNULL(lp.PorcentajeRentabilidad, 30)/100.0)), 
+                            @PrecioCostoUnit, 
+                            @CostoReal - @PrecioCostoUnit, 
+                            @CostoReal, 
+                            ISNULL(lp.PorcentajeRentabilidad, 30), 
+                            lp.Id, 
+                            @IdInvNuevo
+                        FROM ListaPrecio lp
+                        WHERE lp.Activo = 1 
+                          AND lp.IdCategoriaProducto = (
+                              SELECT TOP 1 mo.IdCategoriaProducto 
+                              FROM Producto p 
+                              JOIN ModeloProducto mo ON p.IdModeloProducto = mo.Id 
+                              WHERE p.Id = @IdProd
+                          );
+                          
+                        IF @@ROWCOUNT = 0
+                        BEGIN
+                            INSERT INTO PrecioArticulo (FechaDesde, FechaHasta, ValorFinal, CostoBase, CostoVariables, CostoReal, PorcentajeGanancia, IdListaPrecio, IdInventario)
+                            VALUES (@FechaActual, NULL, @CostoReal * 1.30, @PrecioCostoUnit, @CostoReal - @PrecioCostoUnit, @CostoReal, 30, 1, @IdInvNuevo);
+                        END
                     END
                     SET @i = @i + 1;
                 END
