@@ -1,5 +1,7 @@
 import { registerAudit } from '../utils/audit.util.js';
 import logger from '../utils/logger.js';
+import { ROL_ANALISTA } from '../constants/roles.js';
+import { sanitizarIds } from '../utils/sanitizar-ids.util.js';
 
 // Status que representan un "fallo de permisos/negocio" y que sí se auditan:
 // 401 (sin sesión), 403 (sin permiso), 404 (recurso inexistente), 409 (conflicto).
@@ -30,7 +32,7 @@ export const createErrorMiddleware = (bitacoraService = null) => (err, req, res,
 
   if (err.name === 'SequelizeForeignKeyConstraintError') {
     statusCode = 400;
-    message = 'Error de integridad referencial. Está intentando usar un ID que no existe o borrar un registro que está en uso.';
+    message = 'Error de integridad referencial. Está intentando usar un dato que no existe o borrar un registro que está en uso.';
   }
 
   // Solo se loguea si es un 500 no esperado, para no ensuciar la consola con 404/400
@@ -55,6 +57,12 @@ export const createErrorMiddleware = (bitacoraService = null) => (err, req, res,
       IdSucursal: req.user?.sucursal ?? null,
       IpAddress: req.ip
     }).catch(() => {});
+  }
+
+  // Solo el analista puede ver identificadores internos en los mensajes de error.
+  if (req.user?.rol !== ROL_ANALISTA) {
+    message = sanitizarIds(message);
+    if (detalles) detalles = detalles.map(sanitizarIds);
   }
 
   const errorResponse = {

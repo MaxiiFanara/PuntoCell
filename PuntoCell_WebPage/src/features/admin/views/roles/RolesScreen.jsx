@@ -119,7 +119,6 @@ const RolesScreen = () => {
           <Table sx={{ minWidth: 640 }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ width: 70 }}>ID</TableCell>
                 <TableCell>Nombre del rol</TableCell>
                 <TableCell>Permisos activos</TableCell>
                 <TableCell align="right" sx={{ width: 96 }}>Acciones</TableCell>
@@ -128,13 +127,12 @@ const RolesScreen = () => {
             <TableBody>
               {roles.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} sx={{ height: 120, textAlign: 'center', color: 'text.disabled' }}>
+                  <TableCell colSpan={3} sx={{ height: 120, textAlign: 'center', color: 'text.disabled' }}>
                     No hay roles definidos.
                   </TableCell>
                 </TableRow>
               ) : roles.map((row) => (
                 <TableRow key={row.id} hover>
-                  <TableCell className="mono" sx={{ color: 'text.disabled' }}>#{row.id}</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>{row.name}</TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', maxWidth: 460 }}>

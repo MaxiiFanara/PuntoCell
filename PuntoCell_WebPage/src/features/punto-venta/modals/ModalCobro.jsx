@@ -222,7 +222,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
         const idInventario = creado?.Id ?? creado?.id;
         return {
           ...p,
-          Observacion: `Canje recibido: ${p.equipoCanjePendiente.resumen} (Inventario #${idInventario})`,
+          Observacion: `Canje recibido: ${p.equipoCanjePendiente.resumen}`,
         };
       }));
     } catch (error) {
@@ -591,7 +591,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
               esSerializado: true,
               idSucursal: idSucursal || 1,
               idProveedor: proveedorCanjeId || '',
-              idModeloArticulo: '', imei: '', idColor: '', idMemoria: '', idBateria: '',
+              idModeloArticulo: '', imei: '', idColor: '', idAlmacenamiento: '', idBateria: '',
               precioMayor: '', precioMenor: '',
               stock: 1,
               observaciones: `Equipo recibido en canje${cliente?.nombre ? ` — cliente ${cliente.nombre}` : ''}`,

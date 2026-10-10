@@ -31,6 +31,7 @@ export default class VentaService {
                 { association: 'articulo', include: [{ association: 'modelo', include: [{ association: 'marca' }] }] },
                 { association: 'color' },
                 { association: 'memoria' },
+                { association: 'almacenamiento' },
                 { association: 'bateria' },
               ]
             }]

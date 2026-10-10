@@ -103,7 +103,7 @@ export default class CompraService {
         );
       }
       if (!item.MesesGarantiaLocal) {
-        throw bizError(`Falta "MesesGarantiaLocal" para el renglón de IdArticulo=${item.IdArticulo} (requerido al crear un Inventario nuevo).`);
+        throw bizError(`Falta "MesesGarantiaLocal" para el renglón del artículo (requerido al crear un Inventario nuevo).`);
       }
 
       const resultado = [];
@@ -137,7 +137,7 @@ export default class CompraService {
     }
 
     if (!item.MesesGarantiaLocal) {
-      throw bizError(`Falta "MesesGarantiaLocal" para el renglón de IdArticulo=${item.IdArticulo} (requerido al crear un Inventario nuevo).`);
+      throw bizError(`Falta "MesesGarantiaLocal" para el renglón del artículo (requerido al crear un Inventario nuevo).`);
     }
     const inventario = await Inventario.create({
       ...baseData,
@@ -152,7 +152,7 @@ export default class CompraService {
   // Misma lógica que usa el alta directa de Inventario (canje) — ver core/utils/precios.util.js.
   async _reprecificarPorCompra(inventarioId, idCategoria, costoUnitario, sequelize, t, advertencias) {
     const listas = await resolverListasPrecioCategoria(sequelize, idCategoria, t);
-    if (!listas.length) throw bizError('No existe ninguna lista de precios (ni la Id=1 por defecto).', 500);
+    if (!listas.length) throw bizError('No existe ninguna lista de precios (ni la lista por defecto).', 500);
     if (idCategoria && !listas.some((l) => Number(l.IdCategoriaProducto) === Number(idCategoria))) {
       advertencias.push(`No hay lista de precios activa para la categoría ${idCategoria}. Se usó la lista por defecto (Id=1).`);
     }
@@ -295,7 +295,7 @@ export default class CompraService {
       const nombreProv = prov ? prov.Nombre : `Proveedor #${data.IdProveedor}`;
       
       await registerAudit(this.bitacoraService, {
-        detalle: `Ingresó una compra a ${nombreProv} por $${totalCosto} (${detalles.length} renglones)`,
+        detalle: `Ingresó una compra a ${nombreProv} por $${totalCosto} (${detallesInput.length} renglones)`,
         Accion: 'Crear Compra',
         IdEmpleado: data.IdEmpleado || auditContext?.IdEmpleado,
         IdSucursal: data.IdSucursalDestino || auditContext?.IdSucursal,
@@ -305,7 +305,7 @@ export default class CompraService {
 
       return { compra: creada, totalPagado, advertencias };
     } catch (err) {
-      await t.rollback();
+      if (!t.finished) await t.rollback();
       if (err.statusCode) throw err; // error de negocio ya tipado -> se respeta su status
       logger.error('❌ Error registrando compra transaccional:', err);
       const message = (err.original && (err.original.message || err.original.sqlMessage)) || err.message || 'Error al registrar la compra';

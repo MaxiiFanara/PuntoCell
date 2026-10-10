@@ -178,7 +178,7 @@ const ModalReparacion = ({
     .reduce((s, p) => s + Number(p.Monto), 0)
   const pagoEntregaRecord   = pagosOrden.find(p => (p.Observacion ?? '').toLowerCase().includes('saldo final'))
   const metodoPagoEntregaNombre = pagoEntregaRecord
-    ? (metodosPago.find(m => m.id === pagoEntregaRecord.IdMetodoPago)?.nombre ?? `Método #${pagoEntregaRecord.IdMetodoPago}`)
+    ? (metodosPago.find(m => m.id === pagoEntregaRecord.IdMetodoPago)?.nombre ?? "Método")
     : null
   const saldoEntrega        = datosFinancieros.costoRepuestos + datosFinancieros.precioManoObra - señaPagada
 
@@ -244,7 +244,7 @@ const ModalReparacion = ({
               idInventario:    r.IdInventario,
               cantidad:        r.Cantidad ?? 1,
               precioCobrado:   Number(r.PrecioCobrado) || 0,
-              nombre:          invItem?.nombre ?? `Repuesto #${r.IdInventario}`,
+              nombre:          invItem?.nombre ?? "Repuesto",
               marca:           invItem?.marca  ?? '',
               modelo:          invItem?.modelo ?? '',
             }

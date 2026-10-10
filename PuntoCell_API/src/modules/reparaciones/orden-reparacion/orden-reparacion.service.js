@@ -157,12 +157,12 @@ export default class OrdenReparacionService {
         });
 
         if (!articulo) {
-          throw new Error(`No se encontró un Articulo vendible para el modelo ${dispositivo.IdModeloArticulo} de la orden #${ordenBloqueada.Id}.`);
+          throw new Error(`No se encontró un Articulo vendible para el modelo del dispositivo de la orden #${ordenBloqueada.Id}.`);
         }
 
         const modeloArticulo = await models.ModeloArticulo.findByPk(articulo.IdModeloArticulo, { transaction });
         if (!modeloArticulo) {
-          throw new Error(`No se encontró el ModeloArticulo asociado al articulo ${articulo.Id} de la orden #${ordenBloqueada.Id}.`);
+          throw new Error(`No se encontró el ModeloArticulo asociado al artículo de la orden #${ordenBloqueada.Id}.`);
         }
 
         const garantiaLocal = new Date(ahora);

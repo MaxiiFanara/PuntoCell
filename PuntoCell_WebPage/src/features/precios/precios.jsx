@@ -308,7 +308,7 @@ export default function PreciosScreen() {
                       <TableRow key={id} hover>
                         <TableCell>
                           <Typography sx={{ fontWeight: 600 }}>{inv.articulo?.Nombre || 'Producto'}</Typography>
-                          <Typography variant="caption" color="text.secondary">Inventario #{id} · Stock {inv.Stock ?? 0}</Typography>
+                          <Typography variant="caption" color="text.secondary">Stock {inv.Stock ?? 0}</Typography>
                         </TableCell>
                         <TableCell align="center" className="mono" sx={{ fontSize: 12 }}>{inv.IMEI || '—'}</TableCell>
                         <TableCell align="right">
@@ -421,7 +421,7 @@ function ListaDialog({ lista, categorias, onClose, onSaved }) {
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        {esNuevo ? 'Nueva lista de precios' : `Editar lista #${lista.Id ?? lista.id}`}
+        {esNuevo ? 'Nueva lista de precios' : 'Editar lista de precios'}
         <IconButton onClick={onClose} size="small" aria-label="Cerrar"><CloseIcon sx={{ fontSize: 17 }} /></IconButton>
       </DialogTitle>
       <DialogContent sx={{ pt: 3 }}>
@@ -501,7 +501,7 @@ function PrecioDialog({ target, lista, onClose, onSaved }) {
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        Precio · {inv.articulo?.Nombre || `Inventario #${idInventario}`}
+        Precio · {inv.articulo?.Nombre || 'Producto'}
         <IconButton onClick={onClose} size="small" aria-label="Cerrar"><CloseIcon sx={{ fontSize: 17 }} /></IconButton>
       </DialogTitle>
       <DialogContent sx={{ pt: 3 }}>
@@ -571,12 +571,12 @@ function HistorialDialog({ inv, todosLosPrecios, listas, onClose }) {
       .sort((a, b) => new Date(b.FechaDesde) - new Date(a.FechaDesde));
   }, [todosLosPrecios, idInventario]);
 
-  const nombreLista = (id) => listas.find(l => (l.Id ?? l.id) === id)?.Nombre || `Lista #${id}`;
+  const nombreLista = (id) => listas.find(l => (l.Id ?? l.id) === id)?.Nombre || 'Lista';
 
   return (
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        Historial de Precios · {inv.articulo?.Nombre || `Inventario #${idInventario}`}
+        Historial de Precios · {inv.articulo?.Nombre || 'Producto'}
         <IconButton onClick={onClose} size="small" aria-label="Cerrar"><CloseIcon sx={{ fontSize: 17 }} /></IconButton>
       </DialogTitle>
       <DialogContent sx={{ pt: 1 }}>

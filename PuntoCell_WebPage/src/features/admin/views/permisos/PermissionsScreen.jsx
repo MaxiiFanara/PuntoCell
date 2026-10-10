@@ -93,7 +93,6 @@ const PermissionsScreen = () => {
           <Table sx={{ minWidth: 700 }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ width: 100 }}>Código</TableCell>
                 <TableCell>Nombre del permiso</TableCell>
                 <TableCell sx={{ width: 130 }}>Módulo</TableCell>
                 <TableCell>Descripción</TableCell>
@@ -103,7 +102,6 @@ const PermissionsScreen = () => {
             <TableBody>
               {permissions.map((perm) => (
                 <TableRow key={perm.id} hover>
-                  <TableCell className="mono" sx={{ color: 'text.disabled' }}>{perm.id}</TableCell>
                   <TableCell>
                     <StatusPill tone="flat" label={perm.name} />
                   </TableCell>

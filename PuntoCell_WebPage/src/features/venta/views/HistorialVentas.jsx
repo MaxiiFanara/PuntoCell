@@ -440,10 +440,10 @@ const HistorialVentas = () => {
                   ) : ventasPaginadas.map((item) => {
                     const clienteNombre = item.cliente
                       ? `${item.cliente.Nombre ?? ''} ${item.cliente.Apellido ?? ''}`.trim()
-                      : `Cliente #${item.IdCliente ?? '?'}`;
+                      : 'Cliente';
                     const vendedorNombre = item.empleado
                       ? `${item.empleado.Nombre ?? ''} ${item.empleado.Apellido ?? ''}`.trim()
-                      : `#${item.IdEmpleado ?? '?'}`;
+                      : '—';
                     const totalUsd = Number(item.TotalVenta ?? 0);
                     // El ARS guardado en la venta es el histórico (congelado a la cotización
                     // de ese día); solo si no está se recalcula con el dólar actual.

@@ -27,7 +27,7 @@ export default class InventarioService {
     const { page, limit, IdSucursal, soloVendibles, soloRepuestos, soloCanje, IMEI } = query;
     const { Sucursal, Articulo, EstadoInventario, Proveedor } = this._getRelatedModels();
     const sequelize = this.inventarioDAO.model.sequelize;
-    const { Color, Memoria, Bateria, ModeloArticulo } = sequelize.models;
+    const { Color, Memoria, Almacenamiento, Bateria, ModeloArticulo } = sequelize.models;
 
     const whereClause = {};
     if (IdSucursal) {
@@ -71,6 +71,7 @@ export default class InventarioService {
         // tienen igual vuelven con color/memoria/bateria en null.
         { model: Color, as: 'color', attributes: ['Nombre'] },
         { model: Memoria, as: 'memoria', attributes: ['Capacidad'] },
+        { model: Almacenamiento, as: 'almacenamiento', attributes: ['Capacidad'] },
         { model: Bateria, as: 'bateria', attributes: ['Capacidad', 'Porcentaje'] }
       ]
     });
@@ -79,7 +80,7 @@ export default class InventarioService {
   async getById(id, auditContext = null) {
     const { Sucursal, Articulo, EstadoInventario } = this._getRelatedModels();
     const sequelize = this.inventarioDAO.model.sequelize;
-    const { Color, Memoria, ModeloArticulo } = sequelize.models;
+    const { Color, Memoria, Almacenamiento, ModeloArticulo } = sequelize.models;
 
     const item = await this.inventarioDAO.getById(id, {
       attributes: { exclude: [] }, // Aseguramos que traiga el Id
@@ -88,6 +89,7 @@ export default class InventarioService {
         { model: EstadoInventario, as: 'estado', attributes: ['Id', 'Nombre'] },
         { model: Color, as: 'color', attributes: ['Nombre'] },
         { model: Memoria, as: 'memoria', attributes: ['Capacidad'] },
+        { model: Almacenamiento, as: 'almacenamiento', attributes: ['Capacidad'] },
         {
           model: Articulo,
           as: 'articulo',

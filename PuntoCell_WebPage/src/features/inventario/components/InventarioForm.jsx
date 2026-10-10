@@ -45,7 +45,7 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
   const [listaCategorias, setListaCategorias] = useState([]);
   const [listaMarcas, setListaMarcas] = useState([]);
   const [listaColores, setListaColores] = useState([]);
-  const [listaMemorias, setListaMemorias] = useState([]);
+  const [listaAlmacenamientos, setListaAlmacenamientos] = useState([]);
   const [listaBaterias, setListaBaterias] = useState([]);
   const [listaSucursales, setListaSucursales] = useState([]);
   const [listaProveedores, setListaProveedores] = useState([]);
@@ -64,11 +64,11 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
   useEffect(() => {
     const cargarDesplegables = async () => {
       try {
-        const [resModelos, resCategorias, resColores, resMemorias, resBaterias, resSucursales, resProveedores, resEstados, resMarcas] = await Promise.all([
+        const [resModelos, resCategorias, resColores, resAlmacenamientos, resBaterias, resSucursales, resProveedores, resEstados, resMarcas] = await Promise.all([
           inventarioService.getModelos(),
           inventarioService.getCategorias(),
           inventarioService.getColores(),
-          inventarioService.getMemorias(),
+          inventarioService.getAlmacenamientos(),
           inventarioService.getBaterias(),
           inventarioService.getSucursales(),
           inventarioService.getProveedores(),
@@ -80,7 +80,7 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
         setListaCategorias(Array.isArray(resCategorias) ? resCategorias : (resCategorias.data || []));
         setListaMarcas(resMarcas?.data || resMarcas || []);
         setListaColores(Array.isArray(resColores) ? resColores : (resColores.data || []));
-        setListaMemorias(Array.isArray(resMemorias) ? resMemorias : (resMemorias.data || []));
+        setListaAlmacenamientos(Array.isArray(resAlmacenamientos) ? resAlmacenamientos : (resAlmacenamientos.data || []));
         setListaBaterias(Array.isArray(resBaterias) ? resBaterias : (resBaterias.data || []));
         setListaSucursales(Array.isArray(resSucursales) ? resSucursales : (resSucursales.data || []));
         setListaProveedores(Array.isArray(resProveedores) ? resProveedores : (resProveedores.data || []));
@@ -266,9 +266,9 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
         </Campo>
 
         <Campo label="Memoria">
-          <EntityAutocomplete options={listaMemorias}
+          <EntityAutocomplete options={listaAlmacenamientos}
             getLabel={(m) => m.Capacidad ?? m.capacidad ?? m.Nombre ?? ''}
-            value={formData.idMemoria} onChange={(id) => handleChange({ target: { name: 'idMemoria', value: id } })}
+            value={formData.idAlmacenamiento} onChange={(id) => handleChange({ target: { name: 'idAlmacenamiento', value: id } })}
             placeholder="Sin especificar" />
         </Campo>
 

@@ -16,7 +16,7 @@ import { comprasService, ESTADO_PAGO } from '../../../services/comprasServices';
 const normalizar = (c, proveedoresMap) => ({
   id: c.Id ?? c.id,
   fecha: c.Fecha ? String(c.Fecha).slice(0, 10) : '—',
-  proveedor: proveedoresMap[c.IdProveedor] || `Proveedor #${c.IdProveedor}`,
+  proveedor: proveedoresMap[c.IdProveedor] || 'Proveedor',
   idProveedor: c.IdProveedor,
   total: Number(c.TotalCosto) || 0,
   saldo: Number(c.SaldoPendiente) || 0,

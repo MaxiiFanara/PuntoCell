@@ -52,7 +52,7 @@ export default function CompraDetalleModal({ open, onClose, compraId }) {
               gap: 0, border: 1, borderColor: 'divider', borderRadius: '9px', overflow: 'hidden', mb: 2,
             }}>
               {[
-                { label: 'Proveedor', node: <Typography sx={{ fontWeight: 600, fontSize: '.84rem' }}>{compra.proveedor?.Nombre || `#${compra.IdProveedor}`}</Typography> },
+                { label: 'Proveedor', node: <Typography sx={{ fontWeight: 600, fontSize: '.84rem' }}>{compra.proveedor?.Nombre || '—'}</Typography> },
                 { label: 'Fecha', node: <Typography className="mono" sx={{ fontWeight: 600, fontSize: '.84rem' }}>{compra.Fecha ? String(compra.Fecha).slice(0, 10) : '—'}</Typography> },
                 { label: 'Estado', node: <StatusPill tone={tonoEstado(compra.EstadoPago)} label={estado} /> },
                 { label: 'Saldo pendiente', node: <Money ars={Number(compra.SaldoPendiente) * dolarGlobal} usd={compra.SaldoPendiente} align="left" size="sm" /> },
@@ -70,7 +70,6 @@ export default function CompraDetalleModal({ open, onClose, compraId }) {
                 <TableHead>
                   <TableRow>
                     <TableCell>Producto</TableCell>
-                    <TableCell>Inventario</TableCell>
                     <TableCell align="center">Cant.</TableCell>
                     <TableCell align="right">Costo unit.</TableCell>
                     <TableCell align="right">Subtotal</TableCell>
@@ -78,11 +77,10 @@ export default function CompraDetalleModal({ open, onClose, compraId }) {
                 </TableHead>
                 <TableBody>
                   {detalles.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.disabled' }}>Sin renglones.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.disabled' }}>Sin renglones.</TableCell></TableRow>
                   ) : detalles.map((d, i) => (
                     <TableRow key={d.Id ?? i}>
                       <TableCell sx={{ fontWeight: 600 }}>{d.inventario?.articulo?.Nombre || '—'}</TableCell>
-                      <TableCell className="mono">#{d.IdArticulo ?? d.IdInventario}</TableCell>
                       <TableCell align="center" className="num">{d.Cantidad}</TableCell>
                       <TableCell align="right"><Money ars={d.PrecioCostoUnitario * dolarGlobal} usd={d.PrecioCostoUnitario} size="sm" /></TableCell>
                       <TableCell align="right">

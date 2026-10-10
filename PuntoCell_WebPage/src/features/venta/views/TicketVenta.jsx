@@ -41,7 +41,7 @@ const mapearVenta = (raw) => {
       subtotal: (Number(d.PrecioUnitario) || 0) * d.Cantidad,
       imei: inv?.IMEI || null,
       color: inv?.color?.Nombre || null,
-      memoria: inv?.memoria?.Capacidad || null,
+      memoria: inv?.almacenamiento?.Capacidad || inv?.memoria?.Capacidad || null,
       bateria: inv?.bateria?.Porcentaje ?? null,
     };
   });

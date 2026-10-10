@@ -81,7 +81,7 @@ const InventarioList = () => {
           modelo: art.modelo?.Nombre || row.modelo?.Nombre || '',
           imei: row.IMEI || null,
           color: row.color?.Nombre || row.Color?.Nombre || null,
-          memoria: row.memoria?.Capacidad || row.Memoria?.Capacidad || null,
+          memoria: row.almacenamiento?.Capacidad || row.memoria?.Capacidad || row.Memoria?.Capacidad || null,
           bateria: Number.isFinite(batPct) ? `${batPct}%` : null,
           stock: row.Stock || 0,
           precioMenor: row.PrecioVenta || 0,
