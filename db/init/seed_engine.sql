@@ -322,6 +322,7 @@ BEGIN TRY
                 SET @EsSerialVenta = (SELECT EsSerializado FROM Producto p JOIN Inventario i ON p.Id = i.IdProducto WHERE i.Id = @InvVender);
                 SET @CantVender = 1;
                 IF @EsSerialVenta = 0 AND (ABS(CHECKSUM(NEWID())) % 100) > 80 SET @CantVender = 2;
+                IF @CantVender > (SELECT Stock FROM Inventario WHERE Id = @InvVender) SET @CantVender = (SELECT Stock FROM Inventario WHERE Id = @InvVender);
                 
                 SET @PrecioUSD = (SELECT TOP 1 ValorFinal FROM PrecioArticulo WHERE IdInventario = @InvVender AND FechaHasta IS NULL ORDER BY FechaDesde DESC);
                 SET @CostoUSD = (SELECT TOP 1 CostoReal FROM PrecioArticulo WHERE IdInventario = @InvVender AND FechaHasta IS NULL ORDER BY FechaDesde DESC);

@@ -340,6 +340,7 @@ CREATE TABLE PrecioArticulo ( -- Precio concreto vigente de un renglón de Inven
     PorcentajeGanancia  DECIMAL(5,2)  NOT NULL CHECK (PorcentajeGanancia >= 0), -- Copiado de ListaPrecio.PorcentajeRentabilidad al momento de calcular.
     IdListaPrecio       INT           NOT NULL,
     IdInventario        INT           NOT NULL,
+    FijadoManual        BIT           NOT NULL DEFAULT 0,
     CONSTRAINT FK_PrecioArticulo_ListPrecio   FOREIGN KEY (IdListaPrecio)  REFERENCES ListaPrecio (Id),
     CONSTRAINT FK_PrecioArticulo_Invetario    FOREIGN KEY (IdInventario)   REFERENCES Inventario  (Id)
 );
