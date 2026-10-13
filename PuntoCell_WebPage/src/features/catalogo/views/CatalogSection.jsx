@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import {
   Box,
   Button,
+  Chip,
   IconButton,
   InputAdornment,
   MenuItem,
@@ -180,6 +181,31 @@ export default function CatalogSection({
         </Box>
 
         <CategoryFilter categories={categories} products={products} selected={filtros.category} onChange={setCategory} />
+
+        {hayFiltros && (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+            <Typography sx={{ ...muted, fontSize: '.8125rem' }}>Filtros activos:</Typography>
+            {filtros.search !== '' && (
+              <Chip
+                size="small"
+                label={`Búsqueda: ${filtros.search}`}
+                onDelete={() => setSearch('')}
+                sx={{ height: 28, fontSize: '.8125rem' }}
+              />
+            )}
+            {filtros.category !== 'Todos' && (
+              <Chip
+                size="small"
+                label={`Categoría: ${filtros.category}`}
+                onDelete={() => setCategory('Todos')}
+                sx={{ height: 28, fontSize: '.8125rem' }}
+              />
+            )}
+            <Button size="small" onClick={limpiar} sx={{ fontSize: '.8125rem', minWidth: 0, px: 1 }}>
+              Limpiar todo
+            </Button>
+          </Box>
+        )}
       </Box>
 
       {loading ? (

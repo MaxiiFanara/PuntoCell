@@ -1,4 +1,6 @@
-import { Badge, Box, Button, IconButton, Tooltip, Typography } from '@mui/material'
+import { useState } from 'react'
+import { Badge, Box, Button, IconButton, Popover, Tooltip, Typography } from '@mui/material'
+import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined'
 import LockPersonIcon from '@mui/icons-material/LockPerson'
 import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined'
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined' // ☀️ Ícono modo claro
@@ -18,6 +20,9 @@ export default function PublicNavbar() {
   // Control de modo oscuro/claro
   const { mode, setMode } = useColorScheme()
   const esOscuro = mode === 'dark'
+
+  // Tamaño de letra y modo de color agrupados en un solo menú de ajustes
+  const [ajustes, setAjustes] = useState(null)
 
   return (
     <Box
@@ -51,9 +56,9 @@ export default function PublicNavbar() {
               display: 'grid',
               placeItems: 'center',
               borderRadius: '8px',
-              bgcolor: 'text.primary',
-              color: 'background.default',
-              fontWeight: 600,
+              bgcolor: 'primary.main',
+              color: 'primary.contrastText',
+              fontWeight: 700,
               fontSize: '.78rem',
               letterSpacing: '-.02em',
             }}
@@ -86,13 +91,11 @@ export default function PublicNavbar() {
             Gestión
           </Button>
 
-          <Box sx={{ mx: 0.5 }}><FontSizeSelect /></Box>
-
-          {/* Botón de cambio de tema en la barra pública */}
-          <Tooltip title={esOscuro ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}>
+          <Tooltip title="Ajustes de visualización">
             <IconButton
-              onClick={() => setMode(esOscuro ? 'light' : 'dark')}
-              aria-label="Cambiar modo de color"
+              onClick={(e) => setAjustes(e.currentTarget)}
+              aria-label="Ajustes de visualización"
+              aria-haspopup="true"
               sx={{
                 border: 1,
                 borderColor: 'divider',
@@ -107,9 +110,35 @@ export default function PublicNavbar() {
                 },
               }}
             >
-              {esOscuro ? <LightModeOutlinedIcon sx={{ fontSize: 19 }} /> : <DarkModeOutlinedIcon sx={{ fontSize: 19 }} />}
+              <TuneOutlinedIcon sx={{ fontSize: 19 }} />
             </IconButton>
           </Tooltip>
+
+          <Popover
+            open={Boolean(ajustes)}
+            anchorEl={ajustes}
+            onClose={() => setAjustes(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          >
+            <Box sx={{ p: 2, display: 'grid', gap: 2, minWidth: 220 }}>
+              <Box>
+                <Typography sx={{ fontSize: '.8125rem', color: 'pc.textMuted', mb: 0.75 }}>Tamaño de letra</Typography>
+                <FontSizeSelect />
+              </Box>
+              <Box>
+                <Typography sx={{ fontSize: '.8125rem', color: 'pc.textMuted', mb: 0.75 }}>Modo de color</Typography>
+                <Button
+                  variant="outlined"
+                  onClick={() => setMode(esOscuro ? 'light' : 'dark')}
+                  startIcon={esOscuro ? <LightModeOutlinedIcon /> : <DarkModeOutlinedIcon />}
+                  sx={{ ...btn, height: 40, width: '100%' }}
+                >
+                  {esOscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+                </Button>
+              </Box>
+            </Box>
+          </Popover>
 
           {cart && (
             <Tooltip title="Tu carrito">

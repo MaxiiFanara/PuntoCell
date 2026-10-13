@@ -9,8 +9,8 @@ import { MONO, PUBLIC_MAXW, PUBLIC_GUTTER, PUBLIC_SECTION_Y, PUBLIC_CONTROL_H } 
  * que no se reescriba en cada componente.
  *
  * Reglas del sistema que estos objetos sostienen:
- *  - El verde es el ÚNICO acento, y sólo lo usan el precio, la acción primaria y
- *    el anillo de foco. Nada más.
+ *  - El verde es el ÚNICO acento. Además del precio, la acción primaria y el anillo
+ *    de foco, acompaña fondos suaves (color-mix al 5-14%), íconos y píldoras.
  *  - La separación la hacen el aire y un filete de 1px. Nunca una caja adentro
  *    de otra caja.
  *  - Mono con tabular-nums sólo para precios y datos comparables.

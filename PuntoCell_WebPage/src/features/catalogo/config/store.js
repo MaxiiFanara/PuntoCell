@@ -12,6 +12,11 @@ export const STORE_CONFIG = {
 
     whatsapp: '5493517661740',
 
+    // Datos opcionales para el bloque "Visitanos" de la landing. Si se completan
+    // se muestran y ajustan el mapa; vacíos, solo se muestra la ciudad.
+    address: '',
+    hours: '',
+
     instagram:
       'https://www.instagram.com/puntocell.lacalera?igsh=MThmZTJka3licGVocg==',
   },

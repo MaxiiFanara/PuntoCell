@@ -4,7 +4,7 @@ import PublicNavbar from '../../../components/ui/PublicNavbar'
 import Hero from '../components/Hero'
 import Services from '../components/Services'
 import CatalogHighlight from '../components/CatalogHighlight'
-import Team from '../components/Team'
+import Location from '../components/Location'
 import PublicFooter from '../../../components/ui/PublicFooter'
 
 export default function LandingPage() {
@@ -15,7 +15,7 @@ export default function LandingPage() {
         <Hero />
         <Services />
         <CatalogHighlight />
-        <Team />
+        <Location />
         <PublicFooter />
       </Box>
     </ProductProvider>

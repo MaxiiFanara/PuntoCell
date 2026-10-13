@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Box, Button, Paper, Skeleton, Typography } from '@mui/material'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
@@ -44,7 +43,25 @@ function PanelProducto({ product }) {
   const unidades = stock === 1 ? '1 unidad' : `${stock} unidades`
 
   return (
-    <Paper sx={{ ...PANEL, display: 'flex', flexDirection: 'column' }}>
+    <Paper sx={{ ...PANEL, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+      <Typography
+        component="span"
+        sx={{
+          position: 'absolute',
+          top: 16,
+          right: 16,
+          px: 1.25,
+          py: 0.6,
+          borderRadius: 99,
+          bgcolor: 'primary.main',
+          color: 'primary.contrastText',
+          fontSize: '.75rem',
+          fontWeight: 600,
+          lineHeight: 1,
+        }}
+      >
+        Destacado
+      </Typography>
       {product.imagenPortada && (
         <Box
           sx={{
@@ -110,14 +127,17 @@ export default function Hero() {
     .reduce((mejor, p) => (!mejor || p.price > mejor.price ? p : mejor), null)
   const hayPanel = loading || Boolean(destacado)
 
-  // Momento en que se montó la landing, que es cuando el contexto pide el
-  // inventario. Se congela en el montaje para que no cambie en cada render.
-  const [leido] = useState(() => new Date())
-
   return (
     <Box
       component="section"
-      sx={{ pt: 'clamp(3.5rem, 7vw, 6rem)', pb: 'clamp(4rem, 8vw, 7rem)' }}
+      sx={{
+        pt: 'clamp(3.5rem, 7vw, 6rem)',
+        pb: 'clamp(4rem, 8vw, 7rem)',
+        // Luz verde suave en las esquinas: da ambiente sin competir con el contenido.
+        background:
+          'radial-gradient(ellipse 60% 70% at 100% 0%, color-mix(in srgb, var(--pc-palette-primary-main) 14%, transparent), transparent 70%),' +
+          'radial-gradient(ellipse 45% 55% at 0% 100%, color-mix(in srgb, var(--pc-palette-primary-main) 8%, transparent), transparent 70%)',
+      }}
     >
       <Box
         sx={{
@@ -129,8 +149,29 @@ export default function Hero() {
         }}
       >
         <Box sx={{ gridColumn: hayPanel ? { xs: '1 / -1', md: '1 / 6' } : '1 / -1' }}>
+          <Box
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 1,
+              mb: 3,
+              px: 1.5,
+              py: 0.75,
+              borderRadius: 99,
+              border: 1,
+              borderColor: 'divider',
+              bgcolor: 'background.paper',
+              fontSize: '.8125rem',
+              fontWeight: 500,
+              ...enter(0),
+            }}
+          >
+            <Box aria-hidden sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main' }} />
+            Punto Cell · La Calera, Córdoba
+          </Box>
+
           <Typography component="h1" sx={{ typography: 'd1', ...enter(0) }}>
-            Equipos, repuestos y servicio técnico en La Calera.
+            Celulares, repuestos y servicio técnico en La Calera.
           </Typography>
 
           <Typography
@@ -167,28 +208,6 @@ export default function Hero() {
               Escribinos
             </Button>
           </Box>
-
-          <Typography
-            sx={{
-              ...muted,
-              mt: 5,
-              pt: 2.5,
-              borderTop: 1,
-              borderColor: 'divider',
-              fontSize: '.875rem',
-              lineHeight: 1.5,
-              ...enter(3),
-            }}
-          >
-            Inventario leído el{' '}
-            <Box component="span" className="mono">
-              {leido.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
-            </Box>{' '}
-            a las{' '}
-            <Box component="span" className="mono">
-              {leido.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })}
-            </Box>
-          </Typography>
         </Box>
 
         {hayPanel && (

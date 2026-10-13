@@ -61,6 +61,8 @@ export default function CategoryFilter({ categories, products: productos, select
   }, [products])
 
   return (
+    // En pantallas angostas las píldoras se deslizan en una sola fila en vez de apilarse.
+    <Box sx={{ overflowX: { xs: 'auto', md: 'visible' }, pb: { xs: 0.5, md: 0 }, mx: { xs: -1, md: 0 }, px: { xs: 1, md: 0 } }}>
     <ToggleButtonGroup
       exclusive
       value={selected}
@@ -68,7 +70,7 @@ export default function CategoryFilter({ categories, products: productos, select
       // haya exactamente una categoría vigente.
       onChange={(_, valor) => valor !== null && onChange(valor)}
       aria-label="Filtrar por categoría"
-      sx={{ gap: 1 }}
+      sx={{ gap: 1, flexWrap: { xs: 'nowrap', md: 'wrap' }, '& .MuiToggleButton-root': { flex: 'none' } }}
     >
       {categories.map((cat) => (
         <ToggleButton key={cat} value={cat} sx={pildora}>
@@ -81,5 +83,6 @@ export default function CategoryFilter({ categories, products: productos, select
         </ToggleButton>
       ))}
     </ToggleButtonGroup>
+    </Box>
   )
 }
