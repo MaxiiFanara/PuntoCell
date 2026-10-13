@@ -47,8 +47,10 @@ const pildora = (t) => ({
   },
 })
 
-export default function CategoryFilter({ categories, selected, onChange }) {
-  const { products } = useProducts()
+export default function CategoryFilter({ categories, products: productos, selected, onChange }) {
+  const { products: todos } = useProducts()
+  // El catálogo pasa solo los productos con stock; sin esa prop se usa el catálogo completo.
+  const products = productos ?? todos
 
   // La cuenta sale del catálogo completo, no del listado ya filtrado: si saliera
   // de ahí, elegir una categoría dejaría a todas las demás en cero.

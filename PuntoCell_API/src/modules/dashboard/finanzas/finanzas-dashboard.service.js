@@ -63,6 +63,23 @@ export default class FinanzasDashboardService {
     const gran = query.granularity || 'month'
     const { from, to } = this._resolveRange(query, 5)
     const idSucursal = resolveIdSucursal(query)
+    // fuente=operaciones: ingresos = ventas, egresos = compras (lo que muestra el dashboard financiero).
+    // Sin ese parámetro se conserva el cálculo histórico sobre movimientos de caja.
+    if (String(query.fuente ?? '').toLowerCase() === 'operaciones') {
+      const ventas = plainList(await models.Venta.findAll({ where: rangeToWhere('Fecha', from, to), attributes: ['Id', 'Fecha', 'TotalVenta'], include: buildVentaIncludes(idSucursal).slice(0, 1) }))
+      const compras = plainList(await models.Compra.findAll({ where: { ...rangeToWhere('Fecha', from, to), ...(idSucursal !== null ? { IdSucursalDestino: idSucursal } : {}) }, attributes: ['Id', 'Fecha', 'TotalCosto'] }))
+      const porPeriodo = new Map()
+      const bucketDe = (fecha) => {
+        const period = periodKey(fecha, gran)
+        if (!porPeriodo.has(period)) porPeriodo.set(period, { period, ingresos: 0, egresos: 0 })
+        return porPeriodo.get(period)
+      }
+      for (const venta of ventas) bucketDe(venta.Fecha).ingresos += toNumber(venta.TotalVenta)
+      for (const compra of compras) bucketDe(compra.Fecha).egresos += toNumber(compra.TotalCosto)
+      const serieOperaciones = Array.from(porPeriodo.values()).sort((a, b) => String(a.period).localeCompare(String(b.period)))
+      if (this.bitacoraService && ctx) await auditar(this.bitacoraService, ctx, 'Consultó ingresos vs egresos', `from=${from.toISOString()} to=${to.toISOString()}`)
+      return { period: { from: from.toISOString(), to: to.toISOString(), granularity: gran }, series: serieOperaciones }
+    }
     const rows = plainList(await models.MovimientoCaja.findAll({ where: rangeToWhere('Fecha', from, to), attributes: ['Id', 'Fecha', 'TipoMovimiento', 'Monto'], include: buildMovimientoCajaIncludes(idSucursal), order: [['Fecha', 'ASC']], limit: 1000 }))
     const map = new Map()
     for (const movimiento of rows) {

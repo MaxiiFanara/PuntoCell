@@ -1,4 +1,5 @@
 import { mapVigentePorInventario, precioVigenteEntreListas, idsListasMayoristas, preciosService } from './preciosServices'
+import { toast } from 'sonner'
 
 // Mismo origen que el front: en desarrollo Vite reenvía /api a la API (ver el
 // proxy en vite.config.js). Mantenerlo same-origin es lo que hace que la cookie
@@ -27,6 +28,10 @@ export const fetchApi = async (endpoint, options = {}) => {
       message = data.message || (Array.isArray(data.errors) ? data.errors.join(' | ') : null) || `Error ${res.status}`
     } catch {
       message = `Error ${res.status}`
+    }
+    // La API rechaza cargar operaciones con dinero si no hay turno de caja abierto
+    if (res.status === 409 && /caja est[aá] cerrada/i.test(message)) {
+      toast.warning(message, { id: 'caja-cerrada', duration: 6000 })
     }
     const err = new Error(message)
     err.status = res.status
@@ -348,6 +353,19 @@ export const getCajaResumen = async (params = {}) => {
 export const getTurnoActual = async () => {
   const res = await fetchApi('/caja/turno-actual');
   return res?.data ?? null;
+};
+
+// Se usa al iniciar una acción con dinero (cobrar, registrar compra o reparación): avisa antes
+// de que el usuario cargue datos. Si la consulta falla no bloquea: la API vuelve a validar al guardar.
+export const verificarCajaAbierta = async () => {
+  try {
+    const turno = await getTurnoActual();
+    if (turno) return true;
+    toast.warning('La caja está cerrada. Abra la caja para poder continuar.', { id: 'caja-cerrada', duration: 6000 });
+    return false;
+  } catch {
+    return true;
+  }
 };
 
 export const abrirCaja = async (payload) => {

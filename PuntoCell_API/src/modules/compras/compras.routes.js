@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { validateFields } from '../../core/middlewares/validateFields.middleware.js';
+import { requireCajaAbierta } from '../../core/middlewares/caja.middleware.js';
 import { proveedorSchema, proveedorUpdateSchema } from './proveedor/proveedor.dto.js';
 import { compraSchema, compraUpdateSchema } from './compra/compra.dto.js';
 import { detalleCompraSchema, detalleCompraUpdateSchema } from './detalle-compra/detalle-compra.dto.js';
@@ -42,7 +43,7 @@ export default (container) => {
   router.get('/compras', compraController.getAll);
   //router.get('/compras', () => { throw new Error('Fallo simulado para probar el informe'); });
   router.get('/compras/:id', compraController.getById);
-  router.post('/compras', validateFields(compraSchema), compraController.create);
+  router.post('/compras', validateFields(compraSchema), requireCajaAbierta(), compraController.create);
   router.put('/compras/:id', validateFields(compraUpdateSchema), compraController.update);
   router.delete('/compras/:id', compraController.delete);
 
@@ -72,7 +73,7 @@ export default (container) => {
   // PUT/DELETE: un pago registrado es inmutable.
   router.get('/pagos-compra', pagoCompraController.getAll);
   router.get('/pagos-compra/:id', pagoCompraController.getById);
-  router.post('/pagos-compra', validateFields(pagoCompraSchema), pagoCompraController.create);
+  router.post('/pagos-compra', validateFields(pagoCompraSchema), requireCajaAbierta(), pagoCompraController.create);
 
   // Analíticas / Dashboard - Compras
   router.get('/analitica/evolucion-costo', comprasDashboardController.evolucionCostoCompras);

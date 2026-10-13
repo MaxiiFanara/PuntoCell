@@ -21,8 +21,6 @@ import AdminLayout from './layouts/AdminLayout';
 import LandingPage from './features/landing/views/LandingPage';
 import PuntoVentaScreen from './features/punto-venta/views/PuntoVentaScreen';
 import UsersScreen from './features/admin/views/usuarios/UsersScreen';
-import RolesScreen from './features/admin/views/roles/RolesScreen';
-import PermissionsScreen from './features/admin/views/permisos/PermissionsScreen';
 import BitacoraList from './features/admin/views/bitacora/BitacoraList';
 import HistorialVentas from './features/venta/views/HistorialVentas';
 import TicketVenta from './features/venta/views/TicketVenta';
@@ -173,8 +171,6 @@ const App = () => (
         }>
           <Route index element={<Navigate to="/app/admin/usuarios" replace />} />
           <Route path="usuarios" element={<UsersScreen />} />
-          <Route path="roles" element={<RolesScreen />} />
-          <Route path="permisos" element={<PermissionsScreen />} />
           {/* Ya no está BitacoraList aquí adentro */}
         </Route>
 

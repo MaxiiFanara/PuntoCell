@@ -19,6 +19,7 @@ import ModalBuscarCliente from '../components/modals/ModalBuscarCliente'
 import ModalBuscarDispositivo from '../components/modals/ModalBuscarDispositivo'
 import AsistenteTecnicoChat from '../components/modals/AsistenteTecnicoChat'
 import { useOrdenes } from '../hooks/useOrdenes'
+import { verificarCajaAbierta } from '../services/api'
 import { useCatalogos } from '../hooks/useCatalogos'
 import { usePermisos } from '../hooks/usePermisos'
 import { useAuth } from '../context/AuthContext'
@@ -64,7 +65,7 @@ const ReparacionesPage = () => {
   const notify = (msg, severity = 'success') => setSnack({ open: true, msg, severity })
 
   const handleRowClick     = (o) => setOrdenSeleccionada((prev) => prev?.NumOrden === o.NumOrden ? null : o)
-  const handleNueva        = () => setModalReparacion({ open: true, modoEdicion: false, modoSoloLectura: false })
+  const handleNueva        = async () => { if (await verificarCajaAbierta()) setModalReparacion({ open: true, modoEdicion: false, modoSoloLectura: false }) }
   const handleModificar    = () => { if (ordenSeleccionada) setModalReparacion({ open: true, modoEdicion: true,  modoSoloLectura: false }) }
   const handleVerDetalle   = () => { if (ordenSeleccionada) setModalReparacion({ open: true, modoEdicion: false, modoSoloLectura: true  }) }
   const handleGuardado     = () => { recargar(); setOrdenSeleccionada(null); notify(modalReparacion.modoEdicion ? 'Orden actualizada.' : 'Reparación registrada.') }

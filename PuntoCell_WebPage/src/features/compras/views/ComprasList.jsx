@@ -11,6 +11,7 @@ import CompraCreateModal from '../components/CompraCreateModal';
 import PageHeader from '../../../components/ui/PageHeader';
 
 import { comprasService, ESTADO_PAGO } from '../../../services/comprasServices';
+import { verificarCajaAbierta } from '../../../services/api';
 
 // Normaliza una Compra de la API + el nombre de proveedor resuelto aparte.
 const normalizar = (c, proveedoresMap) => ({
@@ -74,7 +75,7 @@ export default function ComprasList() {
             <Button
               variant="contained"
               startIcon={<AddIcon sx={{ fontSize: '16px !important' }} />}
-              onClick={() => setOpenCreate(true)}
+              onClick={async () => { if (await verificarCajaAbierta()) setOpenCreate(true) }}
             >
               Registrar compra
             </Button>

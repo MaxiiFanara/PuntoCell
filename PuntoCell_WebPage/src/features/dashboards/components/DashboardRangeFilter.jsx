@@ -84,7 +84,6 @@ export default function DashboardRangeFilter({
 
             <DatePicker label="Desde" value={range.from ? dayjs(range.from) : null} onChange={(value) => onChangeFrom(value ? value.format('YYYY-MM-DD') : '')} format="DD/MM/YYYY" slotProps={{ textField: { size: 'small', sx: { minWidth: 140 } } }} />
             <DatePicker label="Hasta" value={range.to ? dayjs(range.to) : null} onChange={(value) => onChangeTo(value ? value.format('YYYY-MM-DD') : '')} format="DD/MM/YYYY" slotProps={{ textField: { size: 'small', sx: { minWidth: 140 } } }} />
-            <FormControlLabel control={<Checkbox checked={seeAll} onChange={(event) => onToggleSeeAll(event.target.checked)} size="small" />} label={<Typography sx={{ fontSize: '0.85rem' }}>Ver todo</Typography>} sx={{ mr: 0 }} />
           </Box>
         </LocalizationProvider>
 

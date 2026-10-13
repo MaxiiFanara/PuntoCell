@@ -161,17 +161,17 @@ export default function DashboardFinanciero() {
     );
 
     // 1. Gráfico de Líneas (Flujo Neto Mensual: Ingresos - Egresos)
-    const baseDash = dashboardsMulti[compareBranches[0]] || emptyFinancieroDashboard;
-    const xAxisMeses = baseDash.ingresosEgresos?.meses || ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'];
+    // Períodos de todas las sucursales (cada una puede tener meses distintos): se alinean por período
+    const periodosSet = new Set();
+    compareBranches.forEach(id => { (dashboardsMulti[id]?.ingresosEgresos?.meses || []).forEach(m => periodosSet.add(m)); });
+    const xAxisMeses = Array.from(periodosSet).sort();
     const seriesFlujoNeto = compareBranches.map((id, index) => {
       const sucursal = sucursalesLista.find(s => String(s.id) === String(id));
-      const d = dashboardsMulti[id] || emptyFinancieroDashboard;
-      const ingresos = d.ingresosEgresos?.ingresos || [];
-      const egresos = d.ingresosEgresos?.egresos || [];
-      const flujoNetoData = ingresos.map((ing, i) => ing - (egresos[i] || 0));
-      
+      const ie = dashboardsMulti[id]?.ingresosEgresos;
+      const netoPorPeriodo = new Map((ie?.meses || []).map((mes, i) => [mes, (ie.ingresos?.[i] || 0) - (ie.egresos?.[i] || 0)]));
+
       return { 
-        data: flujoNetoData, 
+        data: xAxisMeses.map(mes => netoPorPeriodo.get(mes) || 0), 
         color: PALETA_COMPARACION[index % PALETA_COMPARACION.length], 
         label: sucursal ? sucursal.nombre : 'Global', 
         showMark: true 
