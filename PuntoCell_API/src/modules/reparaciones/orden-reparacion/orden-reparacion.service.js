@@ -554,8 +554,9 @@ if (!idClienteAsignado) {
         {
           association: 'dispositivo',
           include: [
-            { association: 'modelo', attributes: ['Nombre'] },
-            { association: 'cliente', attributes: ['Nombre', 'Apellido', 'DNI'] }
+            // Marca y categoría del modelo: el front las usa para Tipo/Marca del modal y del PDF
+            { association: 'modelo', attributes: ['Nombre', 'IdCategoriaArticulo'], include: [{ association: 'marca', attributes: ['Nombre'] }] },
+            { association: 'cliente', attributes: ['Nombre', 'Apellido', 'DNI', 'Celular', 'Email'] }
           ]
         },
         { association: 'empleado', attributes: ['Nombre', 'Apellido'] },
