@@ -118,7 +118,7 @@ ENCRYPTION_KEY=una_clave_de_16_caracteres_minimo
 # --- SERVIDOR DE CORREOS (SMTP) ---
 EMAIL_PORT=587
 EMAIL_USER=estudiosfanara@gmail.com
-SMTP_PASS=aimd xwng ikbe nykz$$
+SMTP_PASS=ksge khvq yzgv gojb
  
 MP_ACCESS_TOKEN=APP_USR-4397245369288848-091620-201c968d13ef005ca44ed20b27f1a6d4-3696662934
 MP_BACK_URL_BASE=http://localhost:5176
