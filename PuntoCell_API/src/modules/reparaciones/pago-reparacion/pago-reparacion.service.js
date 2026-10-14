@@ -35,7 +35,7 @@ export default class PagoReparacionService {
           IdTurnoCaja: data.IdTurnoCaja,
           IdEmpleado: ctx?.IdEmpleado,
           Monto: data.Monto,
-          Descripcion: `Pago de reparación Id=${data.IdOrdenReparacion}`,
+          Descripcion: 'Pago de reparación',
           Fecha: creado.FechaPago
         }, { transaction: t });
       }

@@ -42,3 +42,8 @@ export const limpiarMiles = (visual) => {
   const sinMiles = String(visual).replace(/\./g, '').replace(',', '.');
   return soloDecimalNoNegativo(sinMiles);
 };
+
+// Quita identificadores internos ("Id=337", "#15") de textos libres que se muestran
+// al usuario operativo. Los ids solo los ve el rol analista.
+export const ocultarIds = (texto) =>
+  String(texto ?? '').replace(/\s*(?:\bId\s*=\s*|#)\d+/gi, '').replace(/\s{2,}/g, ' ').trim();

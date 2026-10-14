@@ -10,6 +10,7 @@ import dayjs from 'dayjs';
 
 import PageHeader from '../../../components/ui/PageHeader';
 import { toast } from 'sonner';
+import { ocultarIds } from '../../../utils/format';
 import { 
   getCajaMovimientos, 
   getTurnoActual, 
@@ -255,7 +256,7 @@ export default function CajaList() {
                       </TableCell>
                       
                       <TableCell sx={{ minWidth: 250, maxWidth: 400, whiteSpace: 'normal' }}>
-                        {mov.Descripcion}
+                        {ocultarIds(mov.Descripcion)}
                       </TableCell>
 
                       <TableCell>

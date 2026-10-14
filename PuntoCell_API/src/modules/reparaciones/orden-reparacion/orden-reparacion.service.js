@@ -335,7 +335,7 @@ if (!idClienteAsignado) {
             IdTurnoCaja: sena.IdTurnoCaja,
             IdEmpleado: idEmpleadoSesion,
             Monto: sena.Monto,
-            Descripcion: `Seña de reparación Id=${nuevaOrden.Id}`,
+            Descripcion: 'Seña de reparación',
             Fecha: new Date()
           }, { transaction: t });
         }
@@ -486,7 +486,7 @@ if (!idClienteAsignado) {
               IdTurnoCaja: pagoFinal.IdTurnoCaja,
               IdEmpleado: idEmpleadoSesion,
               Monto: saldo,
-              Descripcion: `Pago final de reparación Id=${idOrden}`,
+              Descripcion: 'Pago final de reparación',
               Fecha: new Date()
             }, { transaction: t });
           }
