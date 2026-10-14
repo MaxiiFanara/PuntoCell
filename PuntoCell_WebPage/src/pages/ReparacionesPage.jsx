@@ -4,7 +4,6 @@ import {
   DialogContent, DialogContentText, DialogActions,
   Button, Box, Fab,
 } from '@mui/material'
-import AddIcon from '@mui/icons-material/Add'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined'
 import PageHeader from '../components/ui/PageHeader'
@@ -85,13 +84,6 @@ const ReparacionesPage = () => {
         eyebrow="Reparaciones"
         title="Órdenes de reparación"
         meta={`${ordenes.length} ${ordenes.length === 1 ? 'orden listada' : 'órdenes listadas'}`}
-        action={
-          permisos.puedeRegistrar && (
-            <Button variant="contained" startIcon={<AddIcon />} onClick={handleNueva}>
-              Registrar Reparación
-            </Button>
-          )
-        }
       />
 
       {showMetrics && (

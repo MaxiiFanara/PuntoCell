@@ -24,6 +24,12 @@ import { toast } from 'sonner';
 
 const ID_TURNO_CAJA = 1; // seed fijo — el módulo de caja de la API todavía no está expuesto
 const hoy = () => new Date().toISOString().slice(0, 10);
+// Fecha local de hoy (YYYY-MM-DD) para el mínimo de la garantía: toISOString usa UTC y
+// después de las 21 h en Argentina ya devolvería el día siguiente.
+const hoyLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 // Categorías que NO se muestran cuando el ítem nuevo es "no serializado".
 const CATEGORIAS_EXCLUIDAS_NO_SERIAL = /smartphone|notebook|tablet/i;
@@ -247,6 +253,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
     if (!idSucursal) return setError('Elegí la sucursal destino.');
     if (!lineas.length) return setError('Agregá al menos un ítem.');
     if (!garantiaLocal) return setError('Indicá la fecha de garantía local (aplica a los ítems nuevos).');
+    if (garantiaLocal < hoyLocal()) return setError('La fecha de garantía local no puede ser anterior a hoy.');
 
     for (const [i, l] of lineas.entries()) {
       const n = i + 1;
@@ -376,7 +383,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
               </TextField>
             </Grid>
             <Grid size={{ xs: 12, sm: 2 }}>
-              <TextField fullWidth size="small" type="date" label="Garantía local" InputLabelProps={{ shrink: true }} value={garantiaLocal} onChange={(e) => setGarantiaLocal(e.target.value)} />
+              <TextField fullWidth size="small" type="date" label="Garantía local" InputLabelProps={{ shrink: true }} inputProps={{ min: hoyLocal() }} value={garantiaLocal} onChange={(e) => setGarantiaLocal(e.target.value)} />
             </Grid>
           </Grid>
         </Box>
