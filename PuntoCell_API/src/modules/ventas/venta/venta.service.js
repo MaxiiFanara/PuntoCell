@@ -144,6 +144,7 @@ export default class VentaService {
               IdTurnoCaja: pagoVenta.IdTurnoCaja,
               IdEmpleado: ventaData.IdEmpleado,
               Monto: pagoVenta.Monto,
+              IdMetodoPago: pagoVenta.IdMetodoPago,
               Descripcion: `Cobro de venta #${ventaId} - Cliente: ${nombreCliente}`,
               Fecha: pagoVenta.FechaPago
             }, { transaction: t });

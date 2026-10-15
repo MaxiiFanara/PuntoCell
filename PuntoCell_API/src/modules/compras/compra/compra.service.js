@@ -279,6 +279,7 @@ export default class CompraService {
             IdTurnoCaja: data.IdTurnoCaja,
             IdEmpleado: data.IdEmpleado,
             Monto: pagoCompra.Monto,
+            IdMetodoPago: pagoCompra.IdMetodoPago,
             Descripcion: `Pago a Proveedor: ${proveedor.Nombre} - Compra #${compra.Id}`,
             Fecha: pagoCompra.FechaPago
           }, { transaction: t });

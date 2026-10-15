@@ -56,6 +56,15 @@ export default class CajaService {
     ];
   }
 
+  async _metodoAfectaCaja(idMetodoPago, transaction = null) {
+    const { MetodoPago } = this.models || {};
+    if (!MetodoPago) return true;
+    const metodo = await MetodoPago.findByPk(idMetodoPago, { transaction });
+    if (!metodo) return true;
+    const nombre = String(metodo.Nombre || '').trim().toLowerCase();
+    return nombre === 'efectivo' || nombre.startsWith('billetera virtual');
+  }
+
   async registrarMovimiento({
     IdTurnoCaja,
     IdEmpleado,
@@ -74,6 +83,10 @@ export default class CajaService {
     if (!Descripcion) throw bizError('La descripción del movimiento de caja es requerida.');
 
     const { MovimientoCaja, TurnoCaja } = this._getModels();
+
+    // A caja solo entran operaciones en efectivo o billetera virtual (qr/alias).
+    if (!(await this._metodoAfectaCaja(IdMetodoPago || 1, transaction))) return null;
+
     const turno = await TurnoCaja.findByPk(IdTurnoCaja, {
       transaction,
       lock: transaction?.LOCK?.UPDATE

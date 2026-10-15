@@ -62,6 +62,7 @@ export default class PagoVentaService {
           IdTurnoCaja: data.IdTurnoCaja,
           IdEmpleado: auditContext?.IdEmpleado || venta?.IdEmpleado,
           Monto: payload.Monto,
+          IdMetodoPago: payload.IdMetodoPago,
           Descripcion: data.Observacion && data.Observacion.toLowerCase().includes('cuota') 
             ? `Cobro de cuota - Venta #${data.IdVenta} - Cliente: ${nombreCliente}` 
             : `Cobro de venta #${data.IdVenta} - Cliente: ${nombreCliente}`,

@@ -240,6 +240,7 @@ export default function CajaList() {
                 movimientos.map((mov) => {
                   const idMetodo = Number(mov.IdMetodoPago || 1);
                   const isEfectivo = idMetodo === 1;
+                  const nombreMetodo = isEfectivo ? 'Efectivo' : 'Billetera virtual (QR/Alias)';
 
                   return (
                     <TableRow key={mov.Id} hover>
@@ -262,7 +263,7 @@ export default function CajaList() {
                       <TableCell>
                         <Chip 
                           icon={isEfectivo ? <Payments fontSize="small" /> : <AccountBalance fontSize="small" />}
-                          label={isEfectivo ? 'Efectivo' : 'Transferencia'} 
+                          label={nombreMetodo} 
                           size="small" 
                           sx={{ 
                             bgcolor: isEfectivo ? 'rgba(18, 104, 78, 0.1)' : 'rgba(23, 118, 210, 0.1)', 
@@ -296,7 +297,7 @@ export default function CajaList() {
       <Dialog open={formMovimiento.open} onClose={() => setFormMovimiento({ ...formMovimiento, open: false })} maxWidth="sm" fullWidth>
         <form onSubmit={handleRegistrarMovimiento}>
           <DialogTitle fontWeight="bold">
-            Registrar {formMovimiento.tipo === 'ingreso' ? 'Nuevo Ingreso' : 'Nuevo Egreso'} Manual
+            {formMovimiento.tipo === 'ingreso' ? 'Registrar Ingreso en Caja' : 'Registrar Egreso en Caja'}
           </DialogTitle>
           <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, mt: 1 }}>
             <Box sx={{ display: 'flex', gap: 2 }}>
@@ -313,7 +314,7 @@ export default function CajaList() {
                 >
                   {/* Coinciden con los IDs del SQL[cite: 10] */}
                   <MenuItem value={1}>Efectivo</MenuItem>
-                  <MenuItem value={3}>Transferencia Bancaria</MenuItem>
+                  <MenuItem value={2}>Billetera virtual (QR/Alias)</MenuItem>
                 </Select>
               </FormControl>
             </Box>

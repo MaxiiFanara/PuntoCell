@@ -205,7 +205,7 @@ export default function AsistenteTecnicoChat({ open, onClose, ordenSeleccionada,
           disabled={loading}
           sx={{ alignSelf: 'flex-start' }}
         >
-          Nueva conversación
+          Reiniciar conversación
         </Button>
         <TextField
           value={mensaje}

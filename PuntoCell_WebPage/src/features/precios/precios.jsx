@@ -421,7 +421,7 @@ function ListaDialog({ lista, categorias, onClose, onSaved }) {
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        {esNuevo ? 'Nueva lista de precios' : 'Editar lista de precios'}
+        {esNuevo ? 'Registrar lista de Precios' : 'Editar lista de precios'}
         <IconButton onClick={onClose} size="small" aria-label="Cerrar"><CloseIcon sx={{ fontSize: 17 }} /></IconButton>
       </DialogTitle>
       <DialogContent sx={{ pt: 3 }}>
