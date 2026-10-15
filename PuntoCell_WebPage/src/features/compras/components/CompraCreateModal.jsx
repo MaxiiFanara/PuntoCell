@@ -408,7 +408,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
               <FormControlLabel
                 control={<Switch size="small" checked={l.nuevo} onChange={(e) => setLinea(i, { nuevo: e.target.checked })} />}
-                label={<Typography variant="body2">Registrar artículo</Typography>}
+                label={<Typography variant="body2">Artículo nuevo</Typography>}
               />
               {lineas.length > 1 && (
                 <IconButton size="small" color="error" onClick={() => setLineas((p) => p.filter((_, idx) => idx !== i))}>
