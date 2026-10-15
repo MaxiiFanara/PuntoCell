@@ -19,7 +19,7 @@ import {
   registrarMovimientoCaja 
 } from '../../../services/api';
 
-const currencyFormatter = (value) => `$ ${Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+const currencyFormatter = (value) => `U$S ${Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
 
 export default function CajaList() {
   const [loading, setLoading] = useState(true);
@@ -230,7 +230,7 @@ export default function CajaList() {
                 <TableCell sx={{ fontWeight: 'bold' }}>Concepto / Detalle</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Medio de Pago</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Usuario</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Monto ($)</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Monto (U$S)</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -301,7 +301,7 @@ export default function CajaList() {
           <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, mt: 1 }}>
             <Box sx={{ display: 'flex', gap: 2 }}>
               <TextField 
-                autoFocus fullWidth required label="Monto ($)" type="number" inputProps={{ step: "0.01", min: "0.01" }} 
+                autoFocus fullWidth required label="Monto (U$S)" type="number" inputProps={{ step: "0.01", min: "0.01" }} 
                 value={formMovimiento.monto} onChange={(e) => setFormMovimiento({ ...formMovimiento, monto: e.target.value })}
               />
               <FormControl fullWidth required>
@@ -338,7 +338,7 @@ export default function CajaList() {
           <DialogContent>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>Ingresá el efectivo físico con el que inicia la jornada.</Typography>
             <TextField 
-              autoFocus fullWidth required label="Monto Inicial en Caja ($)" type="number" inputProps={{ step: "0.01", min: "0" }} 
+              autoFocus fullWidth required label="Monto Inicial en Caja (U$S)" type="number" inputProps={{ step: "0.01", min: "0" }} 
               value={modalAbrir.monto} onChange={(e) => setModalAbrir({ ...modalAbrir, monto: e.target.value })}
             />
           </DialogContent>
@@ -361,7 +361,7 @@ export default function CajaList() {
             
             <Typography variant="body2" color="text.secondary">Contá el dinero físico e ingresalo para ver la diferencia.</Typography>
             <TextField 
-              autoFocus fullWidth required label="Dinero Físico Contado ($)" type="number" inputProps={{ step: "0.01", min: "0" }} 
+              autoFocus fullWidth required label="Dinero Físico Contado (U$S)" type="number" inputProps={{ step: "0.01", min: "0" }} 
               value={modalCerrar.monto} onChange={(e) => setModalCerrar({ ...modalCerrar, monto: e.target.value })}
             />
             
