@@ -334,7 +334,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
                 </Box>
               )}
               <Box sx={{ mt: 1.25, p: '11px 13px', borderRadius: '9px', bgcolor: 'pc.accentSoft', color: 'primary.main' }}>
-                <Box sx={{ typography: 'eyebrow', color: 'inherit', opacity: .75 }}>Total a pagar</Box>
+                <Box sx={{ typography: 'eyebrow', color: 'inherit', opacity: .75 }}>Total a cobrar</Box>
                 <Box className="num" sx={{ fontSize: '1.6rem', fontWeight: 600, letterSpacing: '-.04em', lineHeight: 1.1 }}>
                   {dolares(totalAjustado)}
                 </Box>
@@ -344,7 +344,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
           </Columna>
 
           {/* ── Pagos registrados ──────────────────────────── */}
-          <Columna titulo="Pagos registrados">
+          <Columna titulo="Cobros registrados">
             <Box sx={{
               flex: 1, minHeight: 200, borderRadius: '9px',
               border: 1, borderColor: 'divider', bgcolor: 'pc.surfaceMuted', overflow: 'auto',
@@ -389,7 +389,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
 
             <Box sx={{ p: '11px 13px', borderRadius: '9px', border: 1, borderColor: 'divider' }}>
               <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.25, fontSize: '.78rem' }}>
-                <Box sx={{ color: 'text.secondary' }}>Pagado</Box>
+                <Box sx={{ color: 'text.secondary' }}>Cobrado</Box>
                 <Box className="num" sx={{ fontWeight: 600 }}>{dolares(totalPagado)}</Box>
               </Box>
               <Box sx={{
@@ -412,8 +412,8 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
           </Columna>
 
           {/* ── Nuevo pago ─────────────────────────────────── */}
-          <Columna titulo="Agregar un pago">
-            <Campo label="Forma de pago">
+          <Columna titulo="Agregar un cobro">
+            <Campo label="Forma de cobro">
               <Select
                 fullWidth size="small" displayEmpty
                 value={metodoPago || ''}
