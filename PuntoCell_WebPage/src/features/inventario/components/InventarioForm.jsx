@@ -232,7 +232,7 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
               variant="outlined"
               sx={{ minWidth: '40px', px: 1 }}
               onClick={() => setModalModeloOpen(true)}
-              title="Crear nuevo modelo"
+              title="Crear modelo"
             >
               +
             </Button>

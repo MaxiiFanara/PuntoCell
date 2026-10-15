@@ -21,6 +21,7 @@ import { useVenta } from '../../punto-venta/context/VentaContext';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import ImeiScannerModal from '../../../components/modals/ImeiScannerModal';
 import { toast } from 'sonner';
+import { esEfectivoNombre, redondearEfectivo } from '../../../utils/efectivo';
 
 const ID_TURNO_CAJA = 1; // seed fijo — el módulo de caja de la API todavía no está expuesto
 const hoy = () => new Date().toISOString().slice(0, 10);
@@ -308,13 +309,19 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
         });
       }
 
+      // En efectivo el pago es siempre un importe entero (el backend lo toma como saldado si
+      // coincide con el total redondeado).
+      const pagoEnEfectivo = esEfectivoNombre(
+        cat.metodos.find((x) => String(x.Id ?? x.id) === String(idMetodoPago))?.Nombre
+        ?? cat.metodos.find((x) => String(x.Id ?? x.id) === String(idMetodoPago))?.nombre
+      );
       let pagos = [];
       if (condicion === 'contado') {
-        pagos = [{ IdMetodoPago: Number(idMetodoPago), Monto: Number(total.toFixed(2)) }];
+        pagos = [{ IdMetodoPago: Number(idMetodoPago), Monto: pagoEnEfectivo ? redondearEfectivo(total) : Number(total.toFixed(2)) }];
       } else if (condicion === 'parcial') {
         const m = Number(montoParcial);
         if (!m || m <= 0 || m >= total) { setGuardando(false); return setError('El monto parcial debe ser mayor a 0 y menor al total.'); }
-        pagos = [{ IdMetodoPago: Number(idMetodoPago), Monto: Number(m.toFixed(2)) }];
+        pagos = [{ IdMetodoPago: Number(idMetodoPago), Monto: pagoEnEfectivo ? redondearEfectivo(m) : Number(m.toFixed(2)) }];
       }
 
       const payload = {
@@ -401,7 +408,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
               <FormControlLabel
                 control={<Switch size="small" checked={l.nuevo} onChange={(e) => setLinea(i, { nuevo: e.target.checked })} />}
-                label={<Typography variant="body2">Artículo nuevo</Typography>}
+                label={<Typography variant="body2">Registrar artículo</Typography>}
               />
               {lineas.length > 1 && (
                 <IconButton size="small" color="error" onClick={() => setLineas((p) => p.filter((_, idx) => idx !== i))}>

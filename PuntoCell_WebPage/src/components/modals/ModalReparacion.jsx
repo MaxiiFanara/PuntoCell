@@ -122,6 +122,12 @@ const ModalReparacion = ({
     getMetodosPagoReparacion().then(setMetodosPago).catch(() => setMetodosPago([]))
   }, [])
 
+  // En efectivo la seña se cobra en un importe entero (redondeado al entero más cercano).
+  const senaEsEfectivo = /efectivo/i.test(metodosPago.find(m => String(m.id) === String(form.idMetodoPagoSena))?.nombre || '')
+  const montoSenaFinal = senaEsEfectivo && Math.round(Number(form.montoSena)) > 0
+    ? Math.round(Number(form.montoSena))
+    : Number(form.montoSena)
+
   // Solo Admin/Encargado (coincide con isAdmin del backend en POST /reparaciones/fallas)
   const puedeGestionarFallas = usuario?.rol === 1 || usuario?.rol === 2
 
@@ -454,7 +460,7 @@ const ModalReparacion = ({
           ...(form.observacionIngreso && { observacionIngreso: form.observacionIngreso }),
           ...(Number(form.montoSena) > 0 && {
             sena: {
-              Monto:         Number(form.montoSena),
+              Monto:         montoSenaFinal,
               IdMetodoPago:  Number(form.idMetodoPagoSena),
               IdTurnoCaja:   1,
             },
@@ -681,7 +687,7 @@ const ModalReparacion = ({
                       {modelos.map(d => <MenuItem key={d.id} value={String(d.id)}>{d.nombre}</MenuItem>)}
                     </TextField>
                   </Campo>
-                  <IconButton onClick={onAbrirRegistroDispositivo} title="Agregar nuevo modelo"
+                  <IconButton onClick={onAbrirRegistroDispositivo} title="Agregar modelo"
                     sx={{ border: 1, borderColor: 'divider', borderRadius: '7px', height: 32, width: 32 }}>
                     <AddCircleOutlineIcon fontSize="small" />
                   </IconButton>
@@ -1003,8 +1009,8 @@ const ModalReparacion = ({
                 <Box sx={{ mt: 1.5, p: '10px 12px', borderRadius: '9px', bgcolor: 'warning.light', display: 'flex', alignItems: 'center', gap: 1 }}>
                   <LocalAtmIcon sx={{ fontSize: 16, color: 'warning.main' }} />
                   <Typography className="num" sx={{ fontSize: '.8rem', color: 'warning.main', fontWeight: 600 }}>
-                    Seña registrada: U$S {Number(form.montoSena).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    {' '}(≈ $ {Math.round(Number(form.montoSena) * dolarGlobal).toLocaleString('es-AR')}) — El resto se cobrará al entregar.
+                    Seña registrada: U$S {montoSenaFinal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {' '}(≈ $ {Math.round(montoSenaFinal * dolarGlobal).toLocaleString('es-AR')}) — El resto se cobrará al entregar.
                   </Typography>
                 </Box>
               )}

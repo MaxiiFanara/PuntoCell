@@ -1,6 +1,7 @@
 import { Op } from 'sequelize';
 import { registerAudit, auditar, listaNatural, nombresProductosDeInventario } from '../../../core/utils/audit.util.js';
 import logger from '../../../core/utils/logger.js';
+import { esMetodoEfectivo, montoEfectivo } from '../../../core/utils/efectivo.util.js';
 
 const round2 = (v) => Number(Number(v || 0).toFixed(2));
 
@@ -130,10 +131,12 @@ export default class VentaService {
       // Pagos asociados
       if (pagos.length > 0 && sequelize.models.PagoVenta) {
         for (const p of pagos) {
+          // En efectivo el cobro es siempre un importe entero.
+          const montoCobro = (await esMetodoEfectivo(sequelize.models, p.IdMetodoPago, t)) ? montoEfectivo(p.Monto) : p.Monto;
           const pagoVenta = await sequelize.models.PagoVenta.create({
             IdVenta: ventaId,
             IdMetodoPago: p.IdMetodoPago,
-            Monto: p.Monto,
+            Monto: montoCobro,
             Observacion: p.Observacion || '',
             FechaPago: p.FechaPago ? new Date(p.FechaPago) : new Date(),
             IdTurnoCaja: p.IdTurnoCaja || ventaData.IdTurnoCaja

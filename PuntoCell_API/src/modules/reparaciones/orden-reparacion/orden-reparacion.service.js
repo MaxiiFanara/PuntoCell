@@ -2,6 +2,7 @@ import { sequelize } from '../../../models/index.js';
 import { auditar } from '../../../core/utils/audit.util.js';
 import { reprecificarInventario, resolverListasPrecioCategoria } from '../../../core/utils/precios.util.js';
 import logger from '../../../core/utils/logger.js';
+import { esMetodoEfectivo, montoEfectivo } from '../../../core/utils/efectivo.util.js';
 
 // Los importes se persisten en DECIMAL(18,2): sin redondear, la suma de flotantes (22.79 + 6.22 =
 // 29.009999999999998) hace que Sequelize/tedious arme un parámetro Numeric inválido.
@@ -264,10 +265,16 @@ export default class OrdenReparacionService {
   }
 
   async create(datosPaquete, idEmpleadoSesion, ctx = null) {
-    const { cliente, dispositivo, idsFallas, observacionIngreso, sena } = datosPaquete;
+    const { cliente, dispositivo, idsFallas, observacionIngreso, sena: senaOriginal } = datosPaquete;
+    let sena = senaOriginal;
     const t = await sequelize.transaction();
 
     try {
+      // En efectivo la seña es siempre un importe entero.
+      if (sena && sena.Monto > 0 && await esMetodoEfectivo(sequelize.models, sena.IdMetodoPago, t)) {
+        sena = { ...sena, Monto: montoEfectivo(sena.Monto) };
+      }
+
       // Cliente
 let idClienteAsignado = cliente.Id;
 
@@ -473,8 +480,10 @@ if (!idClienteAsignado) {
             err.statusCode = 400;
             throw err;
           }
+          // En efectivo el saldo final se cobra redondeado al entero y queda saldado.
+          const montoFinal = (await esMetodoEfectivo(sequelize.models, pagoFinal.IdMetodoPago, t)) ? montoEfectivo(saldo) : saldo;
           const pagoFinalCreado = await sequelize.models.PagoReparacion.create({
-            Monto: saldo,
+            Monto: montoFinal,
             FechaPago: sequelize.fn('SYSDATETIME'),
             Observacion: 'Saldo final al entregar',
             IdOrdenReparacion: idOrden,
@@ -486,7 +495,7 @@ if (!idClienteAsignado) {
             await this.cajaService.registrarIngreso({
               IdTurnoCaja: pagoFinal.IdTurnoCaja,
               IdEmpleado: idEmpleadoSesion,
-              Monto: saldo,
+              Monto: montoFinal,
               IdMetodoPago: pagoFinal.IdMetodoPago,
               Descripcion: 'Pago final de reparación',
               Fecha: new Date()

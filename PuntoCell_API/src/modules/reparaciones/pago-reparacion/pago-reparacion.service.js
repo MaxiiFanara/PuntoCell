@@ -1,4 +1,5 @@
 import { auditar } from '../../../core/utils/audit.util.js';
+import { esMetodoEfectivo, montoEfectivo } from '../../../core/utils/efectivo.util.js';
 
 const noEncontrado = () => { const e = new Error('Pago de reparación no encontrado'); e.statusCode = 404; return e; };
 
@@ -25,6 +26,9 @@ export default class PagoReparacionService {
     const t = await sequelize.transaction();
 
     try {
+      // En efectivo el cobro es siempre un importe entero.
+      if (await esMetodoEfectivo(sequelize.models, data.IdMetodoPago, t)) data = { ...data, Monto: montoEfectivo(data.Monto) };
+
       const creado = await this.pagoReparacionDAO.create({
         ...data,
         FechaPago: data.FechaPago ? new Date(data.FechaPago) : new Date()

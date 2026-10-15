@@ -1,5 +1,6 @@
 import { registerAudit } from '../../../core/utils/audit.util.js';
 import logger from '../../../core/utils/logger.js';
+import { esMetodoEfectivo, montoEfectivo } from '../../../core/utils/efectivo.util.js';
 
 export default class PagoVentaService {
   constructor(pagoDAO, bitacoraService = null, cajaService = null) {
@@ -46,6 +47,8 @@ export default class PagoVentaService {
       // determine Pagado flag (default to true when not provided)
       const pagadoFlag = (data.Pagado !== undefined) ? !!data.Pagado : true;
       const payload = { ...data, Pagado: pagadoFlag };
+      // En efectivo el cobro es siempre un importe entero.
+      if (await esMetodoEfectivo(models, payload.IdMetodoPago, t)) payload.Monto = montoEfectivo(payload.Monto);
 
       const pago = await this.pagoDAO.create(payload, { transaction: t });
 

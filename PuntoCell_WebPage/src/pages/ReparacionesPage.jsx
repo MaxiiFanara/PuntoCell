@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react'
 import {
   Snackbar, Alert, Dialog, DialogTitle,
   DialogContent, DialogContentText, DialogActions,
-  Button, Box, Fab,
+  Button, Box,
 } from '@mui/material'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
-import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined'
 import PageHeader from '../components/ui/PageHeader'
 import KpiCard from '../components/ui/KpiCard'
 import AccionesReparacion from '../components/layout/AccionesReparacion'
@@ -111,6 +110,7 @@ const ReparacionesPage = () => {
         onBuscarDispositivo={() => setModalBuscarDispositivo(true)}
         onRegistrarCliente={() => setModalCliente({ open: true, dniInicial: '' })}
         onRegistrarDispositivo={() => setModalDispositivo(true)}
+        onAbrirAsistente={() => setChatAbierto(true)}
       />
 
       <FiltrosReparaciones filtros={filtros} setFiltros={setFiltros} empleados={catalogos.empleados} />
@@ -172,26 +172,6 @@ const ReparacionesPage = () => {
         ordenSeleccionada={ordenSeleccionada}
         usuario={usuario}
       />
-
-      {!chatAbierto && (
-        <Fab
-          color="primary"
-          variant="extended"
-          onClick={() => setChatAbierto(true)}
-          sx={{
-            position: 'fixed',
-            right: 24,
-            bottom: 24,
-            zIndex: 1200,
-            borderRadius: '999px',
-            boxShadow: (theme) => theme.vars.palette.pc.lift,
-            '@media print': { display: 'none' },
-          }}
-        >
-          <SmartToyOutlinedIcon sx={{ mr: 1 }} />
-          Asistente técnico
-        </Fab>
-      )}
 
       {/* Confirmar anular */}
       <Dialog open={confirmarAnular} onClose={() => setConfirmarAnular(false)} PaperProps={{ sx: { maxWidth: 420 } }}>
