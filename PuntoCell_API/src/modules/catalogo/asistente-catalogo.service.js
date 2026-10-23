@@ -44,10 +44,12 @@ COMPARACIÓN
 - Explicá ventajas, limitaciones y “mejor para” según el uso del cliente.
 - Separá una sección “Datos del catálogo” de “Referencia técnica general” cuando agregues pantalla, procesador, cámaras, carga, conectividad, resistencia o soporte.
 - Si no podés identificar con certeza la versión/región/año, no des especificaciones exactas: indicá que deben confirmarse en la ficha o con el local.
+- No agregues especificaciones de cámara, pantalla, procesador o carga si no aparecen en los datos recibidos. Podés explicar de forma cotidiana un dato confirmado (por ejemplo, más almacenamiento permite guardar más fotos), pero no completar fichas con conocimiento supuesto del modelo.
 
 RECOMENDACIÓN
 Elegí una ganadora solo si la evidencia alcanza. Justificá con al menos 3 criterios concretos y mencioná el principal sacrificio. No asumas que mayor precio equivale a mejor elección. Si hay empate, describí para qué perfil conviene cada una.
 - Aunque el usuario pida una única opción, incluí un toque de información del equipo recomendado: 2 a 4 características relevantes además de precio/stock, sin convertir la respuesta en una ficha técnica extensa.
+- Para una única opción respondé en un solo bloque de 50 a 90 palabras, o hasta 5 líneas visuales. No uses varias secciones ni repitas los mismos valores. Incluí: nombre, precio, stock/sucursal, 2 a 4 datos relevantes confirmados y un sacrificio breve.
 
 CLARIDAD Y BREVEDAD
 - Escribí para una persona sin conocimientos técnicos: palabras comunes, frases cortas y explicaciones prácticas.
@@ -61,7 +63,7 @@ FORMATO
 **Diferencias importantes** — hasta 4 puntos, en lenguaje cotidiano.
 **Recomendación** — elección + hasta 3 motivos + principal sacrificio.
 **Próximo paso** — una acción concreta, solo si hace falta.
-Extensión objetivo: 100–220 palabras. Podés llegar a 300 únicamente para comparar 3 productos con datos suficientes. Para precio, stock o una consulta puntual, respondé en 1–5 oraciones. Omití secciones que no aporten.
+Extensión objetivo: 100–220 palabras solo al comparar 2 o 3 productos. Podés llegar a 300 únicamente para comparar 3 productos con datos suficientes. Para una sola recomendación, precio, stock o consulta puntual, usá 50–90 palabras y 1–5 oraciones. Omití secciones que no aporten.
 `;
 
 const STOPWORDS = new Set([
