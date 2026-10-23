@@ -83,6 +83,12 @@ const buildPrompt = ({ mensaje, contexto, historial, user }) => {
   return prompt;
 };
 
+const contieneProcedimientoInseguro = (respuesta) => {
+  const texto = String(respuesta || '');
+  return /(?:puente|puentear|cable\s+puente).{0,160}(?:bater[ií]a|terminal(?:es)?)/is.test(texto)
+    || /(?:bater[ií]a|terminal(?:es)?).{0,160}(?:puente|puentear|cable\s+puente)/is.test(texto);
+};
+
 export default class AsistenteTecnicoService {
   async consultar({ mensaje, historial = [], contexto = null, modelo = null, user = null } = {}) {
     const textoMensaje = String(mensaje || '').trim();
@@ -133,6 +139,14 @@ export default class AsistenteTecnicoService {
           maxTokens: 1800
         });
 
+        if (contieneProcedimientoInseguro(respuesta)) {
+          const unsafeError = new Error('El modelo propuso un procedimiento inseguro con la batería.');
+          unsafeError.statusCode = 502;
+          unsafeError.retryable = true;
+          unsafeError.model = selectedModel;
+          throw unsafeError;
+        }
+
         recordModelSuccess(selectedModel);
         return {
           respuesta,
@@ -154,7 +168,7 @@ export default class AsistenteTecnicoService {
       error.statusCode = 502;
     }
 
-    error.message = `No se pudo obtener una respuesta con los modelos gratuitos de OpenRouter. ${error.message}`;
+    error.message = 'Los modelos gratuitos no respondieron en este intento. Por favor, intentá nuevamente: el sistema rotará automáticamente hacia otros modelos disponibles.';
     throw error;
   }
 }

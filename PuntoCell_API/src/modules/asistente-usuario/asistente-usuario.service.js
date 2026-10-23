@@ -150,7 +150,7 @@ export default class AsistenteUsuarioService {
       error.statusCode = 502;
     }
 
-    error.message = `No se pudo obtener una respuesta con los modelos gratuitos de OpenRouter. ${error.message}`;
+    error.message = 'Los modelos gratuitos no respondieron en este intento. Por favor, intentá nuevamente: el sistema rotará automáticamente hacia otros modelos disponibles.';
     throw error;
   }
 }
