@@ -12,6 +12,7 @@ import DashboardPage from './pages/DashboardPage';
 import CatalogoLayout from './features/catalogo/layouts/CatalogoLayout';
 import CatalogPage from './features/catalogo/views/CatalogPage';
 import ProductDetail from './features/catalogo/views/ProductDetail';
+import CompararPage from './features/catalogo/views/CompararPage';
 import CheckoutPage from './features/catalogo/views/CheckoutPage';
 import PagoResultado from './features/catalogo/views/PagoResultado';
 
@@ -92,6 +93,8 @@ const App = () => (
         <Route index element={<CatalogPage />} />
         {/* Ruta de detalle: /catalogo/product/123 */}
         <Route path="product/:id" element={<ProductDetail />} />
+        {/* Comparador: /catalogo/comparar?ids=1,2 */}
+        <Route path="comparar" element={<CompararPage />} />
         {/* Checkout: /catalogo/checkout */}
         <Route path="checkout" element={<CheckoutPage />} />
         {/* Vuelta desde Mercado Pago: /catalogo/pago/resultado */}

@@ -1,8 +1,10 @@
 import { Box, IconButton, Link as MuiLink, Paper, Tooltip, Typography } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows'
 import { Link } from 'react-router-dom'
 
 import { useCart } from '../context/CartContext'
+import { useCompare, esComparable } from '../context/CompareContext'
 import { formatCurrency } from '../utils/whatsapp'
 import { formatCategoria } from '../utils/categorias'
 import ProductSpecs from './ProductSpecs'
@@ -24,6 +26,10 @@ import { hoverLift, muted, price as priceSx } from '../../../components/ui/publi
  */
 export default function ProductCard({ product }) {
   const cart = useCart()
+  // Como el carrito, solo existe dentro del catálogo (la landing no lo monta).
+  const compare = useCompare()
+  const comparable = compare && esComparable(product)
+  const enComparacion = comparable && compare.isSelected(product.id)
 
   const stock = Number.isFinite(Number(product.stock)) ? Number(product.stock) : null
   const sinStock = stock === 0
@@ -226,10 +232,37 @@ export default function ProductCard({ product }) {
           </Typography>
         )}
 
+        {comparable && (
+          <Tooltip title={enComparacion ? 'Quitar de la comparación' : compare.isFull ? 'Ya hay 3 productos para comparar' : 'Comparar'}>
+            <Box component="span" sx={{ flex: 'none', ml: 'auto' }}>
+              <IconButton
+                onClick={() => compare.toggle(product.id)}
+                disabled={!enComparacion && compare.isFull}
+                aria-pressed={enComparacion}
+                aria-label={enComparacion ? `Quitar ${product.name} de la comparación` : `Comparar ${product.name}`}
+                sx={{
+                  position: 'relative',
+                  zIndex: 1,
+                  width: 38,
+                  height: 38,
+                  border: 1,
+                  borderColor: enComparacion ? 'primary.main' : 'divider',
+                  borderRadius: '8px',
+                  color: enComparacion ? 'primary.contrastText' : 'text.primary',
+                  bgcolor: enComparacion ? 'primary.main' : 'transparent',
+                  '&:hover': { bgcolor: enComparacion ? 'primary.dark' : undefined },
+                }}
+              >
+                <CompareArrowsIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Box>
+          </Tooltip>
+        )}
+
         {cart && (
           <Tooltip title={sinStock ? 'Sin stock' : 'Agregar al carrito'}>
             {/* El span deja que el Tooltip funcione con el botón deshabilitado. */}
-            <Box component="span" sx={{ flex: 'none', ml: 'auto' }}>
+            <Box component="span" sx={{ flex: 'none', ml: comparable ? 0 : 'auto' }}>
               <IconButton
                 className="pc-add"
                 disabled={sinStock}

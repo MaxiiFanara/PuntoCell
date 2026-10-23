@@ -1,47 +1,21 @@
-import { Box, Button, Paper, Skeleton, Typography } from '@mui/material'
+import { Box, Button, Paper, Typography } from '@mui/material'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import { Link } from 'react-router-dom'
 
 import { STORE_CONFIG } from '../../catalogo/config/store'
-import { useProducts } from '../../catalogo/context/ProductContext'
-import ProductSpecs from '../../catalogo/components/ProductSpecs'
-import { formatCategoria } from '../../catalogo/utils/categorias'
-import { formatCurrency } from '../../catalogo/utils/whatsapp'
-import { btn, enter, muted, price, shell } from '../../../components/ui/publicStyles'
+import CategoriaIcon from '../../catalogo/components/CategoriaIcon'
+import ProductMedia from '../../catalogo/components/ProductMedia'
+import { btn, enter, muted, shell } from '../../../components/ui/publicStyles'
 
 const whatsappUrl = `https://wa.me/${STORE_CONFIG.business.whatsapp}`
 
-// El panel ocupa exactamente el lugar que tendría una fotografía, porque no hay
-// fotografía. Misma geometría para el esqueleto y para el producto cargado: si
-// no, el layout salta cuando termina la carga.
 const PANEL = { p: 'clamp(1.75rem, 3.5vw, 2.75rem)', borderRadius: 2 }
 
-function PanelSkeleton() {
-  return (
-    <Paper sx={PANEL}>
-      <Skeleton variant="rectangular" animation="wave" sx={{ width: '100%', height: 250, mb: 3, borderRadius: 1 }} />
-      <Skeleton variant="text" animation="wave" sx={{ fontSize: '.8125rem', width: '32%' }} />
-      <Skeleton variant="text" animation="wave" sx={{ fontSize: 'clamp(1.75rem, 3.2vw, 2.5rem)', mt: 1, width: '74%' }} />
-      <Skeleton variant="text" animation="wave" sx={{ fontSize: 'clamp(1.75rem, 3vw, 2.25rem)', mt: 3, width: '50%' }} />
+const CONSULTA_URL = `${whatsappUrl}?text=${encodeURIComponent('Hola! Quiero consultar por el iPhone 18 Pro Max')}`
 
-      <Box sx={{ mt: 2.5, pt: 2, borderTop: 1, borderColor: 'divider', display: 'grid', gap: 1 }}>
-        <Skeleton variant="text" animation="wave" sx={{ fontSize: '.9375rem' }} />
-        <Skeleton variant="text" animation="wave" sx={{ fontSize: '.9375rem' }} />
-        <Skeleton variant="text" animation="wave" sx={{ fontSize: '.9375rem' }} />
-      </Box>
-
-      <Skeleton variant="text" animation="wave" sx={{ fontSize: '.9375rem', width: '58%', mt: 3.5, pt: 2.5 }} />
-    </Paper>
-  )
-}
-
-function PanelProducto({ product }) {
-  const stock = Number(product.stock)
-  // Mismo umbral que ProductCard: tres o menos ya es "apurate".
-  const pocas = stock <= 3
-  const unidades = stock === 1 ? '1 unidad' : `${stock} unidades`
-
+// Tarjeta fija: sin precio ni stock, porque no salen del inventario.
+function PanelDestacado() {
   return (
     <Paper sx={{ ...PANEL, display: 'flex', flexDirection: 'column', position: 'relative' }}>
       <Typography
@@ -50,6 +24,7 @@ function PanelProducto({ product }) {
           position: 'absolute',
           top: 16,
           right: 16,
+          zIndex: 1,
           px: 1.25,
           py: 0.6,
           borderRadius: 99,
@@ -62,71 +37,38 @@ function PanelProducto({ product }) {
       >
         Destacado
       </Typography>
-      {product.imagenPortada && (
-        <Box
-          sx={{
-            width: '100%',
-            height: 250,
-            mb: 3,
-            borderRadius: 1,
-            overflow: 'hidden',
-            bgcolor: 'background.paper',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <img
-            src={product.imagenPortada}
-            alt={product.name}
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-            loading="lazy"
-          />
-        </Box>
-      )}
 
-      <Typography sx={{ ...muted, fontSize: '.8125rem' }}>
-        {formatCategoria(product.category)}
-      </Typography>
+      <Box sx={{ position: 'relative', width: '100%', height: 360, mb: 3 }}>
+        <ProductMedia
+          src="/models/iphone-18-pro-max.glb"
+          alt="Modelo 3D del iPhone 18 Pro Max"
+          interactive
+          orientation="90deg 0deg 0deg"
+          fallback={<CategoriaIcon categoria="Celulares" sx={{ fontSize: 96 }} />}
+        />
+      </Box>
+
+      <Typography sx={{ ...muted, fontSize: '.8125rem' }}>Celulares</Typography>
 
       <Typography component="h2" sx={{ typography: 'd2', mt: 1 }}>
-        {product.name}
+        iPhone 18 Pro Max
       </Typography>
 
-      <Typography sx={{ ...price(true), mt: 3 }}>
-        ${formatCurrency(product.price)}
-      </Typography>
-
-      <ProductSpecs product={product} />
-
-      <Typography
-        sx={{
-          mt: 3.5,
-          pt: 2.5,
-          borderTop: 1,
-          borderColor: 'divider',
-          fontSize: '.9375rem',
-          ...(pocas && { color: 'warning.main' }),
-        }}
+      <Button
+        variant="contained"
+        href={CONSULTA_URL}
+        target="_blank"
+        rel="noopener"
+        startIcon={<WhatsAppIcon />}
+        sx={{ ...btn, mt: 3, alignSelf: 'flex-start' }}
       >
-        <Box component="strong" sx={{ fontWeight: 600 }}>{unidades}</Box>
-        {stock === 1 ? ' disponible' : ' disponibles'}
-      </Typography>
+        Consultar precio
+      </Button>
     </Paper>
   )
 }
 
 export default function Hero() {
-  const { products, loading } = useProducts()
-
-  // El destacado sale del inventario real: el más caro que tenga stock. Antes era
-  // el primero del array y la vidriera terminaba mostrando una funda de $3.024.
-  // Sin nada que mostrar, el titular se queda con el ancho completo.
-  const destacado = products
-    .filter((p) => p.stock > 0)
-    .reduce((mejor, p) => (!mejor || p.price > mejor.price ? p : mejor), null)
-  const hayPanel = loading || Boolean(destacado)
-
   return (
     <Box
       component="section"
@@ -148,7 +90,7 @@ export default function Hero() {
           alignItems: 'center',
         }}
       >
-        <Box sx={{ gridColumn: hayPanel ? { xs: '1 / -1', md: '1 / 6' } : '1 / -1' }}>
+        <Box sx={{ gridColumn: { xs: '1 / -1', md: '1 / 6' } }}>
           <Box
             sx={{
               display: 'inline-flex',
@@ -210,13 +152,9 @@ export default function Hero() {
           </Box>
         </Box>
 
-        {hayPanel && (
-          // La entrada va en la columna, no en el panel: así el cambio de
-          // esqueleto a producto no vuelve a disparar el fundido.
-          <Box sx={{ gridColumn: { xs: '1 / -1', md: '6 / -1' }, ...enter(2) }}>
-            {loading ? <PanelSkeleton /> : <PanelProducto product={destacado} />}
-          </Box>
-        )}
+        <Box sx={{ gridColumn: { xs: '1 / -1', md: '6 / -1' }, ...enter(2) }}>
+          <PanelDestacado />
+        </Box>
       </Box>
     </Box>
   )

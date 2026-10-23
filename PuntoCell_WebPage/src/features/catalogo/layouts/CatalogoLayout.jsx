@@ -4,9 +4,11 @@ import { Box } from '@mui/material';
 
 import { ProductProvider } from '../context/ProductContext';
 import { CartProvider } from '../context/CartContext';
+import { CompareProvider } from '../context/CompareContext';
 
 import PublicNavbar from '../../../components/ui/PublicNavbar';
 import CartDrawer from '../components/CartDrawer';
+import CompareBar from '../components/CompareBar';
 import PublicFooter from '../../../components/ui/PublicFooter';
 import WhatsappFloating from '../components/WhatsappFloating';
 import CatalogAssistantChat from '../components/CatalogAssistantChat';
@@ -27,6 +29,7 @@ export default function CatalogoLayout() {
   return (
     <ProductProvider>
       <CartProvider>
+        <CompareProvider>
         <Box
           sx={{
             minHeight: '100vh',
@@ -51,7 +54,9 @@ export default function CatalogoLayout() {
           <PublicFooter />
           <WhatsappFloating />
           <CatalogAssistantChat />
+          <CompareBar />
         </Box>
+        </CompareProvider>
       </CartProvider>
     </ProductProvider>
   );
