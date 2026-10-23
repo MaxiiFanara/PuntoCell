@@ -16,7 +16,7 @@ export default class CotizacionService {
     const item = await this.cotizacionDAO.getById(id, { attributes: this.ATTRIBUTES });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Cotizacion no encontrada (Id=${id})`,
+        detalle: `Cotizacion no encontrada`,
         Accion: 'Obtener Cotizacion',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -32,7 +32,7 @@ export default class CotizacionService {
     try {
       const created = await this.cotizacionDAO.create(data);
       await registerAudit(this.bitacoraService, {
-        detalle: `Cotizacion creada Id=${created.Id || created.id || ''}`,
+        detalle: `Cotizacion creada`,
         Accion: 'Crear Cotizacion',
         IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
         IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -57,7 +57,7 @@ export default class CotizacionService {
     const item = await this.cotizacionDAO.getById(id);
     if (!item) { const e = new Error('Cotizacion no encontrada'); e.statusCode = 404; throw e; }
     const actualizado = await this.cotizacionDAO.update(id, data);
-    await auditar(this.bitacoraService, ctx, `Modificó la cotización #${id}`, `Campos: ${Object.keys(data).join(', ')}`);
+    await auditar(this.bitacoraService, ctx, `Modificó la cotización`, `Campos: ${Object.keys(data).join(', ')}`);
     return actualizado;
   }
 
@@ -65,7 +65,7 @@ export default class CotizacionService {
     const item = await this.cotizacionDAO.getById(id);
     if (!item) { const e = new Error('Cotizacion no encontrada'); e.statusCode = 404; throw e; }
     const eliminado = await this.cotizacionDAO.remove(id);
-    await auditar(this.bitacoraService, ctx, `Eliminó la cotización #${id}`, `Baja de cotización`);
+    await auditar(this.bitacoraService, ctx, `Eliminó la cotización`, `Baja de cotización`);
     return eliminado;
   }
 }

@@ -47,8 +47,10 @@ const pildora = (t) => ({
   },
 })
 
-export default function CategoryFilter({ categories, selected, onChange }) {
-  const { products } = useProducts()
+export default function CategoryFilter({ categories, products: productos, selected, onChange }) {
+  const { products: todos } = useProducts()
+  // El catálogo pasa solo los productos con stock; sin esa prop se usa el catálogo completo.
+  const products = productos ?? todos
 
   // La cuenta sale del catálogo completo, no del listado ya filtrado: si saliera
   // de ahí, elegir una categoría dejaría a todas las demás en cero.
@@ -59,6 +61,8 @@ export default function CategoryFilter({ categories, selected, onChange }) {
   }, [products])
 
   return (
+    // En pantallas angostas las píldoras se deslizan en una sola fila en vez de apilarse.
+    <Box sx={{ overflowX: { xs: 'auto', md: 'visible' }, pb: { xs: 0.5, md: 0 }, mx: { xs: -1, md: 0 }, px: { xs: 1, md: 0 } }}>
     <ToggleButtonGroup
       exclusive
       value={selected}
@@ -66,7 +70,7 @@ export default function CategoryFilter({ categories, selected, onChange }) {
       // haya exactamente una categoría vigente.
       onChange={(_, valor) => valor !== null && onChange(valor)}
       aria-label="Filtrar por categoría"
-      sx={{ gap: 1 }}
+      sx={{ gap: 1, flexWrap: { xs: 'nowrap', md: 'wrap' }, '& .MuiToggleButton-root': { flex: 'none' } }}
     >
       {categories.map((cat) => (
         <ToggleButton key={cat} value={cat} sx={pildora}>
@@ -79,5 +83,6 @@ export default function CategoryFilter({ categories, selected, onChange }) {
         </ToggleButton>
       ))}
     </ToggleButtonGroup>
+    </Box>
   )
 }

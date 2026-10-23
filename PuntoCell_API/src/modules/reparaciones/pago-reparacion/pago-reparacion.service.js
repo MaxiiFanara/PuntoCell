@@ -1,4 +1,5 @@
 import { auditar } from '../../../core/utils/audit.util.js';
+import { esMetodoEfectivo, montoEfectivo } from '../../../core/utils/efectivo.util.js';
 
 const noEncontrado = () => { const e = new Error('Pago de reparación no encontrado'); e.statusCode = 404; return e; };
 
@@ -25,6 +26,9 @@ export default class PagoReparacionService {
     const t = await sequelize.transaction();
 
     try {
+      // En efectivo el cobro es siempre un importe entero.
+      if (await esMetodoEfectivo(sequelize.models, data.IdMetodoPago, t)) data = { ...data, Monto: montoEfectivo(data.Monto) };
+
       const creado = await this.pagoReparacionDAO.create({
         ...data,
         FechaPago: data.FechaPago ? new Date(data.FechaPago) : new Date()
@@ -35,14 +39,15 @@ export default class PagoReparacionService {
           IdTurnoCaja: data.IdTurnoCaja,
           IdEmpleado: ctx?.IdEmpleado,
           Monto: data.Monto,
-          Descripcion: `Pago de reparación Id=${data.IdOrdenReparacion}`,
+          IdMetodoPago: data.IdMetodoPago,
+          Descripcion: 'Pago de reparación',
           Fecha: creado.FechaPago
         }, { transaction: t });
       }
 
       await t.commit();
 
-      await auditar(this.bitacoraService, ctx, `Registró un pago de ${data.Monto} en la orden de reparación #${data.IdOrdenReparacion} (pago #${creado.Id})`,
+      await auditar(this.bitacoraService, ctx, `Registró un pago de ${data.Monto} en la orden de reparación`,
         `Método ${data.IdMetodoPago ?? '-'} · turno ${data.IdTurnoCaja ?? '-'}`);
       return creado;
     } catch (err) {
@@ -55,7 +60,7 @@ export default class PagoReparacionService {
     const pago = await this.pagoReparacionDAO.getById(id);
     if (!pago) throw noEncontrado();
     const actualizado = await this.pagoReparacionDAO.update(id, data);
-    await auditar(this.bitacoraService, ctx, `Modificó el pago de reparación #${id}`, `Campos: ${Object.keys(data).join(', ')}`);
+    await auditar(this.bitacoraService, ctx, `Modificó el pago de reparación`, `Campos: ${Object.keys(data).join(', ')}`);
     return actualizado;
   }
 
@@ -64,7 +69,7 @@ export default class PagoReparacionService {
     if (!pago) throw noEncontrado();
     const eliminado = await this.pagoReparacionDAO.remove(id);
     if (!eliminado) throw new Error('No se pudo eliminar el pago de reparación');
-    await auditar(this.bitacoraService, ctx, `Eliminó el pago de reparación #${id}`, `Baja de pago de reparación`);
+    await auditar(this.bitacoraService, ctx, `Eliminó el pago de reparación`, `Baja de pago de reparación`);
     return true;
   }
 }

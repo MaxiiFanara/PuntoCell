@@ -21,7 +21,7 @@ export default class FallaService {
 
   async create(data, ctx = null) {
     const creada = await this.fallaDAO.create(data);
-    await auditar(this.bitacoraService, ctx, `Creó la falla "${data.Nombre}" (#${creada.Id})`, `Alta de falla`);
+    await auditar(this.bitacoraService, ctx, `Creó la falla "${data.Nombre}"`, `Alta de falla`);
     return creada;
   }
 
@@ -29,7 +29,7 @@ export default class FallaService {
     const falla = await this.fallaDAO.getById(id);
     if (!falla) throw noEncontrada();
     const actualizada = await this.fallaDAO.update(id, data);
-    await auditar(this.bitacoraService, ctx, `Modificó la falla "${falla.Nombre}" (#${id})`, `Campos: ${Object.keys(data).join(', ')}`);
+    await auditar(this.bitacoraService, ctx, `Modificó la falla "${falla.Nombre}"`, `Campos: ${Object.keys(data).join(', ')}`);
     return actualizada;
   }
 
@@ -38,7 +38,7 @@ export default class FallaService {
     if (!falla) throw noEncontrada();
     const actualizado = await this.fallaDAO.update(id, { Activa: false });
     if (!actualizado) throw new Error('No se pudo dar de baja la falla');
-    await auditar(this.bitacoraService, ctx, `Dio de baja la falla "${falla.Nombre}" (#${id})`, `Baja lógica de falla`);
+    await auditar(this.bitacoraService, ctx, `Dio de baja la falla "${falla.Nombre}"`, `Baja lógica de falla`);
     return true;
   }
 

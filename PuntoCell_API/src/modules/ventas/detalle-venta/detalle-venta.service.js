@@ -16,7 +16,7 @@ export default class DetalleVentaService {
     const item = await this.detalleDAO.getById(id, { attributes: this.ATTRIBUTES });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `DetalleVenta no encontrado (Id=${id})`,
+        detalle: `DetalleVenta no encontrado`,
         Accion: 'Obtener DetalleVenta',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -50,7 +50,7 @@ export default class DetalleVentaService {
       const detalle = await this.detalleDAO.create(data, { transaction: t });
       await t.commit();
       await registerAudit(this.bitacoraService, {
-        detalle: `DetalleVenta creado Id=${detalle.Id || detalle.id || ''}`,
+        detalle: `DetalleVenta creado`,
         Accion: 'Crear DetalleVenta',
         IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
         IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -76,7 +76,7 @@ export default class DetalleVentaService {
     const item = await this.detalleDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `DetalleVenta no encontrado (Id=${id})`,
+        detalle: `DetalleVenta no encontrado`,
         Accion: 'Actualizar DetalleVenta',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -87,7 +87,7 @@ export default class DetalleVentaService {
     }
     const updated = await this.detalleDAO.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `DetalleVenta actualizado Id=${id}`,
+      detalle: `DetalleVenta actualizado`,
       Accion: 'Actualizar DetalleVenta',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -101,7 +101,7 @@ export default class DetalleVentaService {
     const item = await this.detalleDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `DetalleVenta no encontrado (Id=${id})`,
+        detalle: `DetalleVenta no encontrado`,
         Accion: 'Eliminar DetalleVenta',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -112,7 +112,7 @@ export default class DetalleVentaService {
     }
     const removed = await this.detalleDAO.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `DetalleVenta eliminado Id=${id}`,
+      detalle: `DetalleVenta eliminado`,
       Accion: 'Eliminar DetalleVenta',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

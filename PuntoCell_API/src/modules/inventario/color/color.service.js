@@ -16,7 +16,7 @@ export default class ColorService {
     const item = await this.colorDAO.getById(id, { attributes: this.ATTRIBUTES });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Color no encontrado (Id=${id})`,
+        detalle: `Color no encontrado`,
         Accion: 'Obtener Color',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -43,7 +43,7 @@ export default class ColorService {
     }
     const created = await this.colorDAO.create(data);
     await registerAudit(this.bitacoraService, {
-      detalle: `Color creado Id=${created.Id || created.id || ''}`,
+      detalle: `Color creado`,
       Accion: 'Crear Color',
       IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
       IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -57,7 +57,7 @@ export default class ColorService {
     const item = await this.colorDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Color no encontrado (Id=${id})`,
+        detalle: `Color no encontrado`,
         Accion: 'Actualizar Color',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -82,7 +82,7 @@ export default class ColorService {
     }
     const updated = await this.colorDAO.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `Color actualizado Id=${id}`,
+      detalle: `Color actualizado`,
       Accion: 'Actualizar Color',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -96,7 +96,7 @@ export default class ColorService {
     const item = await this.colorDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Color no encontrado (Id=${id})`,
+        detalle: `Color no encontrado`,
         Accion: 'Eliminar Color',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -107,7 +107,7 @@ export default class ColorService {
     }
     const removed = await this.colorDAO.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `Color eliminado Id=${id}`,
+      detalle: `Color eliminado`,
       Accion: 'Eliminar Color',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

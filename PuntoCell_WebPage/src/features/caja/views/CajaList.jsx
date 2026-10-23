@@ -10,6 +10,7 @@ import dayjs from 'dayjs';
 
 import PageHeader from '../../../components/ui/PageHeader';
 import { toast } from 'sonner';
+import { ocultarIds } from '../../../utils/format';
 import { 
   getCajaMovimientos, 
   getTurnoActual, 
@@ -18,7 +19,7 @@ import {
   registrarMovimientoCaja 
 } from '../../../services/api';
 
-const currencyFormatter = (value) => `$ ${Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+const currencyFormatter = (value) => `U$S ${Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
 
 export default function CajaList() {
   const [loading, setLoading] = useState(true);
@@ -40,12 +41,13 @@ export default function CajaList() {
       const turno = await getTurnoActual();
       setTurnoActual(turno);
 
-      // 2. Traemos los movimientos de hoy para el extracto
+      // 2. Traemos los movimientos de hoy (todos los turnos del día)
       const params = {
-        desde: dayjs().startOf('day').format('YYYY-MM-DD'),
-        hasta: dayjs().endOf('day').format('YYYY-MM-DD'),
+        desde: dayjs().startOf('day').toISOString(),
+        hasta: dayjs().endOf('day').toISOString(),
         limit: 200
       };
+      
       const movs = await getCajaMovimientos(params);
       setMovimientos(movs?.rows || []);
     } catch (error) {
@@ -66,13 +68,9 @@ export default function CajaList() {
   // CÁLCULOS PARA LOS KPIs
   // ==========================================
   const montoInicial = turnoActual?.MontoInicial || 0;
-  const totalIngresos = movimientos
-    .filter(m => m.TipoMovimiento === true)
-    .reduce((acc, mov) => acc + Number(mov.Monto), 0);
-  const totalEgresos = movimientos
-    .filter(m => m.TipoMovimiento === false)
-    .reduce((acc, mov) => acc + Number(mov.Monto), 0);
-  const saldoActual = montoInicial + totalIngresos - totalEgresos;
+  const totalIngresos = turnoActual?.TotalIngresos || 0;
+  const totalEgresos = turnoActual?.TotalEgresos || 0;
+  const saldoActual = Number(montoInicial) + Number(totalIngresos) - Number(totalEgresos);
 
   // ==========================================
   // HANDLERS REALES HACIA LA API
@@ -97,6 +95,7 @@ export default function CajaList() {
       });
       setModalCerrar({ open: false, monto: '', observaciones: '' });
       loadData(); // Refresca la vista
+      toast.success('Caja cerrada y arqueada correctamente.');
     } catch (error) {
       toast.error(error.message || "Error al cerrar la caja");
     }
@@ -113,8 +112,9 @@ export default function CajaList() {
       };
       
       await registrarMovimientoCaja(payload);
-      setFormMovimiento({ open: false, tipo: 'ingreso', monto: '', metodoPago: 'efectivo', descripcion: '' });
+      setFormMovimiento({ open: false, tipo: 'ingreso', monto: '', metodoPago: 1, descripcion: '' });
       loadData(); // Recarga la grilla para mostrar el nuevo movimiento
+      toast.success('Movimiento registrado correctamente');
     } catch (error) {
       toast.error(error.message || "Error al registrar el movimiento");
     }
@@ -214,7 +214,7 @@ export default function CajaList() {
       {/* GRILLA OPERATIVA DE MOVIMIENTOS */}
       <Paper sx={{ flex: 1, minHeight: 0, borderRadius: '12px', boxShadow: (t) => t.vars.palette.pc.lift, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'pc.surfaceMuted', display: 'flex', justifyContent: 'space-between' }}>
-          <Typography variant="subtitle1" fontWeight="bold">Detalle de Movimientos del Turno</Typography>
+          <Typography variant="subtitle1" fontWeight="bold">Detalle de Movimientos del Día</Typography>
           {cajaAbierta && turnoActual && (
             <Typography variant="body2" color="text.secondary">
               Apertura: {dayjs(turnoActual.FechaApertura).format('HH:mm')} hs | Fondo inicial: {currencyFormatter(turnoActual.MontoInicial)}
@@ -230,7 +230,7 @@ export default function CajaList() {
                 <TableCell sx={{ fontWeight: 'bold' }}>Concepto / Detalle</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Medio de Pago</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Usuario</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Monto ($)</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Monto (U$S)</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -240,6 +240,7 @@ export default function CajaList() {
                 movimientos.map((mov) => {
                   const idMetodo = Number(mov.IdMetodoPago || 1);
                   const isEfectivo = idMetodo === 1;
+                  const nombreMetodo = isEfectivo ? 'Efectivo' : 'Billetera virtual (QR/Alias)';
 
                   return (
                     <TableRow key={mov.Id} hover>
@@ -256,13 +257,13 @@ export default function CajaList() {
                       </TableCell>
                       
                       <TableCell sx={{ minWidth: 250, maxWidth: 400, whiteSpace: 'normal' }}>
-                        {mov.Descripcion}
+                        {ocultarIds(mov.Descripcion)}
                       </TableCell>
 
                       <TableCell>
                         <Chip 
                           icon={isEfectivo ? <Payments fontSize="small" /> : <AccountBalance fontSize="small" />}
-                          label={isEfectivo ? 'Efectivo' : 'Transferencia'} 
+                          label={nombreMetodo} 
                           size="small" 
                           sx={{ 
                             bgcolor: isEfectivo ? 'rgba(18, 104, 78, 0.1)' : 'rgba(23, 118, 210, 0.1)', 
@@ -296,12 +297,12 @@ export default function CajaList() {
       <Dialog open={formMovimiento.open} onClose={() => setFormMovimiento({ ...formMovimiento, open: false })} maxWidth="sm" fullWidth>
         <form onSubmit={handleRegistrarMovimiento}>
           <DialogTitle fontWeight="bold">
-            Registrar {formMovimiento.tipo === 'ingreso' ? 'Nuevo Ingreso' : 'Nuevo Egreso'} Manual
+            {formMovimiento.tipo === 'ingreso' ? 'Registrar Ingreso en Caja' : 'Registrar Egreso en Caja'}
           </DialogTitle>
           <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, mt: 1 }}>
             <Box sx={{ display: 'flex', gap: 2 }}>
               <TextField 
-                autoFocus fullWidth required label="Monto ($)" type="number" inputProps={{ step: "0.01", min: "0.01" }} 
+                autoFocus fullWidth required label="Monto (U$S)" type="number" inputProps={{ step: "0.01", min: "0.01" }} 
                 value={formMovimiento.monto} onChange={(e) => setFormMovimiento({ ...formMovimiento, monto: e.target.value })}
               />
               <FormControl fullWidth required>
@@ -313,7 +314,7 @@ export default function CajaList() {
                 >
                   {/* Coinciden con los IDs del SQL[cite: 10] */}
                   <MenuItem value={1}>Efectivo</MenuItem>
-                  <MenuItem value={3}>Transferencia Bancaria</MenuItem>
+                  <MenuItem value={2}>Billetera virtual (QR/Alias)</MenuItem>
                 </Select>
               </FormControl>
             </Box>
@@ -338,7 +339,7 @@ export default function CajaList() {
           <DialogContent>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>Ingresá el efectivo físico con el que inicia la jornada.</Typography>
             <TextField 
-              autoFocus fullWidth required label="Monto Inicial en Caja ($)" type="number" inputProps={{ step: "0.01", min: "0" }} 
+              autoFocus fullWidth required label="Monto Inicial en Caja (U$S)" type="number" inputProps={{ step: "0.01", min: "0" }} 
               value={modalAbrir.monto} onChange={(e) => setModalAbrir({ ...modalAbrir, monto: e.target.value })}
             />
           </DialogContent>
@@ -354,11 +355,29 @@ export default function CajaList() {
         <form onSubmit={handleCerrarCaja}>
           <DialogTitle fontWeight="bold">Cerrar y Arquear Caja</DialogTitle>
           <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Typography variant="body2" color="text.secondary">Contá los billetes en el cajón e ingresá el monto real. El sistema calculará la diferencia.</Typography>
+            <Box sx={{ mt: 1, p: 2, bgcolor: 'pc.surfaceMuted', borderRadius: 2 }}>
+              <Typography variant="body2" color="text.secondary">Saldo Esperado en Sistema:</Typography>
+              <Typography variant="h5" fontWeight="bold">{currencyFormatter(saldoActual)}</Typography>
+            </Box>
+            
+            <Typography variant="body2" color="text.secondary">Contá el dinero físico e ingresalo para ver la diferencia.</Typography>
             <TextField 
-              autoFocus fullWidth required label="Efectivo Físico Contado ($)" type="number" inputProps={{ step: "0.01", min: "0" }} 
+              autoFocus fullWidth required label="Dinero Físico Contado (U$S)" type="number" inputProps={{ step: "0.01", min: "0" }} 
               value={modalCerrar.monto} onChange={(e) => setModalCerrar({ ...modalCerrar, monto: e.target.value })}
             />
+            
+            {modalCerrar.monto !== '' && (
+              <Box sx={{ 
+                p: 2, borderRadius: 2, 
+                bgcolor: Number(modalCerrar.monto) === saldoActual ? 'success.light' : (Number(modalCerrar.monto) > saldoActual ? 'info.light' : 'error.light'),
+                color: Number(modalCerrar.monto) === saldoActual ? 'success.dark' : (Number(modalCerrar.monto) > saldoActual ? 'info.dark' : 'error.dark')
+              }}>
+                <Typography variant="body2" fontWeight="bold">
+                  Diferencia: {Number(modalCerrar.monto) === saldoActual ? 'Cuadre perfecto' : currencyFormatter(Number(modalCerrar.monto) - saldoActual)}
+                </Typography>
+              </Box>
+            )}
+
             <TextField 
               fullWidth multiline rows={2} label="Observaciones (Opcional)" placeholder="Ej: Faltan 100 pesos por vuelto mal dado." 
               value={modalCerrar.observaciones} onChange={(e) => setModalCerrar({ ...modalCerrar, observaciones: e.target.value })}

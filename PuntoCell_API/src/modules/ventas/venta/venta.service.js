@@ -1,5 +1,7 @@
 import { Op } from 'sequelize';
-import { registerAudit, auditar } from '../../../core/utils/audit.util.js';
+import { registerAudit, auditar, listaNatural, nombresProductosDeInventario } from '../../../core/utils/audit.util.js';
+import logger from '../../../core/utils/logger.js';
+import { esMetodoEfectivo, montoEfectivo } from '../../../core/utils/efectivo.util.js';
 
 const round2 = (v) => Number(Number(v || 0).toFixed(2));
 
@@ -30,6 +32,7 @@ export default class VentaService {
                 { association: 'articulo', include: [{ association: 'modelo', include: [{ association: 'marca' }] }] },
                 { association: 'color' },
                 { association: 'memoria' },
+                { association: 'almacenamiento' },
                 { association: 'bateria' },
               ]
             }]
@@ -41,12 +44,13 @@ export default class VentaService {
             association: 'pagos',
             include: [{ association: 'metodoPago', attributes: ['Nombre'] }]
           },
+          { association: 'cuotas' },
           { association: 'turnoCaja', include: [{ association: 'sucursal', attributes: ['Nombre'] }] },
         ]
       });
       if (!item) {
         await registerAudit(this.bitacoraService, {
-          detalle: `Venta no encontrada (Id=${id})`,
+          detalle: `Venta no encontrada`,
           Accion: 'Obtener Venta',
           IdEmpleado: auditContext?.IdEmpleado,
           IdSucursal: auditContext?.IdSucursal,
@@ -58,7 +62,7 @@ export default class VentaService {
       return item;
     } catch (err) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Error al obtener venta (Id=${id}) - ${err.message}`,
+        detalle: `Error al obtener venta - ${err.message}`,
         Accion: 'Obtener Venta',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -116,13 +120,23 @@ export default class VentaService {
         await this.detalleDAO.create(detallePayload, { transaction: t });
       }
 
+      let nombreCliente = 'Consumidor Final';
+      if (ventaData.IdCliente) {
+        const clienteRecord = await sequelize.models.Usuario.findByPk(ventaData.IdCliente, { transaction: t });
+        if (clienteRecord) {
+          nombreCliente = `${clienteRecord.Nombre} ${clienteRecord.Apellido}`.trim();
+        }
+      }
+
       // Pagos asociados
       if (pagos.length > 0 && sequelize.models.PagoVenta) {
         for (const p of pagos) {
+          // En efectivo el cobro es siempre un importe entero.
+          const montoCobro = (await esMetodoEfectivo(sequelize.models, p.IdMetodoPago, t)) ? montoEfectivo(p.Monto) : p.Monto;
           const pagoVenta = await sequelize.models.PagoVenta.create({
             IdVenta: ventaId,
             IdMetodoPago: p.IdMetodoPago,
-            Monto: p.Monto,
+            Monto: montoCobro,
             Observacion: p.Observacion || '',
             FechaPago: p.FechaPago ? new Date(p.FechaPago) : new Date(),
             IdTurnoCaja: p.IdTurnoCaja || ventaData.IdTurnoCaja
@@ -133,7 +147,8 @@ export default class VentaService {
               IdTurnoCaja: pagoVenta.IdTurnoCaja,
               IdEmpleado: ventaData.IdEmpleado,
               Monto: pagoVenta.Monto,
-              Descripcion: `Cobro de venta Id=${ventaId}`,
+              IdMetodoPago: pagoVenta.IdMetodoPago,
+              Descripcion: `Cobro de venta #${ventaId} - Cliente: ${nombreCliente}`,
               Fecha: pagoVenta.FechaPago
             }, { transaction: t });
           }
@@ -158,8 +173,15 @@ export default class VentaService {
       const Detalle = sequelize.models.DetalleVenta;
       const created = await this.ventaDAO.getById(ventaId, { include: [ { model: Detalle, as: 'detalles' } ] });
 
+      // d.IdArticulo es en realidad el Id del renglón de Inventario (ver descuento de stock arriba)
+      const productos = await nombresProductosDeInventario(
+        sequelize,
+        detalles.map((d) => ({ IdInventario: d.IdArticulo, Cantidad: d.Cantidad }))
+      );
       await registerAudit(this.bitacoraService, {
-        detalle: `Venta creada Id=${ventaId}`,
+        detalle: productos.length
+          ? `Se registró una venta de: ${listaNatural(productos)}`
+          : 'Se registró una venta',
         Accion: 'Crear Venta',
         IdEmpleado: data.IdEmpleado || auditContext?.IdEmpleado,
         IdSucursal: data.IdSucursal || auditContext?.IdSucursal,
@@ -170,7 +192,7 @@ export default class VentaService {
       return created;
     } catch (err) {
       await t.rollback();
-      console.error('❌ Error creando venta transactional:', err);
+      logger.error('❌ Error creando venta transactional:', err);
       const message = (err.original && (err.original.message || err.original.sqlMessage)) || err.message || 'Error al crear venta';
       await registerAudit(this.bitacoraService, {
         detalle: `Error creando venta - ${message}`,
@@ -200,13 +222,13 @@ export default class VentaService {
       updateData.TotalVentaARS = round2(updateData.TotalVenta * cotizacion.Valor);
     }
     const actualizado = await this.ventaDAO.update(id, updateData);
-    await auditar(this.bitacoraService, ctx, `Modificó la venta #${id}`, `Campos: ${Object.keys(updateData).join(', ')}`);
+    await auditar(this.bitacoraService, ctx, `Modificó la venta`, `Campos: ${Object.keys(updateData).join(', ')}`);
     return actualizado;
   }
 
   async remove(id, ctx = null) {
     const eliminado = await this.ventaDAO.remove(id);
-    await auditar(this.bitacoraService, ctx, `Eliminó la venta #${id}`, `Baja de venta`);
+    await auditar(this.bitacoraService, ctx, `Eliminó la venta`, `Baja de venta`);
     return eliminado;
   }
 

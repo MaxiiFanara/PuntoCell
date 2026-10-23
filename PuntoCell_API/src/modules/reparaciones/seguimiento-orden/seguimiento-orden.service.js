@@ -24,7 +24,7 @@ export default class SeguimientoOrdenService {
       ...data,
       FechaModificacion: data.FechaModificacion ? new Date(data.FechaModificacion) : new Date()
     });
-    await auditar(this.bitacoraService, ctx, `Agregó un seguimiento a la orden de reparación #${data.IdOrdenReparacion} (#${creado.Id})`,
+    await auditar(this.bitacoraService, ctx, `Agregó un seguimiento a la orden de reparación`,
       `Estado ${data.IdEstadoOrden ?? '-'}`);
     return creado;
   }
@@ -33,7 +33,7 @@ export default class SeguimientoOrdenService {
     const seguimiento = await this.seguimientoOrdenDAO.getById(id);
     if (!seguimiento) throw noEncontrado();
     const actualizado = await this.seguimientoOrdenDAO.update(id, data);
-    await auditar(this.bitacoraService, ctx, `Modificó el seguimiento de orden #${id}`, `Campos: ${Object.keys(data).join(', ')}`);
+    await auditar(this.bitacoraService, ctx, `Modificó el seguimiento de orden`, `Campos: ${Object.keys(data).join(', ')}`);
     return actualizado;
   }
 
@@ -42,7 +42,7 @@ export default class SeguimientoOrdenService {
     if (!seguimiento) throw noEncontrado();
     const eliminado = await this.seguimientoOrdenDAO.remove(id);
     if (!eliminado) throw new Error('No se pudo eliminar el seguimiento de la orden');
-    await auditar(this.bitacoraService, ctx, `Eliminó el seguimiento de orden #${id}`, `Baja de seguimiento`);
+    await auditar(this.bitacoraService, ctx, `Eliminó el seguimiento de orden`, `Baja de seguimiento`);
     return true;
   }
 }

@@ -13,4 +13,9 @@ export const catalogoService = {
     const response = await fetchApi(`/catalogo/productos${query}`);
     return response?.data || response || { productos: [], cotizacionDolar: 0 };
   },
+
+  getCotizaciones: async () => {
+    const response = await fetchApi('/catalogo/cotizaciones');
+    return response?.data || response;
+  },
 };

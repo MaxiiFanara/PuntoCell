@@ -2,11 +2,10 @@ import { useRef } from 'react'
 import {
   Box,
   Button,
-  FormControlLabel,
+  Chip,
   IconButton,
   InputAdornment,
   MenuItem,
-  Switch,
   TextField,
   Typography,
   Pagination
@@ -42,31 +41,12 @@ const GRILLA = {
   alignItems: 'stretch',
 }
 
-// El switch encendido se llena con la tinta del texto, no con el verde: el verde
-// está reservado al precio, la acción primaria y el anillo de foco.
-const switchTinta = {
-  width: 42,
-  height: 24,
-  p: 0,
-  '& .MuiSwitch-switchBase': {
-    p: '3px',
-    color: 'background.paper',
-    '&.Mui-checked': {
-      transform: 'translateX(18px)',
-      color: 'background.paper',
-      '& + .MuiSwitch-track': { bgcolor: 'text.primary', opacity: 1 },
-    },
-  },
-  '& .MuiSwitch-thumb': { width: 18, height: 18, boxShadow: '0 1px 2px rgba(0,0,0,.2)' },
-  '& .MuiSwitch-track': { borderRadius: 99, bgcolor: 'divider', opacity: 1 },
-}
-
 export default function CatalogSection({
   categories,
+  products,
   filtros,
   setSearch,
   setCategory,
-  setSoloStock,
   setOrden,
   limpiar,
   filtered,
@@ -82,7 +62,7 @@ export default function CatalogSection({
   const buscador = useRef(null)
 
   const hayFiltros =
-    filtros.search !== '' || filtros.category !== 'Todos' || filtros.soloStock
+    filtros.search !== '' || filtros.category !== 'Todos'
 
   return (
     <>
@@ -198,22 +178,34 @@ export default function CatalogSection({
               <MenuItem key={o.valor} value={o.valor}>{o.label}</MenuItem>
             ))}
           </TextField>
-
-          <FormControlLabel
-            control={
-              <Switch
-                checked={filtros.soloStock}
-                onChange={(e) => setSoloStock(e.target.checked)}
-                sx={switchTinta}
-              />
-            }
-            label="Sólo con stock"
-            slotProps={{ typography: { sx: { fontSize: '.9375rem', color: 'text.secondary' } } }}
-            sx={{ height: PUBLIC_CONTROL_H, ml: 0, mr: 0, gap: 1.25 }}
-          />
         </Box>
 
-        <CategoryFilter categories={categories} selected={filtros.category} onChange={setCategory} />
+        <CategoryFilter categories={categories} products={products} selected={filtros.category} onChange={setCategory} />
+
+        {hayFiltros && (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+            <Typography sx={{ ...muted, fontSize: '.8125rem' }}>Filtros activos:</Typography>
+            {filtros.search !== '' && (
+              <Chip
+                size="small"
+                label={`Búsqueda: ${filtros.search}`}
+                onDelete={() => setSearch('')}
+                sx={{ height: 28, fontSize: '.8125rem' }}
+              />
+            )}
+            {filtros.category !== 'Todos' && (
+              <Chip
+                size="small"
+                label={`Categoría: ${filtros.category}`}
+                onDelete={() => setCategory('Todos')}
+                sx={{ height: 28, fontSize: '.8125rem' }}
+              />
+            )}
+            <Button size="small" onClick={limpiar} sx={{ fontSize: '.8125rem', minWidth: 0, px: 1 }}>
+              Limpiar todo
+            </Button>
+          </Box>
+        )}
       </Box>
 
       {loading ? (

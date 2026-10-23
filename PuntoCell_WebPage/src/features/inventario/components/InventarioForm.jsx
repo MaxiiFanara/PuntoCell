@@ -8,6 +8,8 @@ import { esImeiValido } from '../../../utils/validators';
 import EntityAutocomplete from '../../../components/ui/EntityAutocomplete';
 import { toast } from 'sonner';
 
+import ModalRegistroDispositivo from '../../../components/modals/ModalRegistroDispositivo';
+
 const Campo = ({ label, children, hint, error, span = 1, sx }) => (
   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0, gridColumn: span > 1 ? `span ${span}` : undefined, ...sx }}>
     {label && <Box sx={{ typography: 'eyebrow', color: error ? 'error.main' : 'text.disabled' }}>{label}</Box>}
@@ -41,8 +43,9 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
   const [formData, setFormData] = useState(initialData);
   const [listaModelos, setListaModelos] = useState([]);
   const [listaCategorias, setListaCategorias] = useState([]);
+  const [listaMarcas, setListaMarcas] = useState([]);
   const [listaColores, setListaColores] = useState([]);
-  const [listaMemorias, setListaMemorias] = useState([]);
+  const [listaAlmacenamientos, setListaAlmacenamientos] = useState([]);
   const [listaBaterias, setListaBaterias] = useState([]);
   const [listaSucursales, setListaSucursales] = useState([]);
   const [listaProveedores, setListaProveedores] = useState([]);
@@ -51,6 +54,9 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
   // en vez de dar error, si el IMEI existe pero sin stock.
   const [imeiEstado, setImeiEstado] = useState({ checking: false, error: null, reingresoId: null });
 
+  // Nuevo Modal Modelo
+  const [modalModeloOpen, setModalModeloOpen] = useState(false);
+
   useEffect(() => {
     setFormData(initialData);
   }, [initialData]);
@@ -58,21 +64,23 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
   useEffect(() => {
     const cargarDesplegables = async () => {
       try {
-        const [resModelos, resCategorias, resColores, resMemorias, resBaterias, resSucursales, resProveedores, resEstados] = await Promise.all([
+        const [resModelos, resCategorias, resColores, resAlmacenamientos, resBaterias, resSucursales, resProveedores, resEstados, resMarcas] = await Promise.all([
           inventarioService.getModelos(),
           inventarioService.getCategorias(),
           inventarioService.getColores(),
-          inventarioService.getMemorias(),
+          inventarioService.getAlmacenamientos(),
           inventarioService.getBaterias(),
           inventarioService.getSucursales(),
           inventarioService.getProveedores(),
-          inventarioService.getEstadosInventario()
+          inventarioService.getEstadosInventario(),
+          fetch('/api/inventario/marca-articulos').then(r => r.json()).catch(() => ({ data: [] }))
         ]);
 
         setListaModelos(Array.isArray(resModelos) ? resModelos : (resModelos.data || []));
         setListaCategorias(Array.isArray(resCategorias) ? resCategorias : (resCategorias.data || []));
+        setListaMarcas(resMarcas?.data || resMarcas || []);
         setListaColores(Array.isArray(resColores) ? resColores : (resColores.data || []));
-        setListaMemorias(Array.isArray(resMemorias) ? resMemorias : (resMemorias.data || []));
+        setListaAlmacenamientos(Array.isArray(resAlmacenamientos) ? resAlmacenamientos : (resAlmacenamientos.data || []));
         setListaBaterias(Array.isArray(resBaterias) ? resBaterias : (resBaterias.data || []));
         setListaSucursales(Array.isArray(resSucursales) ? resSucursales : (resSucursales.data || []));
         setListaProveedores(Array.isArray(resProveedores) ? resProveedores : (resProveedores.data || []));
@@ -204,20 +212,31 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
         }
       >
         <Campo label="Modelo *">
-          <Autocomplete
-            options={modelosFiltrados}
-            getOptionLabel={(option) => option.Nombre || option.nombre || ''}
-            isOptionEqualToValue={(option, value) => option.Id === value.Id}
-            value={modelosFiltrados.find(m => (m.Id === formData.idModeloArticulo || m.id === formData.idModeloArticulo)) || null}
-            onChange={(event, newValue) => {
-              setFormData({
-                ...formData,
-                idModeloArticulo: newValue ? newValue.Id : '',
-                nombreModelo: newValue ? newValue.Nombre : ''
-              });
-            }}
-            renderInput={(params) => <TextField {...params} required placeholder="Elegí un modelo" />}
-          />
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Autocomplete
+              sx={{ flexGrow: 1 }}
+              options={modelosFiltrados}
+              getOptionLabel={(option) => option.Nombre || option.nombre || ''}
+              isOptionEqualToValue={(option, value) => option.Id === value.Id}
+              value={modelosFiltrados.find(m => (m.Id === formData.idModeloArticulo || m.id === formData.idModeloArticulo)) || null}
+              onChange={(event, newValue) => {
+                setFormData({
+                  ...formData,
+                  idModeloArticulo: newValue ? newValue.Id : '',
+                  nombreModelo: newValue ? newValue.Nombre : ''
+                });
+              }}
+              renderInput={(params) => <TextField {...params} required placeholder="Elegí un modelo" />}
+            />
+            <Button
+              variant="outlined"
+              sx={{ minWidth: '40px', px: 1 }}
+              onClick={() => setModalModeloOpen(true)}
+              title="Crear modelo"
+            >
+              +
+            </Button>
+          </Box>
         </Campo>
 
         {formData.esSerializado && (
@@ -247,18 +266,23 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
         </Campo>
 
         <Campo label="Memoria">
-          <EntityAutocomplete options={listaMemorias}
+          <EntityAutocomplete options={listaAlmacenamientos}
             getLabel={(m) => m.Capacidad ?? m.capacidad ?? m.Nombre ?? ''}
-            value={formData.idMemoria} onChange={(id) => handleChange({ target: { name: 'idMemoria', value: id } })}
+            value={formData.idAlmacenamiento} onChange={(id) => handleChange({ target: { name: 'idAlmacenamiento', value: id } })}
             placeholder="Sin especificar" />
         </Campo>
 
         {formData.esSerializado && (
-          <Campo label="Batería">
-            <EntityAutocomplete options={listaBaterias}
-              getLabel={(b) => (b.Porcentaje ?? b.porcentaje) != null ? `${b.Porcentaje ?? b.porcentaje}%` : ''}
-              value={formData.idBateria} onChange={(id) => handleChange({ target: { name: 'idBateria', value: id } })}
-              placeholder="Sin especificar" />
+          <Campo label="Batería (%)" hint="Del 0 al 100">
+            <TextField
+              name="bateriaPorcentaje" fullWidth type="number" className="mono" placeholder="Ej: 85"
+              value={formData.bateriaPorcentaje || ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                setFormData({ ...formData, bateriaPorcentaje: val === '' ? '' : Math.max(0, Math.min(100, parseInt(val) || 0)) });
+              }}
+              slotProps={{ htmlInput: { min: 0, max: 100 } }}
+            />
           </Campo>
         )}
 
@@ -387,6 +411,23 @@ const InventarioForm = ({ initialData, isEdit, onSubmit, onCancel, modoCanje = f
           {isEdit ? 'Guardar cambios' : 'Guardar ingreso'}
         </Button>
       </Box>
+
+      <ModalRegistroDispositivo
+        open={modalModeloOpen}
+        onClose={() => setModalModeloOpen(false)}
+        tipos={listaCategorias.map(c => ({ id: c.Id ?? c.id, nombre: c.Nombre ?? c.nombre }))}
+        marcas={listaMarcas.map(m => ({ id: m.Id ?? m.id, nombre: m.Nombre ?? m.nombre }))}
+        onDispositivoGuardado={(nuevoModelo) => {
+          // El modal devuelve un objeto con id y nombre. Lo agregamos a listaModelos si no está.
+          const modeloCompleto = { Id: nuevoModelo.id, id: nuevoModelo.id, Nombre: nuevoModelo.nombre, nombre: nuevoModelo.nombre, IdCategoriaArticulo: nuevoModelo.idTipo, IdMarcaArticulo: nuevoModelo.idMarca };
+          setListaModelos(prev => [...prev, modeloCompleto]);
+          setFormData(prev => ({
+            ...prev,
+            idModeloArticulo: nuevoModelo.id,
+            nombreModelo: nuevoModelo.nombre
+          }));
+        }}
+      />
     </Box>
   );
 };

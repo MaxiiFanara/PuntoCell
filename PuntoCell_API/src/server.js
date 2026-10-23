@@ -2,6 +2,7 @@ import Database from './core/db/database.js';
 import { createContainer } from './core/container/index.js';
 import createApp from './app.js';
 import { env } from './core/config/env.js';
+import logger from './core/utils/logger.js';
 
 function scheduleDailyAt2359(task) {
   let timeoutId = null;
@@ -26,7 +27,7 @@ function scheduleDailyAt2359(task) {
     try {
       await task();
     } catch (error) {
-      console.error('❌ Error en la tarea diaria de abandono de reparaciones:', error);
+      logger.error('❌ Error en la tarea diaria de abandono de reparaciones:', error);
     } finally {
       scheduleNext();
     }
@@ -43,7 +44,7 @@ function scheduleDailyAt2359(task) {
 
 async function startServer() {
   try {
-    console.log('⏳ Iniciando servidor PuntoCell...');
+    logger.info('⏳ Iniciando servidor PuntoCell...');
 
     const db = Database.getInstance();
     await db.connect();
@@ -57,17 +58,17 @@ async function startServer() {
     const PORT = env.APP.PORT;
     app.listen(PORT, () => {
       const publicUrl = process.env.PUBLIC_API_URL;
-      console.log(`✅ Servidor corriendo en el puerto: ${PORT}${publicUrl ? ` (acceso externo: ${publicUrl})` : ''}`);
-      console.log(`🚀 Entorno: ${env.APP.NODE_ENV}`);
+      logger.info(`✅ Servidor corriendo en el puerto: ${PORT}${publicUrl ? ` (acceso externo: ${publicUrl})` : ''}`);
+      logger.info(`🚀 Entorno: ${env.APP.NODE_ENV}`);
     });
 
     scheduleDailyAt2359(async () => {
       const resultado = await container.reparaciones.ordenReparacionService.procesarOrdenesAbandonadas();
-      console.log(`🕒 Proceso de abandono completado: ${resultado.procesadas} procesadas, ${resultado.omitidas} omitidas, ${resultado.errores} con error.`);
+      logger.info(`🕒 Proceso de abandono completado: ${resultado.procesadas} procesadas, ${resultado.omitidas} omitidas, ${resultado.errores} con error.`);
     });
 
   } catch (error) {
-    console.error('❌ Error fatal al iniciar el servidor:', error);
+    logger.error('❌ Error fatal al iniciar el servidor:', error);
     process.exit(1);
   }
 }

@@ -1,6 +1,7 @@
 import { env } from '../../core/config/env.js';
 import { registerAudit } from '../../core/utils/audit.util.js';
 import { createAssessment, RECAPTCHA_LOGIN_ACTION } from './recaptcha.service.js';
+import logger from '../../core/utils/logger.js';
 
 // Verifica el token de reCAPTCHA Enterprise que el front manda en req.body.RecaptchaToken.
 // Corre antes del login para que los bots no lleguen a consultar la DB ni a comparar con
@@ -11,6 +12,7 @@ export function createVerifyRecaptcha(bitacoraService = null) {
     await registerAudit(bitacoraService, {
       Accion: `Login bloqueado por reCAPTCHA para identificador "${req.body?.Identificador ?? ''}"`,
       detalle,
+      Nivel: 'warn',
       IpAddress: req.ip
     });
     return res.status(status).json({ status: 'error', message });
@@ -21,7 +23,7 @@ export function createVerifyRecaptcha(bitacoraService = null) {
 
     const { API_KEY, PROJECT_ID, SITE_KEY, MIN_SCORE } = env.RECAPTCHA;
     if (!API_KEY || !PROJECT_ID || !SITE_KEY) {
-      console.error('reCAPTCHA habilitado pero faltan variables de entorno (API_KEY, PROJECT_ID o SITE_KEY).');
+      logger.error('reCAPTCHA habilitado pero faltan variables de entorno (API_KEY, PROJECT_ID o SITE_KEY).');
       return res.status(500).json({ status: 'error', message: 'Verificación reCAPTCHA no configurada' });
     }
 
@@ -34,7 +36,7 @@ export function createVerifyRecaptcha(bitacoraService = null) {
     try {
       score = await createAssessment({ token, recaptchaAction: RECAPTCHA_LOGIN_ACTION });
     } catch (err) {
-      console.error('reCAPTCHA: error consultando CreateAssessment:', err.message);
+      logger.error('reCAPTCHA: error consultando CreateAssessment:', err.message);
       return res.status(503).json({ status: 'error', message: 'No se pudo verificar reCAPTCHA. Intentá nuevamente.' });
     }
 

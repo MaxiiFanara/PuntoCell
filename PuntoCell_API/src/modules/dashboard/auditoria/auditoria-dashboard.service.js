@@ -1,4 +1,5 @@
 import { Op } from 'sequelize'
+import { sinRegistrosDelAnalista } from '../../../core/utils/analista.util.js'
 import { auditar } from '../../../core/utils/audit.util.js'
 import { models } from '../../../models/index.js'
 import { normalizeRange, plainList, resolveIdSucursal } from '../dashboard.utils.js'
@@ -14,7 +15,7 @@ export default class AuditoriaDashboardService {
     const { from, to } = this._resolveRange(query, 1)
     const idSucursal = resolveIdSucursal(query)
     const rows = plainList(await models.Bitacora.findAll({
-      where: { Fecha: { [Op.between]: [from, to] }, ...(idSucursal === null ? {} : { IdSucursal: idSucursal }) },
+      where: { Origen: 'AUDITORIA', Fecha: { [Op.between]: [from, to] }, ...(idSucursal === null ? {} : { IdSucursal: idSucursal }), [Op.and]: [sinRegistrosDelAnalista()] },
       include: [{ model: models.Usuario, as: 'empleado', attributes: ['Id', 'Nombre', 'Apellido'], required: false }],
       order: [['Fecha', 'ASC']],
       limit: 5000

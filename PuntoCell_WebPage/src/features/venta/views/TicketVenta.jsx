@@ -16,15 +16,17 @@ const mapearVenta = (raw) => {
   const sucursalNombre = raw.turnoCaja?.sucursal?.Nombre || '-';
   const cotizacionDolar = Number(raw.cotizacion?.Valor) || 0;
 
-  const pagos = (raw.pagos ?? []).map((p) => ({
-    monto: Number(p.Monto) || 0,
-    metodoNombre: p.metodoPago?.Nombre || 'Pago',
-    fecha: p.FechaPago ? new Date(p.FechaPago).toLocaleString('es-AR') : '-',
-    cotizacionDolar,
-    esPermuta: /permuta|canje/i.test(p.metodoPago?.Nombre || ''),
-    observacion: p.Observacion || '',
-    imeiDispositivo: p.Observacion?.match(/IMEI\s*[:]?\s*([A-Za-z0-9]+)/)?.[1] || null,
-  }));
+  const pagos = (raw.pagos ?? [])
+    .filter(p => !/cuota/i.test(p.metodoPago?.Nombre || ''))
+    .map((p) => ({
+      monto: Number(p.Monto) || 0,
+      metodoNombre: p.metodoPago?.Nombre || 'Pago',
+      fecha: p.FechaPago ? new Date(p.FechaPago).toLocaleString('es-AR') : '-',
+      cotizacionDolar,
+      esPermuta: /permuta|canje/i.test(p.metodoPago?.Nombre || ''),
+      observacion: p.Observacion || '',
+      imeiDispositivo: p.Observacion?.match(/IMEI\s*[:]?\s*([A-Za-z0-9]+)/)?.[1] || null,
+    }));
 
   const detalleVenta = (raw.detalles ?? []).map((d) => {
     const inv = d.inventario;
@@ -39,7 +41,7 @@ const mapearVenta = (raw) => {
       subtotal: (Number(d.PrecioUnitario) || 0) * d.Cantidad,
       imei: inv?.IMEI || null,
       color: inv?.color?.Nombre || null,
-      memoria: inv?.memoria?.Capacidad || null,
+      memoria: inv?.almacenamiento?.Capacidad || inv?.memoria?.Capacidad || null,
       bateria: inv?.bateria?.Porcentaje ?? null,
     };
   });
@@ -51,6 +53,13 @@ const mapearVenta = (raw) => {
   const motivoBonif = bonifMatch ? (bonifMatch[2] || '').trim() : '';
   const observacionesLimpias = bonifMatch ? obsRaw.slice(bonifMatch[0].length).trim() : obsRaw;
 
+  const cuotas = (raw.cuotas ?? []).map((c) => ({
+    numeroCuota: c.NumeroCuota,
+    montoCuota: Number(c.MontoCuota) || 0,
+    fechaVencimiento: c.FechaVencimiento ? new Date(c.FechaVencimiento).toLocaleDateString('es-AR') : '-',
+    fechaPago: c.FechaPago ? new Date(c.FechaPago).toLocaleString('es-AR') : null,
+  }));
+
   return {
     id: raw.Id,
     fechaISO: raw.Fecha || null,
@@ -61,10 +70,12 @@ const mapearVenta = (raw) => {
     clienteDni: raw.cliente?.DNI || '-',
     vendedorNombre: `${raw.empleado?.Nombre ?? ''} ${raw.empleado?.Apellido ?? ''}`.trim() || 'Sistema',
     totalVenta: Number(raw.TotalVenta) || 0,
+    estadoPago: raw.EstadoPago,
     bonificacion,
     motivoBonif,
     observaciones: observacionesLimpias,
     pagos,
+    cuotas,
     detalleVenta,
   };
 };
@@ -290,6 +301,41 @@ const TicketDetalle = () => {
                 <Money ars={ars(totalPagado)} usd={totalPagado} size="sm" />
               </Box>
             </Tarjeta>
+
+            {venta.cuotas && venta.cuotas.length > 0 && (
+              <Tarjeta titulo="Cuotas (Financiación)">
+                <TableContainer sx={{ overflowX: 'auto' }}>
+                  <Table sx={{ minWidth: 520 }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ pl: '15px' }}>Nº</TableCell>
+                        <TableCell>Vencimiento</TableCell>
+                        <TableCell>Estado</TableCell>
+                        <TableCell align="right" sx={{ pr: '15px' }}>Monto Restante</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {venta.cuotas.map((c) => (
+                        <TableRow key={c.numeroCuota}>
+                          <TableCell sx={{ pl: '15px', color: 'text.secondary' }}>Cuota {c.numeroCuota}</TableCell>
+                          <TableCell sx={{ color: 'text.secondary' }}>{c.fechaVencimiento}</TableCell>
+                          <TableCell>
+                            {c.fechaPago ? (
+                              <StatusPill tone="ok" label={`Saldada (${c.fechaPago.split(',')[0]})`} />
+                            ) : (
+                              <StatusPill tone="due" label="Pendiente" />
+                            )}
+                          </TableCell>
+                          <TableCell align="right" sx={{ pr: '15px' }}>
+                            <Money ars={ars(c.montoCuota)} usd={c.montoCuota} size="sm" />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Tarjeta>
+            )}
 
             {venta.observaciones && (
               <Tarjeta titulo="Observaciones">

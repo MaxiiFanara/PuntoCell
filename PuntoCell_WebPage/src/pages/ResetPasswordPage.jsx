@@ -201,7 +201,7 @@ export default function ResetPasswordPage() {
                   startIcon={<ArrowBack />}
                   sx={{ mt: 1, fontWeight: 600, color: 'primary.main', borderRadius: '10px', '&:hover': { bgcolor: 'pc.accentSoft' } }}
                 >
-                  Solicitar nuevo enlace
+                  Solicitar otro enlace
                 </Button>
               </Box>
 
@@ -212,7 +212,7 @@ export default function ResetPasswordPage() {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
                     <LockReset sx={{ color: 'primary.main', fontSize: 26 }} />
                     <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: '-0.2px' }}>
-                      Nueva contraseña
+                      Restablecer contraseña
                     </Typography>
                   </Box>
                   <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
@@ -233,7 +233,7 @@ export default function ResetPasswordPage() {
                   <Box className="f2">
                     <TextField
                       fullWidth
-                      label="Nueva contraseña"
+                      label="Contraseña"
                       name="newPassword"
                       type={showNew ? 'text' : 'password'}
                       value={newPassword}
@@ -323,7 +323,7 @@ export default function ResetPasswordPage() {
                       disabled={loading}
                       sx={{ borderRadius: '12px', fontSize: '1rem', py: 1.5 }}
                     >
-                      {loading ? <CircularProgress size={22} color="inherit" /> : 'Guardar nueva contraseña'}
+                      {loading ? <CircularProgress size={22} color="inherit" /> : 'Guardar contraseña'}
                     </Button>
 
                     <Box sx={{ textAlign: 'center', mt: 2.5 }}>

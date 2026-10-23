@@ -4,6 +4,7 @@ import InstagramIcon from '@mui/icons-material/Instagram'
 
 import { STORE_CONFIG } from '../../features/catalogo/config/store'
 import { btn, muted, section, shell } from './publicStyles'
+import Team from '../../features/landing/components/Team'
 
 const { whatsapp, instagram, name } = STORE_CONFIG.business
 const whatsappUrl = `https://wa.me/${whatsapp}`
@@ -95,6 +96,7 @@ export default function PublicFooter() {
           <Typography sx={{ ...muted, mt: 0.5, fontSize: '.8125rem' }}>
             © {new Date().getFullYear()} · Vitrina online del sistema de gestión {name}. Proyecto final de carrera.
           </Typography>
+          <Team />
         </Box>
       </Box>
     </Box>

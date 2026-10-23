@@ -21,7 +21,7 @@ import InventoryIcon from '@mui/icons-material/Inventory'
 import LocalAtmIcon from '@mui/icons-material/LocalAtm'
 import DownloadIcon from '@mui/icons-material/Download'
 import {
-  getClienteByDNI, crearOrden, actualizarOrden, getFallasPorTipo,
+  getPersonaByDNI, crearOrden, actualizarOrden, getFallasPorTipo,
   getOrdenById, getRepuestosDisponibles, agregarRepuestoOrden, eliminarRepuestoOrden,
   getPagosOrden, enviarComprobanteEmail, getMetodosPagoReparacion,
 } from '../../services/api'
@@ -108,6 +108,7 @@ const ModalReparacion = ({
   const [form, setForm]                           = useState(EMPTY)
   const [clienteEncontrado, setClienteEncontrado] = useState(false)
   const [clienteNuevo, setClienteNuevo]           = useState(false)
+  const [esEmpleado, setEsEmpleado]               = useState(false)
   const [fallasPorTipo, setFallasPorTipo]         = useState([])
   const [loading, setLoading]                     = useState(false)
   const [buscandoCliente, setBuscandoCliente]     = useState(false)
@@ -120,6 +121,12 @@ const ModalReparacion = ({
   useEffect(() => {
     getMetodosPagoReparacion().then(setMetodosPago).catch(() => setMetodosPago([]))
   }, [])
+
+  // En efectivo la seña se cobra en un importe entero (redondeado al entero más cercano).
+  const senaEsEfectivo = /efectivo/i.test(metodosPago.find(m => String(m.id) === String(form.idMetodoPagoSena))?.nombre || '')
+  const montoSenaFinal = senaEsEfectivo && Math.round(Number(form.montoSena)) > 0
+    ? Math.round(Number(form.montoSena))
+    : Number(form.montoSena)
 
   // Solo Admin/Encargado (coincide con isAdmin del backend en POST /reparaciones/fallas)
   const puedeGestionarFallas = usuario?.rol === 1 || usuario?.rol === 2
@@ -177,7 +184,7 @@ const ModalReparacion = ({
     .reduce((s, p) => s + Number(p.Monto), 0)
   const pagoEntregaRecord   = pagosOrden.find(p => (p.Observacion ?? '').toLowerCase().includes('saldo final'))
   const metodoPagoEntregaNombre = pagoEntregaRecord
-    ? (metodosPago.find(m => m.id === pagoEntregaRecord.IdMetodoPago)?.nombre ?? `Método #${pagoEntregaRecord.IdMetodoPago}`)
+    ? (metodosPago.find(m => m.id === pagoEntregaRecord.IdMetodoPago)?.nombre ?? "Método")
     : null
   const saldoEntrega        = datosFinancieros.costoRepuestos + datosFinancieros.precioManoObra - señaPagada
 
@@ -243,7 +250,7 @@ const ModalReparacion = ({
               idInventario:    r.IdInventario,
               cantidad:        r.Cantidad ?? 1,
               precioCobrado:   Number(r.PrecioCobrado) || 0,
-              nombre:          invItem?.nombre ?? `Repuesto #${r.IdInventario}`,
+              nombre:          invItem?.nombre ?? "Repuesto",
               marca:           invItem?.marca  ?? '',
               modelo:          invItem?.modelo ?? '',
             }
@@ -274,6 +281,7 @@ const ModalReparacion = ({
       setForm(EMPTY)
       setClienteEncontrado(false)
       setClienteNuevo(false)
+      setEsEmpleado(false)
     }
   }, [open, modoEdicion, modoSoloLectura, ordenEditar])
 
@@ -302,7 +310,7 @@ const ModalReparacion = ({
     if (!form.dni.trim()) return
     setBuscandoCliente(true); setError('')
     try {
-      const c = await getClienteByDNI(form.dni.trim())
+      const c = await getPersonaByDNI(form.dni.trim())
       if (c) {
         clienteIdRef.current = c.Id ?? null
         setForm(f => ({
@@ -317,8 +325,10 @@ const ModalReparacion = ({
           deptoCliente:     c.Depto       || '',
           localidadCliente: c.IdLocalidad || '',
         }))
+        setEsEmpleado(!c.EsCliente)
         setClienteEncontrado(true); setClienteNuevo(false)
       } else {
+        setEsEmpleado(false)
         clienteIdRef.current = null
         setForm(f => ({
           ...f, nombreCliente: '', apellidoCliente: '', emailCliente: '',
@@ -450,7 +460,7 @@ const ModalReparacion = ({
           ...(form.observacionIngreso && { observacionIngreso: form.observacionIngreso }),
           ...(Number(form.montoSena) > 0 && {
             sena: {
-              Monto:         Number(form.montoSena),
+              Monto:         montoSenaFinal,
               IdMetodoPago:  Number(form.idMetodoPagoSena),
               IdTurnoCaja:   1,
             },
@@ -614,7 +624,9 @@ const ModalReparacion = ({
                 {clienteEncontrado && !clienteNuevo && (
                   <>
                     <Alert severity="info" sx={{ mb: 1.5 }}>
-                      Cliente existente — estos datos no se pueden modificar desde acá.
+                      {esEmpleado
+                        ? 'Esta persona es empleado del sistema: se usará su registro como cliente. Los datos no se pueden modificar desde acá.'
+                        : 'Cliente existente — estos datos no se pueden modificar desde acá.'}
                     </Alert>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0,1fr))' }, gap: 1.5 }}>
                       <CampoReadonly label="Nombre" value={form.nombreCliente} />
@@ -675,7 +687,7 @@ const ModalReparacion = ({
                       {modelos.map(d => <MenuItem key={d.id} value={String(d.id)}>{d.nombre}</MenuItem>)}
                     </TextField>
                   </Campo>
-                  <IconButton onClick={onAbrirRegistroDispositivo} title="Agregar nuevo modelo"
+                  <IconButton onClick={onAbrirRegistroDispositivo} title="Agregar modelo"
                     sx={{ border: 1, borderColor: 'divider', borderRadius: '7px', height: 32, width: 32 }}>
                     <AddCircleOutlineIcon fontSize="small" />
                   </IconButton>
@@ -997,8 +1009,8 @@ const ModalReparacion = ({
                 <Box sx={{ mt: 1.5, p: '10px 12px', borderRadius: '9px', bgcolor: 'warning.light', display: 'flex', alignItems: 'center', gap: 1 }}>
                   <LocalAtmIcon sx={{ fontSize: 16, color: 'warning.main' }} />
                   <Typography className="num" sx={{ fontSize: '.8rem', color: 'warning.main', fontWeight: 600 }}>
-                    Seña registrada: U$S {Number(form.montoSena).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    {' '}(≈ $ {Math.round(Number(form.montoSena) * dolarGlobal).toLocaleString('es-AR')}) — El resto se cobrará al entregar.
+                    Seña registrada: U$S {montoSenaFinal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {' '}(≈ $ {Math.round(montoSenaFinal * dolarGlobal).toLocaleString('es-AR')}) — El resto se cobrará al entregar.
                   </Typography>
                 </Box>
               )}

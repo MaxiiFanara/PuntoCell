@@ -11,12 +11,13 @@ import CompraCreateModal from '../components/CompraCreateModal';
 import PageHeader from '../../../components/ui/PageHeader';
 
 import { comprasService, ESTADO_PAGO } from '../../../services/comprasServices';
+import { verificarCajaAbierta } from '../../../services/api';
 
 // Normaliza una Compra de la API + el nombre de proveedor resuelto aparte.
 const normalizar = (c, proveedoresMap) => ({
   id: c.Id ?? c.id,
   fecha: c.Fecha ? String(c.Fecha).slice(0, 10) : '—',
-  proveedor: proveedoresMap[c.IdProveedor] || `Proveedor #${c.IdProveedor}`,
+  proveedor: proveedoresMap[c.IdProveedor] || 'Proveedor',
   idProveedor: c.IdProveedor,
   total: Number(c.TotalCosto) || 0,
   saldo: Number(c.SaldoPendiente) || 0,
@@ -74,7 +75,7 @@ export default function ComprasList() {
             <Button
               variant="contained"
               startIcon={<AddIcon sx={{ fontSize: '16px !important' }} />}
-              onClick={() => setOpenCreate(true)}
+              onClick={async () => { if (await verificarCajaAbierta()) setOpenCreate(true) }}
             >
               Registrar compra
             </Button>

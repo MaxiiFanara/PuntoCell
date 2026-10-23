@@ -1,4 +1,5 @@
 import { auditar } from '../../../core/utils/audit.util.js';
+import { esMetodoEfectivo, montoEfectivo } from '../../../core/utils/efectivo.util.js';
 
 const round2 = (value) => Number(Number(value || 0).toFixed(2));
 
@@ -47,9 +48,14 @@ export default class PagoCompraService {
       const turno = await TurnoCaja.findByPk(data.IdTurnoCaja, { transaction: t });
       if (!turno) throw bizError(`Turno de caja no encontrado (Id=${data.IdTurnoCaja}).`, 404);
 
-      const monto = round2(data.Monto);
+      // En efectivo el pago es un importe entero; pagar el saldo redondeado salda la deuda
+      // aunque difiera unos centavos del saldo exacto.
+      const efectivo = await esMetodoEfectivo(sequelize.models, data.IdMetodoPago, t);
+      const monto = efectivo ? montoEfectivo(data.Monto) : round2(data.Monto);
       const saldoActual = Number(compra.SaldoPendiente);
-      if (monto > saldoActual) {
+      const saldaPorRedondeo = efectivo && monto !== saldoActual && monto === Math.round(saldoActual);
+      const montoAplicado = saldaPorRedondeo ? saldoActual : monto;
+      if (montoAplicado > saldoActual) {
         throw bizError(`El pago (${monto}) supera el saldo pendiente de la Compra Id=${data.IdCompra} (${saldoActual}).`);
       }
 
@@ -62,28 +68,35 @@ export default class PagoCompraService {
       }, { transaction: t });
 
       await this.cuentaCorrienteProveedorService.registrarPago(
-        { IdProveedor: compra.IdProveedor, IdCompra: compra.Id, IdPagoCompra: pago.Id, Monto: monto },
+        { IdProveedor: compra.IdProveedor, IdCompra: compra.Id, IdPagoCompra: pago.Id, Monto: montoAplicado },
         { transaction: t }
       );
+
+      let nombreProveedor = 'Proveedor Desconocido';
+      if (compra && compra.IdProveedor) {
+        const prov = await sequelize.models.Proveedor.findByPk(compra.IdProveedor, { transaction: t });
+        if (prov) nombreProveedor = prov.Nombre;
+      }
 
       if (this.cajaService) {
         await this.cajaService.registrarEgreso({
           IdTurnoCaja: data.IdTurnoCaja,
           IdEmpleado: ctx?.IdEmpleado || compra.IdEmpleado,
           Monto: monto,
-          Descripcion: `Pago de compra Id=${data.IdCompra}`,
+          IdMetodoPago: data.IdMetodoPago,
+          Descripcion: `Pago a Proveedor: ${nombreProveedor} - Compra #${data.IdCompra}`,
           Fecha: pago.FechaPago
         }, { transaction: t });
       }
 
-      const nuevoSaldo = round2(saldoActual - monto);
+      const nuevoSaldo = round2(saldoActual - montoAplicado);
       const nuevoEstado = nuevoSaldo === 0 ? 3 : 2;
       await compra.update({ SaldoPendiente: nuevoSaldo, EstadoPago: nuevoEstado }, { transaction: t });
 
       await t.commit();
 
       await auditar(this.bitacoraService, ctx,
-        `Registró un pago de ${monto} a la compra #${data.IdCompra} (pago #${pago.Id})`,
+        `Registró un pago de ${monto} a la compra`,
         `Saldo pendiente: ${nuevoSaldo} · estado ${nuevoEstado === 3 ? 'Pagado' : 'Parcial'}`);
 
       return await this.pagoCompraDAO.getById(pago.Id);

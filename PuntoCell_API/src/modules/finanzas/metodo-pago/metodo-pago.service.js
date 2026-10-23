@@ -22,7 +22,7 @@ export default class MetodoPagoService {
 
   async create(data, ctx = null) {
     const creado = await this.dao.create(data);
-    await auditar(this.bitacoraService, ctx, `Creó el método de pago "${data.Nombre}" (#${creado.Id})`, `Alta de método de pago`);
+    await auditar(this.bitacoraService, ctx, `Creó el método de pago "${data.Nombre}"`, `Alta de método de pago`);
     return creado;
   }
 
@@ -30,7 +30,7 @@ export default class MetodoPagoService {
     const item = await this.dao.getById(id);
     if (!item) throw noEncontrado();
     const actualizado = await this.dao.update(id, data);
-    await auditar(this.bitacoraService, ctx, `Modificó el método de pago "${item.Nombre}" (#${id})`, `Campos: ${Object.keys(data).join(', ')}`);
+    await auditar(this.bitacoraService, ctx, `Modificó el método de pago "${item.Nombre}"`, `Campos: ${Object.keys(data).join(', ')}`);
     return actualizado;
   }
 
@@ -38,7 +38,7 @@ export default class MetodoPagoService {
     const item = await this.dao.getById(id);
     if (!item) throw noEncontrado();
     const eliminado = await this.dao.remove(id);
-    await auditar(this.bitacoraService, ctx, `Eliminó el método de pago "${item.Nombre}" (#${id})`, `Baja de método de pago`);
+    await auditar(this.bitacoraService, ctx, `Eliminó el método de pago "${item.Nombre}"`, `Baja de método de pago`);
     return eliminado;
   }
 }

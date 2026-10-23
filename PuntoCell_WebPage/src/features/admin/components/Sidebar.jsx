@@ -1,13 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Box } from '@mui/material';
-import { Group, Security, VerifiedUser } from '@mui/icons-material';
+import { Group } from '@mui/icons-material';
 
 // Ya hay un rail principal en AppLayout: esto es una franja liviana de tabs,
 // no un segundo sidebar. Mismo lenguaje visual que los ítems del rail.
 const ITEMS = [
   { name: 'Usuarios', path: '/app/admin/usuarios', icon: Group },
-  { name: 'Roles', path: '/app/admin/roles', icon: Security },
-  { name: 'Permisos', path: '/app/admin/permisos', icon: VerifiedUser },
 ];
 
 const Sidebar = () => {

@@ -41,7 +41,7 @@ export const ProductoSearch = ({ inventario = [], onTerminoChange }) => {
     const stock = item.Stock ?? 0;
     const serial = !!(item.articulo?.EsSerializado || item.IMEI);
     const detalle = serial
-      ? [item.IMEI ? `IMEI ${item.IMEI}` : null, item.estado?.Nombre, item.color?.Nombre, item.memoria?.Capacidad].filter(Boolean).join(' · ')
+      ? [item.IMEI ? `IMEI ${item.IMEI}` : null, item.estado?.Nombre, item.color?.Nombre, item.almacenamiento?.Capacidad ?? item.memoria?.Capacidad].filter(Boolean).join(' · ')
       : `stock ${stock}`;
     return {
       label: nombre,

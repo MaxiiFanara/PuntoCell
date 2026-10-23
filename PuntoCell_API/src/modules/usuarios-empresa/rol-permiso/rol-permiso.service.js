@@ -1,3 +1,5 @@
+import { Op } from 'sequelize';
+import { ROL_ANALISTA } from '../../../core/constants/roles.js';
 import { registerAudit } from '../../../core/utils/audit.util.js';
 
 export default class RolPermisoService {
@@ -10,11 +12,14 @@ export default class RolPermisoService {
     const { page, limit } = query;
     return await this.rolPermisoDAO.getAll({
       page,
-      limit
+      limit,
+      // El rol analista no se administra desde el sistema
+      where: { IdRol: { [Op.ne]: ROL_ANALISTA } }
     });
   }
 
   async create(data, auditContext = {}) {
+    if (Number(data.IdRol) === ROL_ANALISTA) throw new Error('Rol no encontrado');
     const existe = await this.rolPermisoDAO.findOne({ 
       where: { IdRol: data.IdRol, IdPermiso: data.IdPermiso } 
     });
@@ -28,6 +33,7 @@ export default class RolPermisoService {
   }
 
   async delete(idRol, idPermiso, auditContext = {}) {
+    if (Number(idRol) === ROL_ANALISTA) throw new Error('Asignación no encontrada');
     // Al ser una clave primaria compuesta, la eliminación física requiere ambos IDs
     const eliminado = await this.rolPermisoDAO.model.destroy({ 
       where: { IdRol: idRol, IdPermiso: idPermiso } 

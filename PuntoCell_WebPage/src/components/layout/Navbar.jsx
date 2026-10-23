@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useVenta } from '../../features/punto-venta/context/VentaContext'
 import { useDolarOficial } from '../../hooks/useDolarOficial'
 import { toast } from 'sonner';
+import FontSizeSelect from '../ui/FontSizeSelect'
 
 const fmtPeso = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 
@@ -15,7 +16,7 @@ const fmtPeso = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionD
 // de referencia (infodolar/dolarapi, solo lectura) y la salida.
 const Navbar = ({ onAbrirMenu, onAbrirAyuda }) => {
   const { usuario, cerrarSesion } = useAuth()
-  const { dolarGlobal, actualizarCotizacion } = useVenta()
+  const { dolarGlobal, actualizarCotizacion, nombreSucursal } = useVenta()
   const { dato: dolarOficial } = useDolarOficial()
 
   const [montoDolar, setMontoDolar] = useState('')
@@ -65,14 +66,33 @@ const Navbar = ({ onAbrirMenu, onAbrirAyuda }) => {
         borderColor: 'divider',
       }}
     >
-      <IconButton
-        onClick={onAbrirMenu}
-        size="small"
-        sx={{ display: { lg: 'none' }, mr: 'auto' }}
-        aria-label="Abrir menú"
-      >
-        <MenuIcon fontSize="small" />
-      </IconButton>
+      <Box sx={{ display: 'flex', alignItems: 'center', mr: 'auto', gap: 1.5 }}>
+        <IconButton
+          onClick={onAbrirMenu}
+          size="small"
+          sx={{ display: { lg: 'none' } }}
+          aria-label="Abrir menú"
+        >
+          <MenuIcon fontSize="small" />
+        </IconButton>
+
+        {nombreSucursal && (
+          <Tooltip title="Sucursal operativa actual">
+            <Box
+              sx={{
+                display: 'flex', alignItems: 'center', gap: 0.75,
+                px: 1.25, py: 0.5, borderRadius: '6px',
+                bgcolor: 'pc.accentSoft', color: 'primary.main',
+                whiteSpace: 'nowrap', fontWeight: 600, fontSize: '0.85rem'
+              }}
+            >
+              📍 {nombreSucursal}
+            </Box>
+          </Tooltip>
+        )}
+      </Box>
+
+      <FontSizeSelect />
 
       {/* Dólar oficial de referencia (dolarapi.com) — solo lectura, no toca la cotización operativa */}
       {dolarOficial && (

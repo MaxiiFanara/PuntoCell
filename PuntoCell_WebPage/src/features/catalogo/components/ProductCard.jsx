@@ -6,6 +6,7 @@ import { useCart } from '../context/CartContext'
 import { formatCurrency } from '../utils/whatsapp'
 import { formatCategoria } from '../utils/categorias'
 import ProductSpecs from './ProductSpecs'
+import CategoriaIcon from './CategoriaIcon'
 import { hoverLift, muted, price as priceSx } from '../../../components/ui/publicStyles'
 
 /**
@@ -54,11 +55,80 @@ export default function ProductCard({ product }) {
         '@media (hover: hover) and (pointer: fine)': {
           ...hoverLift['@media (hover: hover) and (pointer: fine)'],
           '&:hover .pc-add': { opacity: 1 },
+          '&:hover .pc-img img': { transform: 'scale(1.05)' },
         },
       }}
     >
+      {/* Fotografía, o un fondo suave con el ícono de la categoría si no hay. */}
+      <Box
+        className="pc-img"
+        sx={{
+          position: 'relative',
+          width: '100%',
+          aspectRatio: '4 / 3',
+          mb: 2,
+          borderRadius: 1,
+          overflow: 'hidden',
+          bgcolor: product.imagenPortada
+            ? 'background.paper'
+            : 'color-mix(in srgb, var(--pc-palette-primary-main) 8%, var(--pc-palette-background-paper))',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {product.imagenPortada ? (
+          <img
+            src={product.imagenPortada}
+            alt={product.name}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              transition: 'transform 420ms cubic-bezier(.23,1,.32,1)',
+            }}
+            loading="lazy"
+          />
+        ) : (
+          <CategoriaIcon categoria={product.category} sx={{ fontSize: 56, color: 'primary.main', opacity: 0.5 }} />
+        )}
+
+        {ultimas && (
+          <Typography
+            component="span"
+            sx={{
+              position: 'absolute',
+              top: 8,
+              left: 8,
+              px: 1,
+              py: 0.5,
+              borderRadius: 99,
+              bgcolor: 'warning.main',
+              color: 'warning.contrastText',
+              fontSize: '.6875rem',
+              fontWeight: 600,
+              lineHeight: 1,
+            }}
+          >
+            Últimas unidades
+          </Typography>
+        )}
+      </Box>
+
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5, mb: 1.5 }}>
-        <Typography sx={{ ...muted, fontSize: '.78rem' }}>
+        <Typography
+          component="span"
+          sx={{
+            fontSize: '.75rem',
+            fontWeight: 600,
+            lineHeight: 1,
+            px: 1.25,
+            py: 0.6,
+            borderRadius: 99,
+            color: 'primary.main',
+            bgcolor: 'color-mix(in srgb, var(--pc-palette-primary-main) 10%, transparent)',
+          }}
+        >
           {formatCategoria(product.category)}
         </Typography>
 
@@ -84,29 +154,6 @@ export default function ProductCard({ product }) {
           </Typography>
         )}
       </Box>
-
-      {product.imagenPortada && (
-        <Box
-          sx={{
-            width: '100%',
-            aspectRatio: '1',
-            mb: 2,
-            borderRadius: 1,
-            overflow: 'hidden',
-            bgcolor: 'background.paper',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <img
-            src={product.imagenPortada}
-            alt={product.name}
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-            loading="lazy"
-          />
-        </Box>
-      )}
 
       <Typography
         component="h3"

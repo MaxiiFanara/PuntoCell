@@ -6,6 +6,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility'
 import PersonAddIcon from '@mui/icons-material/PersonAdd'
 import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid'
 import SearchIcon from '@mui/icons-material/Search'
+import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 
 const ActionGroup = ({ label, children }) => (
@@ -26,6 +27,7 @@ const AccionesReparacion = ({
   onRegistrarDispositivo,
   onBuscarCliente,
   onBuscarDispositivo,
+  onAbrirAsistente,
 }) => {
   const hayOrden    = Boolean(ordenSeleccionada)
   const estadoOrden = ordenSeleccionada?.IdEstadoOrden
@@ -127,6 +129,20 @@ const AccionesReparacion = ({
         {permisos.puedeRegistrar && (
           <Button variant="outlined" startIcon={<PhoneAndroidIcon />} onClick={onRegistrarDispositivo}>
             Registrar Dispositivo
+          </Button>
+        )}
+        {onAbrirAsistente && (
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<SmartToyOutlinedIcon />}
+            onClick={onAbrirAsistente}
+            sx={{
+              borderRadius: '999px',
+              boxShadow: (theme) => theme.vars.palette.pc.lift,
+            }}
+          >
+            Asistente técnico
           </Button>
         )}
       </ActionGroup>

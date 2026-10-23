@@ -173,7 +173,7 @@ export default function AsistenteUsuarioChat({ open, onClose, usuario, pantalla 
           disabled={loading}
           sx={{ alignSelf: 'flex-start' }}
         >
-          Nueva conversación
+          Reiniciar conversación
         </Button>
         <TextField
           value={mensaje}

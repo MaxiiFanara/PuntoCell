@@ -9,6 +9,7 @@ import { ventasService } from '../../../services/ventasServices';
 import { useVenta } from '../../punto-venta/context/VentaContext';
 import NumberField from '../../../components/ui/NumberField';
 import { toast } from 'sonner';
+import { esEfectivoNombre, redondearEfectivo } from '../../../utils/efectivo';
 
 const fmt = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtArs = (usd, dolarGlobal) => `$ ${Math.round((usd || 0) * dolarGlobal).toLocaleString('es-AR')}`;
@@ -31,15 +32,27 @@ export default function CuentasPorPagarModal({ open, onClose, compras, onPagado 
       .catch(() => setMetodos([]));
   }, [open]);
 
+  const esEfectivoId = (idMetodo) => esEfectivoNombre(
+    metodos.find((m) => String(m.Id ?? m.id) === String(idMetodo))?.Nombre
+    ?? metodos.find((m) => String(m.Id ?? m.id) === String(idMetodo))?.nombre
+  );
+
   const abrirPago = (deuda) => {
+    const idMetodo = metodos[0]?.Id ?? metodos[0]?.id ?? '';
+    // En efectivo el monto propuesto es el saldo redondeado al entero.
+    setForm({ monto: esEfectivoId(idMetodo) ? redondearEfectivo(deuda.saldo).toFixed(2) : String(deuda.saldo), idMetodo });
     setAbierta(deuda.id);
-    setForm({ monto: String(deuda.saldo), idMetodo: metodos[0]?.Id ?? metodos[0]?.id ?? '' });
   };
 
   const confirmarPago = async (deuda) => {
-    const monto = Number(form.monto);
+    const efectivo = esEfectivoId(form.idMetodo);
+    // En efectivo el pago es siempre un importe entero; pagar el saldo redondeado lo salda.
+    const monto = efectivo ? redondearEfectivo(form.monto) : Number(form.monto);
     if (!monto || monto <= 0) return toast.warning('Ingresá un monto válido.');
-    if (monto > deuda.saldo + 0.001) return toast.warning(`El pago no puede superar el saldo (U$S ${fmt(deuda.saldo)} ≈ ${fmtArs(deuda.saldo, dolarGlobal)}).`);
+    const supera = efectivo
+      ? monto > Math.round(deuda.saldo) && monto > deuda.saldo + 0.001
+      : monto > deuda.saldo + 0.001;
+    if (supera) return toast.warning(`El pago no puede superar el saldo (U$S ${fmt(deuda.saldo)} ≈ ${fmtArs(deuda.saldo, dolarGlobal)}).`);
     if (!form.idMetodo) return toast.warning('Elegí un método de pago.');
     setGuardando(true);
     try {
@@ -99,7 +112,11 @@ export default function CuentasPorPagarModal({ open, onClose, compras, onPagado 
                 <NumberField size="small" label="Monto" value={form.monto}
                   onChange={(e) => setForm({ ...form, monto: e.target.value })} sx={{ width: 150 }} />
                 <TextField size="small" select label="Método" value={form.idMetodo}
-                  onChange={(e) => setForm({ ...form, idMetodo: e.target.value })} sx={{ minWidth: 180 }}>
+                  onChange={(e) => setForm({
+                    ...form,
+                    idMetodo: e.target.value,
+                    monto: esEfectivoId(e.target.value) && Number(form.monto) > 0 ? redondearEfectivo(form.monto).toFixed(2) : form.monto,
+                  })} sx={{ minWidth: 180 }}>
                   {metodos.map((m) => (
                     <MenuItem key={m.Id ?? m.id} value={m.Id ?? m.id}>{m.Nombre ?? m.nombre}</MenuItem>
                   ))}

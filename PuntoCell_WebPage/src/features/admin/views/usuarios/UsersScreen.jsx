@@ -256,7 +256,7 @@ const UsersScreen = () => {
       {/* 1. MODAL DE CREAR / EDITAR                 */}
       {/* ========================================== */}
       <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-        <DialogTitle>{editMode ? 'Actualizar usuario' : 'Registrar nuevo usuario'}</DialogTitle>
+        <DialogTitle>{editMode ? 'Actualizar usuario' : 'Registrar Usuario'}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 0.5 }}>
           {formError && <Alert severity="error">{formError}</Alert>}
           {!editMode && (

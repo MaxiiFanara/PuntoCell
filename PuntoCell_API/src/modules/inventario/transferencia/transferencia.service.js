@@ -1,4 +1,4 @@
-import { registerAudit } from '../../../core/utils/audit.util.js';
+import { registerAudit, nombreSucursal } from '../../../core/utils/audit.util.js';
 
 export default class TransferenciaService {
   constructor(transferenciaDAO, bitacoraService = null) {
@@ -13,6 +13,15 @@ export default class TransferenciaService {
       Sucursal: sequelize.models.Sucursal,
       MovimientoStock: sequelize.models.MovimientoStock
     };
+  }
+
+  // "Se realizó un traspaso de X desde Sucursal A hacia Sucursal B" — sin IDs técnicos.
+  async _detalleTraspaso(sequelize, producto, cantidad, idOrigen, idDestino) {
+    const [origen, destino] = await Promise.all([nombreSucursal(sequelize, idOrigen), nombreSucursal(sequelize, idDestino)]);
+    const que = producto ? `${producto}${Number(cantidad) > 1 ? ` (x${cantidad})` : ''}` : 'productos';
+    const desde = origen ? ` desde ${origen}` : '';
+    const hacia = destino ? ` hacia ${destino}` : '';
+    return `Se realizó un traspaso de ${que}${desde}${hacia}`;
   }
 
   async getAll(query = {}) {
@@ -36,7 +45,7 @@ export default class TransferenciaService {
     ] });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Transferencia no encontrada (Id=${id})`,
+        detalle: 'Transferencia no encontrada',
         Accion: 'Obtener Transferencia',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -53,7 +62,7 @@ export default class TransferenciaService {
     const sucOri = await Sucursal.findByPk(data.IdSucursalOrigen);
     if (!sucOri) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Sucursal origen no encontrada Id=${data.IdSucursalOrigen}`,
+        detalle: 'Sucursal de origen no encontrada',
         Accion: 'Crear Transferencia',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -65,7 +74,7 @@ export default class TransferenciaService {
     const sucDest = await Sucursal.findByPk(data.IdSucursalDestino);
     if (!sucDest) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Sucursal destino no encontrada Id=${data.IdSucursalDestino}`,
+        detalle: 'Sucursal de destino no encontrada',
         Accion: 'Crear Transferencia',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -77,7 +86,7 @@ export default class TransferenciaService {
     const movOut = await MovimientoStock.findByPk(data.IdMovimientoSalida);
     if (!movOut) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Movimiento salida no encontrado Id=${data.IdMovimientoSalida}`,
+        detalle: 'Movimiento de salida no encontrado',
         Accion: 'Crear Transferencia',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -89,7 +98,7 @@ export default class TransferenciaService {
     const movIn = await MovimientoStock.findByPk(data.IdMovimientoIngreso);
     if (!movIn) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Movimiento ingreso no encontrado Id=${data.IdMovimientoIngreso}`,
+        detalle: 'Movimiento de ingreso no encontrado',
         Accion: 'Crear Transferencia',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -101,7 +110,7 @@ export default class TransferenciaService {
 
     const created = await this.transferenciaDAO.create(data);
     await registerAudit(this.bitacoraService, {
-      detalle: `Transferencia creada Id=${created.Id || created.id || ''}`,
+      detalle: 'Se registró una transferencia entre sucursales',
       Accion: 'Crear Transferencia',
       IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
       IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -179,7 +188,7 @@ export default class TransferenciaService {
 
         await t.commit();
         await registerAudit(this.bitacoraService, {
-          detalle: `Traspaso ejecutado Id=${transferencia.Id || transferencia.id || ''}`,
+          detalle: await this._detalleTraspaso(sequelize, articulo?.Nombre, data.Cantidad, data.IdSucursalOrigen, data.IdSucursalDestino),
           Accion: 'Ejecutar Traspaso',
           IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
           IdSucursal: data?.IdSucursalOrigen || auditContext?.IdSucursal,
@@ -249,7 +258,7 @@ export default class TransferenciaService {
 
       await t.commit();
       await registerAudit(this.bitacoraService, {
-        detalle: `Traspaso ejecutado Id=${transferencia.Id || transferencia.id || ''}`,
+        detalle: await this._detalleTraspaso(sequelize, articulo?.Nombre, data.Cantidad, data.IdSucursalOrigen, data.IdSucursalDestino),
         Accion: 'Ejecutar Traspaso',
         IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
         IdSucursal: data?.IdSucursalOrigen || auditContext?.IdSucursal,
@@ -276,7 +285,7 @@ export default class TransferenciaService {
     const item = await this.transferenciaDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Transferencia no encontrada (Id=${id})`,
+        detalle: 'Transferencia no encontrada',
         Accion: 'Actualizar Transferencia',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -290,7 +299,7 @@ export default class TransferenciaService {
       const sucOri = await Sucursal.findByPk(data.IdSucursalOrigen);
       if (!sucOri) {
         await registerAudit(this.bitacoraService, {
-          detalle: `Sucursal origen no encontrada Id=${data.IdSucursalOrigen}`,
+          detalle: 'Sucursal de origen no encontrada',
           Accion: 'Actualizar Transferencia',
           IdEmpleado: auditContext?.IdEmpleado,
           IdSucursal: auditContext?.IdSucursal,
@@ -304,7 +313,7 @@ export default class TransferenciaService {
       const sucDest = await Sucursal.findByPk(data.IdSucursalDestino);
       if (!sucDest) {
         await registerAudit(this.bitacoraService, {
-          detalle: `Sucursal destino no encontrada Id=${data.IdSucursalDestino}`,
+          detalle: 'Sucursal de destino no encontrada',
           Accion: 'Actualizar Transferencia',
           IdEmpleado: auditContext?.IdEmpleado,
           IdSucursal: auditContext?.IdSucursal,
@@ -318,7 +327,7 @@ export default class TransferenciaService {
       const movOut = await MovimientoStock.findByPk(data.IdMovimientoSalida);
       if (!movOut) {
         await registerAudit(this.bitacoraService, {
-          detalle: `Movimiento salida no encontrado Id=${data.IdMovimientoSalida}`,
+          detalle: 'Movimiento de salida no encontrado',
           Accion: 'Actualizar Transferencia',
           IdEmpleado: auditContext?.IdEmpleado,
           IdSucursal: auditContext?.IdSucursal,
@@ -332,7 +341,7 @@ export default class TransferenciaService {
       const movIn = await MovimientoStock.findByPk(data.IdMovimientoIngreso);
       if (!movIn) {
         await registerAudit(this.bitacoraService, {
-          detalle: `Movimiento ingreso no encontrado Id=${data.IdMovimientoIngreso}`,
+          detalle: 'Movimiento de ingreso no encontrado',
           Accion: 'Actualizar Transferencia',
           IdEmpleado: auditContext?.IdEmpleado,
           IdSucursal: auditContext?.IdSucursal,
@@ -345,7 +354,7 @@ export default class TransferenciaService {
 
     const updated = await this.transferenciaDAO.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `Transferencia actualizada Id=${id}`,
+      detalle: 'Se actualizó una transferencia entre sucursales',
       Accion: 'Actualizar Transferencia',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -359,7 +368,7 @@ export default class TransferenciaService {
     const item = await this.transferenciaDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Transferencia no encontrada (Id=${id})`,
+        detalle: 'Transferencia no encontrada',
         Accion: 'Eliminar Transferencia',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -370,7 +379,7 @@ export default class TransferenciaService {
     }
     const removed = await this.transferenciaDAO.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `Transferencia eliminada Id=${id}`,
+      detalle: 'Se eliminó una transferencia entre sucursales',
       Accion: 'Eliminar Transferencia',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

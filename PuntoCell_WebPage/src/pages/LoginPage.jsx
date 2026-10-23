@@ -8,6 +8,7 @@ import {
   Visibility, VisibilityOff, PhoneAndroid, LockOutlined,
   PersonOutline, CheckCircleOutline,
 } from '@mui/icons-material'
+import { destinoPorRol } from '../utils/roles'
 import { useAuth } from '../context/AuthContext'
 import { loginUsuario, getSesionActual, mapUsuario } from '../services/api'
 import RecaptchaWidget, { recaptchaConfigurado } from '../components/ui/RecaptchaWidget'
@@ -73,7 +74,7 @@ export default function LoginPage() {
   // Si ya hay una sesión activa (cookie + estado local vigentes), no tiene sentido
   // mostrar el form de nuevo — evita el 400 "Ya tienes una sesión activa" del backend.
   useEffect(() => {
-    if (usuario) navigate('/app/punto-venta', { replace: true })
+    if (usuario) navigate(destinoPorRol(usuario.rol), { replace: true })
   }, [usuario, navigate])
 
   const [showPassword,  setShowPassword]  = useState(false)
@@ -96,9 +97,9 @@ export default function LoginPage() {
   // Navega al sistema tras la animación de éxito
   useEffect(() => {
     if (!success) return
-    const id = setTimeout(() => navigate('/app/punto-venta'), 1500)
+    const id = setTimeout(() => navigate(destinoPorRol(usuario?.rol)), 1500)
     return () => clearTimeout(id)
-  }, [success, navigate])
+  }, [success, navigate, usuario])
 
   const handleChange = (e) => { setForm({ ...form, [e.target.name]: e.target.value }); if (error) setError('') }
   const fillTestUser = () => { setForm(TEST_USER); setError('') }
@@ -107,7 +108,8 @@ export default function LoginPage() {
     e.preventDefault()
     if (!form.usuario || !form.password) { setError('Por favor completá todos los campos.'); return }
     const recaptchaToken = recaptchaRef.current?.getToken() || ''
-    if (recaptchaConfigurado && !recaptchaToken) { setError('Completá el captcha para continuar.'); return }
+    // Sin token el backend rechaza el login con el mismo mensaje ("Completá el captcha...")
+    // y deja constancia del intento en la bitácora; por eso ya no se corta acá.
     setLoading(true); setError('')
 
 

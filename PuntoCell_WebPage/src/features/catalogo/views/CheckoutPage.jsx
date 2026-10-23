@@ -8,12 +8,25 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { useCart } from '../context/CartContext';
 import { formatCurrency } from '../utils/whatsapp';
 import { pagosService } from '../../../services/pagosServices';
-import { ventasService } from '../../../services/ventasServices'; // <--- Importamos el servicio para la cotización
+import { catalogoService } from '../../../services/catalogoServices'; // <--- Importamos el servicio para la cotización
 import { btn, field, muted } from '../../../components/ui/publicStyles';
+import { soloLetrasYEspacios, soloDigitos } from '../../../utils/validators';
 
 const MOTIVOS = {
   inexistente: 'ya no está disponible',
   sin_stock: 'no tiene stock suficiente',
+};
+
+// Lo tecleado se filtra en el propio onChange (el backend igual debe validar).
+// Nombre: solo letras y espacios (sin números, símbolos, comillas, ; < > = ni paréntesis, que
+// son los que arman consultas SQL o código JS). Además se rechazan palabras reservadas SQL/JS.
+const REGEX_SQL_JS = /\b(select|insert|update|delete|drop|union|alter|truncate|exec|execute|script|javascript|alert)\b/i;
+const REGEX_EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+const LIMPIAR = {
+  email: (v) => v.replace(/[^A-Za-z0-9._%+@-]/g, '').slice(0, 254),
+  nombre: (v) => soloLetrasYEspacios(v, 60).replace(/^\s+/, '').replace(/\s{2,}/g, ' '),
+  dni: (v) => soloDigitos(v, 8),
+  celular: (v) => soloDigitos(v, 15),
 };
 
 const vacioCentrado = { maxWidth: 680, mx: 'auto' };
@@ -52,7 +65,7 @@ export default function CheckoutPage() {
     let mounted = true;
     const cargarDolarSistema = async () => {
       try {
-        const resCotizaciones = await ventasService.getCotizaciones();
+        const resCotizaciones = await catalogoService.getCotizaciones();
         let listaCotizaciones = resCotizaciones.data || resCotizaciones || [];
         if (listaCotizaciones.data && Array.isArray(listaCotizaciones.data)) {
           listaCotizaciones = listaCotizaciones.data;
@@ -82,14 +95,14 @@ export default function CheckoutPage() {
   }, []);
   // =================================================================
 
-  const emailValido = /^\S+@\S+\.\S+$/.test(comprador.email);
-  const dniValido = /^\d{7,9}$/.test(comprador.dni.replace(/\D/g, ''));
-  const nombreValido = comprador.nombre.trim().length >= 3;
-  const celularValido = comprador.celular.replace(/\D/g, '').length >= 8;
+  const emailValido = REGEX_EMAIL.test(comprador.email);
+  const dniValido = /^\d{7,8}$/.test(comprador.dni) && Number(comprador.dni) > 0;
+  const nombreValido = comprador.nombre.trim().length >= 3 && !REGEX_SQL_JS.test(comprador.nombre);
+  const celularValido = /^\d{8,15}$/.test(comprador.celular) && Number(comprador.celular) > 0;
   const puedePagar =
     items.length > 0 && emailValido && nombreValido && dniValido && celularValido && !enviando;
 
-  const cambiar = (campo) => (e) => setComprador((prev) => ({ ...prev, [campo]: e.target.value }));
+  const cambiar = (campo) => (e) => setComprador((prev) => ({ ...prev, [campo]: LIMPIAR[campo](e.target.value) }));
   const nombreDe = (id) => items.find((i) => String(i.id) === String(id))?.name || `Producto ${id}`;
   const totalUnidades = items.reduce((n, i) => n + i.quantity, 0);
 
@@ -263,12 +276,13 @@ export default function CheckoutPage() {
               id="checkout-email" label="Email" type="email"
               value={comprador.email} onChange={cambiar('email')}
               error={comprador.email.length > 0 && !emailValido}
-              helperText="Ahí te llega el comprobante de Mercado Pago"
+              helperText={comprador.email.length > 0 && !emailValido ? 'Ingresá un email válido (ej: nombre@dominio.com)' : 'Ahí te llega el comprobante de Mercado Pago'}
             />
             <Campo
               id="checkout-nombre" label="Nombre y apellido"
               value={comprador.nombre} onChange={cambiar('nombre')}
               error={comprador.nombre.length > 0 && !nombreValido}
+              helperText={comprador.nombre.length > 0 && !nombreValido ? 'Solo letras, sin palabras reservadas' : ' '}
             />
             <Campo
               id="checkout-dni" label="DNI"

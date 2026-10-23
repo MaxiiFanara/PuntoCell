@@ -98,7 +98,7 @@ const ModalRegistroCliente = ({ open, onClose, localidades, dniInicial = '', onC
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 1.25 }}>
               <Campo label="DNI">
                 <TextField fullWidth value={form.DNI} onChange={setSoloDigitos('DNI', 8)}
-                  slotProps={{ htmlInput: { readOnly: !!dniInicial, maxLength: 8, inputMode: 'numeric' } }}
+                  slotProps={{ htmlInput: { maxLength: 8, inputMode: 'numeric' } }}
                   helperText="7 u 8 dígitos"
                 />
               </Campo>

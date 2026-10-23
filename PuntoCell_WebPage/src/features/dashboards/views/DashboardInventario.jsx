@@ -90,7 +90,7 @@ export default function DashboardInventario() {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, md: 3 } }}>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: { xs: 2, md: 3 } }}>
-          <KpiCard eyebrow="Total Artículos" value={String(kpis.totalArticulos)} sub="Unidades físicas" tone="mute" />
+          <KpiCard eyebrow="Total Artículos" value={String(kpis.totalArticulos)} sub="Artículos en inventario" tone="mute" />
           <KpiCard eyebrow="Capital Inmovilizado" value={`U$S ${kpis.capitalInmovilizado.toLocaleString('es-AR')}`} sub="Valorización a costo" tone="info" />
           <KpiCard eyebrow="Riesgo de Obsolescencia" value={String(kpis.riesgoObsolescencia)} sub="Productos con +90 días" tone="error" />
           <KpiCard eyebrow="Índice de Rotación" value={String(kpis.indiceRotacion)} sub="Veces por año" tone="ok" />
@@ -179,7 +179,7 @@ export default function DashboardInventario() {
 
         {/* KPIs Apilados */}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: { xs: 2, md: 3 } }}>
-          <KpiCard eyebrow="Total Artículos" value={renderApilado((d) => String(d.kpis?.totalArticulos || 0))} sub="Unidades físicas" tone="mute" />
+          <KpiCard eyebrow="Total Artículos" value={renderApilado((d) => String(d.kpis?.totalArticulos || 0))} sub="Artículos en inventario" tone="mute" />
           <KpiCard eyebrow="Capital Inmovilizado" value={renderApilado((d) => `U$S ${d.kpis?.capitalInmovilizado?.toLocaleString('es-AR') || '0'}`)} sub="Valor a costo" tone="info" />
           <KpiCard eyebrow="Riesgo de Obsolescencia" value={renderApilado((d) => String(d.kpis?.riesgoObsolescencia || 0))} sub="Productos con +90 días" tone="error" />
           <KpiCard eyebrow="Índice de Rotación" value={renderApilado((d) => String(d.kpis?.indiceRotacion || 0))} sub="Veces por año" tone="ok" />

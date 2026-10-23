@@ -253,7 +253,7 @@ export default function CatalogAssistantChat() {
             disabled={loadingChat}
             sx={{ alignSelf: 'flex-start' }}
           >
-            Nueva conversación
+            Reiniciar conversación
           </Button>
           <TextField
             value={mensaje}

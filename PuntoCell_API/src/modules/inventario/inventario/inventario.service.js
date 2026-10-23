@@ -27,7 +27,7 @@ export default class InventarioService {
     const { page, limit, IdSucursal, soloVendibles, soloRepuestos, soloCanje, IMEI } = query;
     const { Sucursal, Articulo, EstadoInventario, Proveedor } = this._getRelatedModels();
     const sequelize = this.inventarioDAO.model.sequelize;
-    const { Color, Memoria, Bateria, ModeloArticulo } = sequelize.models;
+    const { Color, Memoria, Almacenamiento, Bateria, ModeloArticulo } = sequelize.models;
 
     const whereClause = {};
     if (IdSucursal) {
@@ -71,6 +71,7 @@ export default class InventarioService {
         // tienen igual vuelven con color/memoria/bateria en null.
         { model: Color, as: 'color', attributes: ['Nombre'] },
         { model: Memoria, as: 'memoria', attributes: ['Capacidad'] },
+        { model: Almacenamiento, as: 'almacenamiento', attributes: ['Capacidad'] },
         { model: Bateria, as: 'bateria', attributes: ['Capacidad', 'Porcentaje'] }
       ]
     });
@@ -79,7 +80,7 @@ export default class InventarioService {
   async getById(id, auditContext = null) {
     const { Sucursal, Articulo, EstadoInventario } = this._getRelatedModels();
     const sequelize = this.inventarioDAO.model.sequelize;
-    const { Color, Memoria, ModeloArticulo } = sequelize.models;
+    const { Color, Memoria, Almacenamiento, ModeloArticulo } = sequelize.models;
 
     const item = await this.inventarioDAO.getById(id, {
       attributes: { exclude: [] }, // Aseguramos que traiga el Id
@@ -88,6 +89,7 @@ export default class InventarioService {
         { model: EstadoInventario, as: 'estado', attributes: ['Id', 'Nombre'] },
         { model: Color, as: 'color', attributes: ['Nombre'] },
         { model: Memoria, as: 'memoria', attributes: ['Capacidad'] },
+        { model: Almacenamiento, as: 'almacenamiento', attributes: ['Capacidad'] },
         {
           model: Articulo,
           as: 'articulo',
@@ -100,7 +102,7 @@ export default class InventarioService {
 
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Inventario no encontrado (Id=${id})`,
+        detalle: `Inventario no encontrado`,
         Accion: 'Obtener Inventario',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -148,7 +150,7 @@ export default class InventarioService {
     const suc = await Sucursal.findByPk(data.IdSucursal);
     if (!suc) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Sucursal no encontrada Id=${data.IdSucursal}`,
+        detalle: `Sucursal no encontrada`,
         Accion: 'Crear Inventario',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -160,7 +162,7 @@ export default class InventarioService {
     const art = await Articulo.findByPk(data.IdArticulo);
     if (!art) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Articulo no encontrado Id=${data.IdArticulo}`,
+        detalle: `Articulo no encontrado`,
         Accion: 'Crear Inventario',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -172,7 +174,7 @@ export default class InventarioService {
     const est = await EstadoInventario.findByPk(data.IdEstadoInventario);
     if (!est) {
       await registerAudit(this.bitacoraService, {
-        detalle: `EstadoInventario no encontrado Id=${data.IdEstadoInventario}`,
+        detalle: `EstadoInventario no encontrado`,
         Accion: 'Crear Inventario',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -207,8 +209,12 @@ export default class InventarioService {
       throw err;
     }
 
+
+    const nombreArt = art ? art.Nombre : 'Artículo';
+    const imeiStr = data.IMEI ? ` (IMEI: ${data.IMEI})` : '';
+    
     await registerAudit(this.bitacoraService, {
-      detalle: `Inventario creado Id=${created.Id || created.id || ''}${Number(CostoBase) > 0 ? ` (con precio, CostoBase=${CostoBase})` : ''}`,
+      detalle: `Ingresó al inventario: ${data.Stock || 1}x ${nombreArt}${imeiStr}${Number(CostoBase) > 0 ? ` [Costo: $${CostoBase}]` : ''}`,
       Accion: 'Crear Inventario',
       IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
       IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -222,7 +228,7 @@ export default class InventarioService {
     const item = await this.inventarioDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Inventario no encontrado (Id=${id})`,
+        detalle: `Inventario no encontrado`,
         Accion: 'Actualizar Inventario',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -237,7 +243,7 @@ export default class InventarioService {
       const suc = await Sucursal.findByPk(data.IdSucursal);
       if (!suc) {
         await registerAudit(this.bitacoraService, {
-          detalle: `Sucursal no encontrada Id=${data.IdSucursal}`,
+          detalle: `Sucursal no encontrada`,
           Accion: 'Actualizar Inventario',
           IdEmpleado: auditContext?.IdEmpleado,
           IdSucursal: auditContext?.IdSucursal,
@@ -252,7 +258,7 @@ export default class InventarioService {
       art = await Articulo.findByPk(data.IdArticulo);
       if (!art) {
         await registerAudit(this.bitacoraService, {
-          detalle: `Articulo no encontrado Id=${data.IdArticulo}`,
+          detalle: `Articulo no encontrado`,
           Accion: 'Actualizar Inventario',
           IdEmpleado: auditContext?.IdEmpleado,
           IdSucursal: auditContext?.IdSucursal,
@@ -266,7 +272,7 @@ export default class InventarioService {
       const est = await EstadoInventario.findByPk(data.IdEstadoInventario);
       if (!est) {
         await registerAudit(this.bitacoraService, {
-          detalle: `EstadoInventario no encontrado Id=${data.IdEstadoInventario}`,
+          detalle: `EstadoInventario no encontrado`,
           Accion: 'Actualizar Inventario',
           IdEmpleado: auditContext?.IdEmpleado,
           IdSucursal: auditContext?.IdSucursal,
@@ -288,7 +294,7 @@ export default class InventarioService {
 
     const updated = await this.inventarioDAO.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `Inventario actualizado Id=${id}`,
+      detalle: `Modificó datos del inventario #${id} (Campos: ${Object.keys(data).join(', ')})`,
       Accion: 'Actualizar Inventario',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -302,7 +308,7 @@ export default class InventarioService {
     const item = await this.inventarioDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Inventario no encontrado (Id=${id})`,
+        detalle: `Inventario no encontrado`,
         Accion: 'Eliminar Inventario',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -313,7 +319,7 @@ export default class InventarioService {
     }
     const removed = await this.inventarioDAO.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `Inventario eliminado Id=${id}`,
+      detalle: `Inventario eliminado`,
       Accion: 'Eliminar Inventario',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

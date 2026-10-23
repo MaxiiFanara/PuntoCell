@@ -14,6 +14,7 @@ import { fetchApi } from '../../../services/api';
 import StatusPill from '../../../components/ui/StatusPill';
 import NumberField from '../../../components/ui/NumberField';
 import { toast } from 'sonner';
+import { redondearEfectivo } from '../../../utils/efectivo';
 
 const pesos = (n) => `$ ${Math.round(n || 0).toLocaleString('es-AR')}`;
 const dolares = (n) => `U$S ${(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -84,11 +85,17 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
   const totalAjustado = totalVenta - bonificacion;
   const totalPagado = pagos.reduce((sum, p) => sum + p.Monto, 0);
   const restante = totalAjustado - totalPagado;
+  // En efectivo se cobra el importe entero más cercano: ese redondeo salda la venta aunque
+  // difiera unos centavos del total exacto (siempre menos de U$S 0,50).
+  const hayCobroEfectivo = pagos.some((p) => p.EsEfectivo);
+  const toleranciaRedondeo = hayCobroEfectivo ? 0.5 : 0.01;
   const ars = (usd) => (usd || 0) * dolarGlobal;
 
   useEffect(() => {
     if (open) {
-      setPagos([]); setBonificacionInput(''); setMontoPago(totalVenta.toFixed(2));
+      const primerMetodoEfectivo = /efectivo/i.test(metodosPago?.[0]?.label || '');
+      setPagos([]); setBonificacionInput('');
+      setMontoPago(primerMetodoEfectivo ? redondearEfectivo(totalVenta).toFixed(2) : totalVenta.toFixed(2));
       setSubTransferencias([]); setFechaVencimiento(''); setCantidadCuotas(1);
       setEquipoCanje(null);
 
@@ -110,7 +117,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
   // del desglose por banco. En efectivo, además, se admite superar el restante (vuelto).
   const montoEditable = !esTransferencia;
   // Vuelto: solo aplica si lo que sobra vino de un pago en efectivo.
-  const vuelto = esEfectivo ? Math.max(0, (parseFloat(montoPago) || 0) - restante) : 0;
+  const vuelto = esEfectivo ? Math.max(0, redondearEfectivo(parseFloat(montoPago)) - Math.round(Math.max(restante, 0))) : 0;
 
   const agregarSubTransferencia = () => {
     if (!banco || !subMonto) return toast.warning('Completá banco y monto');
@@ -127,8 +134,10 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
   const eliminarSubTransferencia = (index) => setSubTransferencias(subTransferencias.filter((_, i) => i !== index));
 
   const agregarPago = () => {
-    const monto = parseFloat(montoPago);
-    if (isNaN(monto) || monto <= 0) return toast.warning('Ingresá un monto válido');
+    const montoIngresado = parseFloat(montoPago);
+    if (isNaN(montoIngresado) || montoIngresado <= 0) return toast.warning('Ingresá un monto válido');
+    // En efectivo el cobro es siempre un importe entero.
+    const monto = esEfectivo ? redondearEfectivo(montoIngresado) : montoIngresado;
 
     // El total de los pagos no puede superar el total de la venta. En efectivo se admite
     // exceso solo como vuelto (lo aplicado se topea con Math.min más abajo); en el resto
@@ -168,14 +177,14 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
     if (esTransferencia) observacionPago = 'Destinos: ' + subTransferencias.map(t => `${t.banco} ($${t.monto.toFixed(2)})`).join(' + ');
 
     // En efectivo, solo lo que cubre la deuda cuenta como pago; el resto es vuelto.
-    const montoAplicado = esEfectivo ? Math.min(monto, restante) : monto;
+    const montoAplicado = esEfectivo ? Math.min(monto, redondearEfectivo(Math.max(restante, 0))) : monto;
     if (esEfectivo && vuelto > 0.009) {
       observacionPago = observacionPago
         ? `${observacionPago} · Vuelto entregado: U$S ${vuelto.toFixed(2)}`
         : `Vuelto entregado: U$S ${vuelto.toFixed(2)}`;
     }
 
-    setPagos([...pagos, { IdMetodoPago: parseInt(metodoPago), NombreMetodo: metodoSeleccionado?.label || 'Pago', Monto: montoAplicado, Cotizacion: dolarGlobal, Observacion: observacionPago, ...datosExtra }]);
+    setPagos([...pagos, { IdMetodoPago: parseInt(metodoPago), NombreMetodo: metodoSeleccionado?.label || 'Pago', EsEfectivo: !!esEfectivo, Monto: montoAplicado, Cotizacion: dolarGlobal, Observacion: observacionPago, ...datosExtra }]);
     setMontoPago(''); setSubTransferencias([]); setFechaVencimiento(''); setCantidadCuotas(1);
     setEquipoCanje(null);
   };
@@ -184,7 +193,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
 
   const procesarVenta = async () => {
     if (!cliente?.id) return toast.error('⚠️ Seleccioná un cliente antes de cobrar.');
-    if (restante > 0.01) return toast.error(`⚠️ Aún falta cubrir U$S ${restante.toFixed(2)}`);
+    if (restante > toleranciaRedondeo) return toast.error(`⚠️ Aún falta cubrir U$S ${restante.toFixed(2)}`);
     if (pagos.length === 0) return toast.warning('No hay pagos registrados');
 
     // El cliente puede haber quedado cacheado (localStorage/estado del POS) apuntando a un
@@ -222,7 +231,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
         const idInventario = creado?.Id ?? creado?.id;
         return {
           ...p,
-          Observacion: `Canje recibido: ${p.equipoCanjePendiente.resumen} (Inventario #${idInventario})`,
+          Observacion: `Canje recibido: ${p.equipoCanjePendiente.resumen}`,
         };
       }));
     } catch (error) {
@@ -249,12 +258,14 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
         Subtotal: parseFloat(item.Subtotal)
       })),
 
-      Pagos: pagosFinales.map(p => ({
-        IdMetodoPago: p.IdMetodoPago,
-        Monto: p.Monto,
-        Cotizacion: p.Cotizacion,
-        Observacion: p.Observacion
-      })),
+      Pagos: pagosFinales
+        .filter(p => !p.cuotas && !/cuota/i.test(p.NombreMetodo || ''))
+        .map(p => ({
+          IdMetodoPago: p.IdMetodoPago,
+          Monto: p.Monto,
+          Cotizacion: p.Cotizacion,
+          Observacion: p.Observacion
+        })),
 
       // Cuotas de pagos financiados, para que el backend las cree junto con la venta
       Cuotas: pagos.flatMap(p => p.cuotas || []),
@@ -263,7 +274,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
     onConfirmar(ventaRequest);
   };
 
-  const cubierto = restante <= 0.01;
+  const cubierto = restante <= toleranciaRedondeo;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
@@ -332,7 +343,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
                 </Box>
               )}
               <Box sx={{ mt: 1.25, p: '11px 13px', borderRadius: '9px', bgcolor: 'pc.accentSoft', color: 'primary.main' }}>
-                <Box sx={{ typography: 'eyebrow', color: 'inherit', opacity: .75 }}>Total a pagar</Box>
+                <Box sx={{ typography: 'eyebrow', color: 'inherit', opacity: .75 }}>Total a cobrar</Box>
                 <Box className="num" sx={{ fontSize: '1.6rem', fontWeight: 600, letterSpacing: '-.04em', lineHeight: 1.1 }}>
                   {dolares(totalAjustado)}
                 </Box>
@@ -342,7 +353,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
           </Columna>
 
           {/* ── Pagos registrados ──────────────────────────── */}
-          <Columna titulo="Pagos registrados">
+          <Columna titulo="Cobros registrados">
             <Box sx={{
               flex: 1, minHeight: 200, borderRadius: '9px',
               border: 1, borderColor: 'divider', bgcolor: 'pc.surfaceMuted', overflow: 'auto',
@@ -387,7 +398,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
 
             <Box sx={{ p: '11px 13px', borderRadius: '9px', border: 1, borderColor: 'divider' }}>
               <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.25, fontSize: '.78rem' }}>
-                <Box sx={{ color: 'text.secondary' }}>Pagado</Box>
+                <Box sx={{ color: 'text.secondary' }}>Cobrado</Box>
                 <Box className="num" sx={{ fontWeight: 600 }}>{dolares(totalPagado)}</Box>
               </Box>
               <Box sx={{
@@ -398,7 +409,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
                 {cubierto ? (
                   <StatusPill
                     tone="ok"
-                    label={Math.abs(restante) < 0.01 ? 'Cubierto' : `Cubierto · ${dolares(Math.abs(restante))} a favor`}
+                    label={Math.abs(restante) < 0.01 || (hayCobroEfectivo && Math.abs(restante) < 0.5) ? 'Cubierto' : `Cubierto · ${dolares(Math.abs(restante))} a favor`}
                   />
                 ) : (
                   <Box className="num" sx={{ fontWeight: 600, fontSize: '.95rem', color: 'error.main' }}>
@@ -410,8 +421,8 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
           </Columna>
 
           {/* ── Nuevo pago ─────────────────────────────────── */}
-          <Columna titulo="Agregar un pago">
-            <Campo label="Forma de pago">
+          <Columna titulo="Agregar un cobro">
+            <Campo label="Forma de cobro">
               <Select
                 fullWidth size="small" displayEmpty
                 value={metodoPago || ''}
@@ -422,7 +433,8 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
                   setFechaVencimiento('');
                   setCantidadCuotas(1);
                   // Arranca en lo que falta cubrir; en efectivo se puede editar después
-                  setMontoPago(restante > 0 ? restante.toFixed(2) : '');
+                  const nuevoEfectivo = /efectivo/i.test(metodosPago?.find(m => m.value === e.target.value)?.label || '');
+                  setMontoPago(restante > 0 ? (nuevoEfectivo ? redondearEfectivo(restante) : restante).toFixed(2) : '');
                 }}
               >
                 {metodosPago?.map(m => <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>)}
@@ -589,7 +601,7 @@ export const ModalCobro = ({ open, onClose, metodosPago, onConfirmar }) => {
               esSerializado: true,
               idSucursal: idSucursal || 1,
               idProveedor: proveedorCanjeId || '',
-              idModeloArticulo: '', imei: '', idColor: '', idMemoria: '', idBateria: '',
+              idModeloArticulo: '', imei: '', idColor: '', idAlmacenamiento: '', idBateria: '',
               precioMayor: '', precioMenor: '',
               stock: 1,
               observaciones: `Equipo recibido en canje${cliente?.nombre ? ` — cliente ${cliente.nombre}` : ''}`,

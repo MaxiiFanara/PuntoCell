@@ -16,7 +16,7 @@ export default class DetalleDevolucionVentaService {
     const item = await this.dao.getById(id, { attributes: this.ATTRIBUTES });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `DetalleDevolucionVenta no encontrado (Id=${id})`,
+        detalle: `DetalleDevolucionVenta no encontrado`,
         Accion: 'Obtener DetalleDevolucionVenta',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -32,7 +32,7 @@ export default class DetalleDevolucionVentaService {
     try {
       const created = await this.dao.create(data);
       await registerAudit(this.bitacoraService, {
-        detalle: `DetalleDevolucionVenta creado Id=${created.Id || created.id || ''}`,
+        detalle: `DetalleDevolucionVenta creado`,
         Accion: 'Crear DetalleDevolucionVenta',
         IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
         IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -57,7 +57,7 @@ export default class DetalleDevolucionVentaService {
     const item = await this.dao.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `DetalleDevolucionVenta no encontrado (Id=${id})`,
+        detalle: `DetalleDevolucionVenta no encontrado`,
         Accion: 'Actualizar DetalleDevolucionVenta',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -68,7 +68,7 @@ export default class DetalleDevolucionVentaService {
     }
     const updated = await this.dao.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `DetalleDevolucionVenta actualizado Id=${id}`,
+      detalle: `DetalleDevolucionVenta actualizado`,
       Accion: 'Actualizar DetalleDevolucionVenta',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -82,7 +82,7 @@ export default class DetalleDevolucionVentaService {
     const item = await this.dao.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `DetalleDevolucionVenta no encontrado (Id=${id})`,
+        detalle: `DetalleDevolucionVenta no encontrado`,
         Accion: 'Eliminar DetalleDevolucionVenta',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -93,7 +93,7 @@ export default class DetalleDevolucionVentaService {
     }
     const removed = await this.dao.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `DetalleDevolucionVenta eliminado Id=${id}`,
+      detalle: `DetalleDevolucionVenta eliminado`,
       Accion: 'Eliminar DetalleDevolucionVenta',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

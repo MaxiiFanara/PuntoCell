@@ -32,6 +32,7 @@ export const ProductProvider = ({ children }) => {
           // La base guarda los colores en minúscula ("titanio negro"). Se
           // capitaliza acá, una vez, y no en cada vista que lo muestra.
           const color = capitalizar(p.color);
+          p = { ...p, memoria: p.almacenamiento || p.memoria };
           return {
             id: p.id,
             name: p.name,

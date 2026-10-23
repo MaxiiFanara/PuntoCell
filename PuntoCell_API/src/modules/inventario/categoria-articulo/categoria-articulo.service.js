@@ -16,7 +16,7 @@ export default class CategoriaArticuloService {
     const item = await this.dao.getById(id, { attributes: this.ATTRIBUTES });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `CategoriaArticulo no encontrada (Id=${id})`,
+        detalle: `CategoriaArticulo no encontrada`,
         Accion: 'Obtener CategoriaArticulo',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -43,7 +43,7 @@ export default class CategoriaArticuloService {
     }
     const created = await this.dao.create(data);
     await registerAudit(this.bitacoraService, {
-      detalle: `CategoriaArticulo creada Id=${created.Id || created.id || ''}`,
+      detalle: `CategoriaArticulo creada`,
       Accion: 'Crear CategoriaArticulo',
       IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
       IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -57,7 +57,7 @@ export default class CategoriaArticuloService {
     const item = await this.dao.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `CategoriaArticulo no encontrada (Id=${id})`,
+        detalle: `CategoriaArticulo no encontrada`,
         Accion: 'Actualizar CategoriaArticulo',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -82,7 +82,7 @@ export default class CategoriaArticuloService {
     }
     const updated = await this.dao.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `CategoriaArticulo actualizada Id=${id}`,
+      detalle: `CategoriaArticulo actualizada`,
       Accion: 'Actualizar CategoriaArticulo',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -96,7 +96,7 @@ export default class CategoriaArticuloService {
     const item = await this.dao.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `CategoriaArticulo no encontrada (Id=${id})`,
+        detalle: `CategoriaArticulo no encontrada`,
         Accion: 'Eliminar CategoriaArticulo',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -107,7 +107,7 @@ export default class CategoriaArticuloService {
     }
     const removed = await this.dao.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `CategoriaArticulo eliminada Id=${id}`,
+      detalle: `CategoriaArticulo eliminada`,
       Accion: 'Eliminar CategoriaArticulo',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

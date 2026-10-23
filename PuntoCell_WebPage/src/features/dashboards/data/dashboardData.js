@@ -475,10 +475,9 @@ export async function loadComprasDashboard(range = null, branchId = '') {
 }
 
 export async function loadInventarioDashboard(range = null, branchId = '') {
-  const [summary, bajaRotacion, inventarios, precios, listas] = await Promise.all([
+  const [summary, bajaRotacion, precios, listas] = await Promise.all([
     fetchData(`/dashboard/summary${branchId ? `?idSucursal=${branchId}` : ''}`),
     fetchData(`/dashboard/inventario/baja-rotacion?${buildQuery({ ...normalizeUiRange(range, 90), idSucursal: branchId || undefined })}`),
-    fetchData('/inventario/inventarios').catch(() => []),
     preciosService.getPreciosArticulos().catch(() => []),
     preciosService.getListas().catch(() => []),
   ])
@@ -516,7 +515,8 @@ export async function loadInventarioDashboard(range = null, branchId = '') {
 
   return {
     kpis: {
-      totalArticulos: toNumber(summary?.inventario?.count) || (inventarios?.length ?? normalized.length),
+      // Misma fuente (ya filtrada por sucursal) que el resto de los KPIs; el resumen global solo es respaldo.
+      totalArticulos: normalized.length || toNumber(summary?.inventario?.count),
       capitalInmovilizado: Math.round(capitalTotal),
       riesgoObsolescencia: riskCount,
       indiceRotacion: rotationIndex,
@@ -603,7 +603,7 @@ export async function loadFinancieroDashboard(range = null, branchId = '') {
   const range180 = normalizeUiRange(range, 30)
   const query180 = buildQuery({ ...range180, idSucursal: branchId || undefined })
   const [flow, marginBruto, marginProd, marginCat, rentMarca] = await Promise.all([
-    fetchData(`/dashboard/finanzas/ingresos-egresos?${query180}`),
+    fetchData(`/dashboard/finanzas/ingresos-egresos?${query180}&fuente=operaciones`),
     fetchData(`/dashboard/finanzas/margen-bruto?${query180}`),
     fetchData(`/dashboard/finanzas/margen-producto?${query180}`),
     fetchData(`/dashboard/finanzas/margen-categoria?${query180}`),

@@ -22,7 +22,7 @@ export default class DevolucionCompraService {
   async create(data, ctx = null) {
     const nuevaDevolucion = { ...data, Fecha: data.Fecha ? new Date(data.Fecha) : new Date() };
     const creada = await this.devolucionCompraDAO.create(nuevaDevolucion);
-    await auditar(this.bitacoraService, ctx, `Registró una devolución de la compra #${data.IdCompra} (devolución #${creada.Id})`,
+    await auditar(this.bitacoraService, ctx, `Registró una devolución de la compra`,
       `Monto recuperado ${data.MontoRecuperado ?? '-'} · motivo: ${data.Motivo ?? '-'}`);
     return creada;
   }
@@ -31,7 +31,7 @@ export default class DevolucionCompraService {
     const devolucion = await this.devolucionCompraDAO.getById(id);
     if (!devolucion) throw noEncontrada();
     const actualizada = await this.devolucionCompraDAO.update(id, data);
-    await auditar(this.bitacoraService, ctx, `Modificó la devolución de compra #${id}`,
+    await auditar(this.bitacoraService, ctx, `Modificó la devolución de compra`,
       `Campos: ${Object.keys(data).join(', ')}`);
     return actualizada;
   }
@@ -41,7 +41,7 @@ export default class DevolucionCompraService {
     if (!devolucion) throw noEncontrada();
     const eliminado = await this.devolucionCompraDAO.remove(id);
     if (!eliminado) throw new Error('No se pudo eliminar la devolución de compra');
-    await auditar(this.bitacoraService, ctx, `Eliminó la devolución de compra #${id}`, `Baja de devolución de compra`);
+    await auditar(this.bitacoraService, ctx, `Eliminó la devolución de compra`, `Baja de devolución de compra`);
     return true;
   }
 }

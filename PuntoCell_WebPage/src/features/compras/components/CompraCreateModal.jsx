@@ -10,7 +10,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { comprasService } from '../../../services/comprasServices';
 import { inventarioService } from '../../../services/inventarioServices';
 import { ventasService } from '../../../services/ventasServices';
-import { getMarcas } from '../../../services/api';
+import { getMarcas, crearModeloArticulo } from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
 import { soloImei, esImeiValido } from '../../../utils/validators';
 import Money from '../../../components/ui/Money';
@@ -21,9 +21,16 @@ import { useVenta } from '../../punto-venta/context/VentaContext';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import ImeiScannerModal from '../../../components/modals/ImeiScannerModal';
 import { toast } from 'sonner';
+import { esEfectivoNombre, redondearEfectivo } from '../../../utils/efectivo';
 
 const ID_TURNO_CAJA = 1; // seed fijo — el módulo de caja de la API todavía no está expuesto
 const hoy = () => new Date().toISOString().slice(0, 10);
+// Fecha local de hoy (YYYY-MM-DD) para el mínimo de la garantía: toISOString usa UTC y
+// después de las 21 h en Argentina ya devolvería el día siguiente.
+const hoyLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 // Categorías que NO se muestran cuando el ítem nuevo es "no serializado".
 const CATEGORIAS_EXCLUIDAS_NO_SERIAL = /smartphone|notebook|tablet/i;
@@ -37,10 +44,11 @@ const lineaVacia = () => ({
   articulo: null,               // modo "artículo existente": Articulo { Id, Nombre, EsSerializado, EsRepuesto }
   clasificacion: 'serializado',
   idCategoria: '', idMarca: '', idModelo: '',
+  nombreModelo: '',             // modelo nuevo tipeado (sólo si no se eligió uno existente)
   cantidad: 1,
   costo: '',
   imeis: [''],
-  idColor: '', idMemoria: '', idBateria: '',
+  idColor: '', idAlmacenamiento: '', idBateria: '',
 });
 
 const flagsPorClasificacion = (c) => ({
@@ -79,7 +87,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
 
   const [cat, setCat] = useState({
     proveedores: [], sucursales: [], articulos: [], categorias: [], marcas: [],
-    modelos: [], colores: [], memorias: [], baterias: [], metodos: [],
+    modelos: [], colores: [], almacenamientos: [], baterias: [], metodos: [],
   });
 
   const [idProveedor, setIdProveedor] = useState('');
@@ -107,14 +115,14 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
       inventarioService.getModelos(),
       getMarcas(),
       inventarioService.getColores(),
-      inventarioService.getMemorias(),
+      inventarioService.getAlmacenamientos(),
       inventarioService.getBaterias(),
       ventasService.getMetodosPago(),
-    ]).then(([prov, suc, arts, cats, mods, marcas, cols, mems, bats, mets]) => {
+    ]).then(([prov, suc, arts, cats, mods, marcas, cols, alms, bats, mets]) => {
       setCat({
         proveedores: arr(prov), sucursales: arr(suc), articulos: arr(arts),
         categorias: arr(cats), marcas: arr(marcas), modelos: arr(mods),
-        colores: arr(cols), memorias: arr(mems), baterias: arr(bats), metodos: arr(mets),
+        colores: arr(cols), almacenamientos: arr(alms), baterias: arr(bats), metodos: arr(mets),
       });
       setIdMetodoPago(arr(mets)[0]?.Id ?? arr(mets)[0]?.id ?? '');
     }).catch((e) => setError('No se pudieron cargar los catálogos: ' + (e.message || '')));
@@ -134,12 +142,13 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
 
     // Cambios que invalidan la cascada de abajo
     if (patch.clasificacion !== undefined || patch.nuevo !== undefined) {
-      next.idCategoria = ''; next.idMarca = ''; next.idModelo = '';
-      next.idColor = ''; next.idMemoria = ''; next.idBateria = '';
+      next.idCategoria = ''; next.idMarca = ''; next.idModelo = ''; next.nombreModelo = '';
+      next.idColor = ''; next.idAlmacenamiento = ''; next.idBateria = '';
       if (patch.nuevo !== undefined) next.articulo = null;
     }
-    if (patch.idCategoria !== undefined) { next.idMarca = ''; next.idModelo = ''; }
-    if (patch.idMarca !== undefined) { next.idModelo = ''; }
+    if (patch.idCategoria !== undefined) { next.idMarca = ''; next.idModelo = ''; next.nombreModelo = ''; }
+    if (patch.idMarca !== undefined) { next.idModelo = ''; next.nombreModelo = ''; }
+    if (patch.idModelo) next.nombreModelo = '';
 
     // Serializado: siempre 1 unidad y un solo IMEI
     const serial = next.nuevo ? next.clasificacion === 'serializado' : !!next.articulo?.EsSerializado;
@@ -188,12 +197,14 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
     return item?.Nombre ?? item?.nombre ?? item?.Capacidad ?? item?.capacidad ?? '';
   };
 
+  const tieneModelo = (l) => !!l.idModelo || !!l.nombreModelo.trim();
+
   const nombreCalculado = (l) => {
-    if (!l.idModelo) return '';
+    if (!tieneModelo(l)) return '';
     const partes = [
-      labelDe(cat.modelos, l.idModelo),
+      l.idModelo ? labelDe(cat.modelos, l.idModelo) : l.nombreModelo.trim(),
       l.idColor && labelDe(cat.colores, l.idColor),
-      l.idMemoria && labelDe(cat.memorias, l.idMemoria),
+      l.idAlmacenamiento && labelDe(cat.almacenamientos, l.idAlmacenamiento),
       l.idBateria && labelDe(cat.baterias, l.idBateria),
     ];
     return partes.filter(Boolean).join(' ');
@@ -202,6 +213,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
   // Si ya existe un Producto igual (mismo modelo + mismo nombre calculado + misma
   // clasificación) lo reutilizamos en vez de crear uno duplicado.
   const resolverArticuloExistente = (l) => {
+    if (!l.idModelo) return null; // modelo nuevo: todavía no puede existir un Producto con él
     const nombreCalc = nombreCalculado(l);
     if (!nombreCalc) return null;
     const esDelTipo = matchClasificacion(l.clasificacion);
@@ -213,19 +225,43 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
     }) ?? null;
   };
 
+  // Modelo tipeado a mano: se reutiliza uno igual (misma categoría + marca + nombre) o se crea.
+  const resolverModeloNuevo = async (l) => {
+    const nombre = l.nombreModelo.trim();
+    const igual = cat.modelos.find((m) =>
+      (m.Nombre ?? m.nombre ?? '').trim().toLowerCase() === nombre.toLowerCase()
+      && catModeloCat(m) === Number(l.idCategoria)
+      && catModeloMarca(m) === Number(l.idMarca));
+    if (igual) return Number(igual.Id ?? igual.id);
+    const res = await crearModeloArticulo({
+      Nombre: nombre,
+      IdMarcaArticulo: Number(l.idMarca),
+      IdCategoriaArticulo: Number(l.idCategoria),
+    });
+    const id = res?.data?.Id ?? res?.data?.id ?? res?.Id ?? res?.id;
+    if (!id) throw new Error('El backend no devolvió el Id del modelo nuevo.');
+    // Queda en el catálogo local: otra línea con el mismo modelo lo reutiliza y un reintento no lo duplica.
+    setCat((prev) => ({ ...prev, modelos: [...prev.modelos, {
+      Id: id, id, Nombre: nombre, nombre,
+      IdCategoriaArticulo: Number(l.idCategoria), IdMarcaArticulo: Number(l.idMarca),
+    }] }));
+    return Number(id);
+  };
+
   const guardar = async () => {
     setError('');
     if (!idProveedor) return setError('Elegí un proveedor.');
     if (!idSucursal) return setError('Elegí la sucursal destino.');
     if (!lineas.length) return setError('Agregá al menos un ítem.');
     if (!garantiaLocal) return setError('Indicá la fecha de garantía local (aplica a los ítems nuevos).');
+    if (garantiaLocal < hoyLocal()) return setError('La fecha de garantía local no puede ser anterior a hoy.');
 
     for (const [i, l] of lineas.entries()) {
       const n = i + 1;
       if (l.nuevo) {
         if (!l.idCategoria) return setError(`Ítem ${n}: elegí la categoría.`);
         if (!l.idMarca) return setError(`Ítem ${n}: elegí la marca.`);
-        if (!l.idModelo) return setError(`Ítem ${n}: elegí el modelo.`);
+        if (!tieneModelo(l)) return setError(`Ítem ${n}: elegí o ingresá el modelo.`);
       } else if (!l.articulo) {
         return setError(`Ítem ${n}: elegí un artículo o marcá "Artículo nuevo".`);
       }
@@ -240,9 +276,11 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
     setGuardando(true);
     try {
       const detalles = [];
-      for (const l of lineas) {
+      for (const l0 of lineas) {
+        let l = l0;
         let idArticulo = l.articulo?.Id ?? l.articulo?.id;
         if (l.nuevo) {
+          if (!l.idModelo) l = { ...l, idModelo: await resolverModeloNuevo(l) };
           const existente = resolverArticuloExistente(l);
           if (existente) {
             idArticulo = existente.Id ?? existente.id;
@@ -266,18 +304,24 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
           MesesGarantiaLocal: garantiaLocal,
           ...(serial ? { IMEIs: l.imeis.map((s) => s.trim()).filter(Boolean) } : {}),
           ...(!repuesto && l.idColor ? { IdColor: Number(l.idColor) } : {}),
-          ...(serial && l.idMemoria ? { IdMemoria: Number(l.idMemoria) } : {}),
+          ...(serial && l.idAlmacenamiento ? { IdAlmacenamiento: Number(l.idAlmacenamiento) } : {}),
           ...(serial && l.idBateria ? { IdBateria: Number(l.idBateria) } : {}),
         });
       }
 
+      // En efectivo el pago es siempre un importe entero (el backend lo toma como saldado si
+      // coincide con el total redondeado).
+      const pagoEnEfectivo = esEfectivoNombre(
+        cat.metodos.find((x) => String(x.Id ?? x.id) === String(idMetodoPago))?.Nombre
+        ?? cat.metodos.find((x) => String(x.Id ?? x.id) === String(idMetodoPago))?.nombre
+      );
       let pagos = [];
       if (condicion === 'contado') {
-        pagos = [{ IdMetodoPago: Number(idMetodoPago), Monto: Number(total.toFixed(2)) }];
+        pagos = [{ IdMetodoPago: Number(idMetodoPago), Monto: pagoEnEfectivo ? redondearEfectivo(total) : Number(total.toFixed(2)) }];
       } else if (condicion === 'parcial') {
         const m = Number(montoParcial);
         if (!m || m <= 0 || m >= total) { setGuardando(false); return setError('El monto parcial debe ser mayor a 0 y menor al total.'); }
-        pagos = [{ IdMetodoPago: Number(idMetodoPago), Monto: Number(m.toFixed(2)) }];
+        pagos = [{ IdMetodoPago: Number(idMetodoPago), Monto: pagoEnEfectivo ? redondearEfectivo(m) : Number(m.toFixed(2)) }];
       }
 
       const payload = {
@@ -346,7 +390,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
               </TextField>
             </Grid>
             <Grid size={{ xs: 12, sm: 2 }}>
-              <TextField fullWidth size="small" type="date" label="Garantía local" InputLabelProps={{ shrink: true }} value={garantiaLocal} onChange={(e) => setGarantiaLocal(e.target.value)} />
+              <TextField fullWidth size="small" type="date" label="Garantía local" InputLabelProps={{ shrink: true }} inputProps={{ min: hoyLocal() }} value={garantiaLocal} onChange={(e) => setGarantiaLocal(e.target.value)} />
             </Grid>
           </Grid>
         </Box>
@@ -395,8 +439,24 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
                       valueId={l.idMarca} onPick={(v) => setLinea(i, { idMarca: v })} />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 4 }}>
-                    <ComboId label="Modelo *" options={modelosOpts(l)} disabled={!l.idCategoria}
-                      valueId={l.idModelo} onPick={(v) => setLinea(i, { idModelo: v })} />
+                    <Autocomplete
+                      size="small" freeSolo disabled={!l.idCategoria}
+                      options={modelosOpts(l)}
+                      getOptionLabel={(o) => (typeof o === 'string' ? o : o?.label ?? '')}
+                      isOptionEqualToValue={(o, v) => o.id === v?.id}
+                      value={modelosOpts(l).find((o) => o.id === Number(l.idModelo)) ?? null}
+                      inputValue={l.idModelo
+                        ? (modelosOpts(l).find((o) => o.id === Number(l.idModelo))?.label ?? '')
+                        : l.nombreModelo}
+                      onInputChange={(e, texto, reason) => {
+                        if (reason === 'input') setLinea(i, { idModelo: '', nombreModelo: texto });
+                        else if (reason === 'clear') setLinea(i, { idModelo: '', nombreModelo: '' });
+                      }}
+                      onChange={(e, v) => {
+                        if (v && typeof v === 'object') setLinea(i, { idModelo: v.id });
+                      }}
+                      renderInput={(params) => <TextField {...params} label="Modelo *" />}
+                    />
                   </Grid>
                 </Grid>
               </>
@@ -442,9 +502,9 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
               {serial && (
                 <>
                   <Grid size={{ xs: 4, sm: 3 }}>
-                    <EntityAutocomplete label="Memoria" options={cat.memorias}
+                    <EntityAutocomplete label="Memoria" options={cat.almacenamientos}
                       getLabel={(m) => m.Capacidad ?? m.capacidad ?? ''}
-                      value={l.idMemoria} onChange={(id) => setLinea(i, { idMemoria: id })} />
+                      value={l.idAlmacenamiento} onChange={(id) => setLinea(i, { idAlmacenamiento: id })} />
                   </Grid>
                   <Grid size={{ xs: 4, sm: 3 }}>
                     <EntityAutocomplete label="Batería" options={cat.baterias}
@@ -486,7 +546,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
             </Grid>
 
             {/* Nombre del Producto nuevo: no se tipea, se calcula solo (Modelo + Color + Memoria + Batería) */}
-            {l.nuevo && l.idModelo && (
+            {l.nuevo && tieneModelo(l) && (
               <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <TextField fullWidth size="small" label="Producto (calculado)" value={nombreCalculado(l)}
                   InputProps={{ readOnly: true }} />
@@ -555,6 +615,7 @@ export default function CompraCreateModal({ open, onClose, onGuardado }) {
           }
         }}
       />
+
     </Dialog>
   );
 }

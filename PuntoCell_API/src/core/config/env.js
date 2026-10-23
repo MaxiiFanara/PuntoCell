@@ -82,5 +82,13 @@ export const env = {
     ID_EMPLEADO: Number(process.env.MP_ID_EMPLEADO) || null,
     ID_TURNO_CAJA: Number(process.env.MP_ID_TURNO_CAJA) || null,
     ID_METODO_PAGO: Number(process.env.MP_ID_METODO_PAGO) || null,
+  },
+  LOG: {
+    // Nivel mínimo que se muestra por consola (error | warn | info).
+    LEVEL: process.env.LOG_LEVEL || 'info',
+    // Nivel mínimo que se guarda en la tabla Bitacora (Origen = 'SISTEMA'). Con 'warn' solo
+    // se persisten warn y error, para que los info no hagan crecer la tabla.
+    DB_LEVEL: process.env.LOG_DB_LEVEL || 'warn',
+    DB_ENABLED: process.env.LOG_DB_ENABLED !== 'false'
   }
 };

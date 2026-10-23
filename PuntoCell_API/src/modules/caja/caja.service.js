@@ -56,6 +56,15 @@ export default class CajaService {
     ];
   }
 
+  async _metodoAfectaCaja(idMetodoPago, transaction = null) {
+    const { MetodoPago } = this.models || {};
+    if (!MetodoPago) return true;
+    const metodo = await MetodoPago.findByPk(idMetodoPago, { transaction });
+    if (!metodo) return true;
+    const nombre = String(metodo.Nombre || '').trim().toLowerCase();
+    return nombre === 'efectivo' || nombre.startsWith('billetera virtual');
+  }
+
   async registrarMovimiento({
     IdTurnoCaja,
     IdEmpleado,
@@ -74,6 +83,10 @@ export default class CajaService {
     if (!Descripcion) throw bizError('La descripción del movimiento de caja es requerida.');
 
     const { MovimientoCaja, TurnoCaja } = this._getModels();
+
+    // A caja solo entran operaciones en efectivo o billetera virtual (qr/alias).
+    if (!(await this._metodoAfectaCaja(IdMetodoPago || 1, transaction))) return null;
+
     const turno = await TurnoCaja.findByPk(IdTurnoCaja, {
       transaction,
       lock: transaction?.LOCK?.UPDATE
@@ -271,6 +284,15 @@ export default class CajaService {
       Observaciones: data.Observaciones || '',
       IdEmpleadoCierre: ctx?.IdEmpleado
     });
-    return turno;
+
+    const montoEsperado = Number(turno.MontoInicial) + Number(turno.TotalIngresos) - Number(turno.TotalEgresos);
+    const diferencia = montoCierreFisico - montoEsperado;
+
+    // Retornamos el turno junto con los datos del cálculo para que el frontend los muestre
+    return {
+      turno,
+      montoEsperado: round2(montoEsperado),
+      diferencia: round2(diferencia)
+    };
   }
 }

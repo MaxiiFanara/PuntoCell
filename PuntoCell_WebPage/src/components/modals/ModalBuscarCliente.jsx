@@ -108,7 +108,7 @@ const ModalBuscarCliente = ({ open, onClose }) => {
 
           {buscado && !loading && (
             <Button size="small" onClick={reset} sx={{ alignSelf: 'flex-start', color: 'text.disabled' }}>
-              Nueva búsqueda
+              Buscar otro cliente
             </Button>
           )}
 

@@ -120,9 +120,21 @@ CREATE TABLE Bitacora ( -- El "Gran Hermano". Registra todas las operaciones cr�
     Fecha      DATETIME2     NOT NULL DEFAULT SYSDATETIME(), -- Momento exacto.
     IdEmpleado INT           NULL, -- Quién fue.
     IdSucursal INT           NULL, -- Dónde estaba logueado.
-    CONSTRAINT FK_Bitacora_Empleado FOREIGN KEY (IdEmpleado) REFERENCES Usuario (Id), 
+    Nivel      NVARCHAR(10)  NOT NULL CONSTRAINT DF_Bitacora_Nivel  DEFAULT 'info',      -- Gravedad: info | warn | error.
+    Origen     NVARCHAR(15)  NOT NULL CONSTRAINT DF_Bitacora_Origen DEFAULT 'AUDITORIA', -- AUDITORIA (acciones de usuarios) | SISTEMA (logs técnicos de Winston).
+    CONSTRAINT FK_Bitacora_Empleado FOREIGN KEY (IdEmpleado) REFERENCES Usuario (Id),
     CONSTRAINT FK_Bitacora_Sucursal FOREIGN KEY (IdSucursal) REFERENCES Sucursal (Id)
 );
+GO
+
+-- Migración idempotente para bases que ya tenían Bitacora sin Nivel/Origen. El CREATE TABLE
+-- de arriba falla con "ya existe" en esas bases (sqlcmd sigue con el resto del script), así
+-- que acá se agregan las columnas sin tocar los datos: las filas viejas quedan 'info' / 'AUDITORIA'.
+IF COL_LENGTH('Bitacora', 'Nivel') IS NULL
+    ALTER TABLE Bitacora ADD Nivel NVARCHAR(10) NOT NULL CONSTRAINT DF_Bitacora_Nivel DEFAULT 'info';
+GO
+IF COL_LENGTH('Bitacora', 'Origen') IS NULL
+    ALTER TABLE Bitacora ADD Origen NVARCHAR(15) NOT NULL CONSTRAINT DF_Bitacora_Origen DEFAULT 'AUDITORIA';
 GO
 
 CREATE TABLE TurnoCaja ( -- Controla el ciclo de vida del dinero diario en una caja física.
@@ -277,6 +289,7 @@ CREATE TABLE Inventario ( -- Representa la cantidad FÍSICA actual de un product
     IdColor            INT            NULL, -- Opcional.
     IdMemoria          INT            NULL, -- Opcional.
     IdBateria          INT            NULL, -- Opcional.
+    BateriaPorcentaje  INT            NULL, -- Porcentaje exacto de vida útil de la batería (0-100).
     IdAlmacenamiento   INT            NULL, -- Opcional. 
     CONSTRAINT FK_Inventario_Color              FOREIGN KEY (IdColor)            REFERENCES Color (Id), 
     CONSTRAINT FK_Inventario_Memoria            FOREIGN KEY (IdMemoria)          REFERENCES Memoria (Id), 
@@ -327,6 +340,7 @@ CREATE TABLE PrecioArticulo ( -- Precio concreto vigente de un renglón de Inven
     PorcentajeGanancia  DECIMAL(5,2)  NOT NULL CHECK (PorcentajeGanancia >= 0), -- Copiado de ListaPrecio.PorcentajeRentabilidad al momento de calcular.
     IdListaPrecio       INT           NOT NULL,
     IdInventario        INT           NOT NULL,
+    FijadoManual        BIT           NOT NULL DEFAULT 0,
     CONSTRAINT FK_PrecioArticulo_ListPrecio   FOREIGN KEY (IdListaPrecio)  REFERENCES ListaPrecio (Id),
     CONSTRAINT FK_PrecioArticulo_Invetario    FOREIGN KEY (IdInventario)   REFERENCES Inventario  (Id)
 );
@@ -1097,6 +1111,33 @@ BEGIN
     ('35999000', 'Medina', 'Julián',  'julian.medina@cliente.com.ar', '3519990000', 1, 1),
     ('40123456', 'Ibáñez', 'Sofía',   'sofia.ibanez@cliente.com.ar',  '3514561230', 1, 5);
 END
+GO
+
+-- 7.b Rol y usuario "analista" (informe técnico de logs internos).
+-- Bloque idempotente e independiente del seed: se puede ejecutar solo, sobre una base ya existente.
+-- El código identifica el rol por su Id (5), igual que los roles 1 a 4 (ver ROL_ANALISTA en
+-- core/constants/roles.js). El rol no se lista en ningún módulo ni lleva permisos: solo accede
+-- al informe operativo. Es un usuario único. La restricción CHK_Usuario_Empleado_Sucursal exige
+-- sucursal a todo empleado, por eso se asigna a la primera existente (no se lista ni opera en ella).
+-- Pwd: hash bcrypt (10 rounds) de la clave inicial; cambiarla desde la base si hace falta.
+IF NOT EXISTS (SELECT 1 FROM Rol WHERE Nombre = 'analista')
+    INSERT INTO Rol (Nombre) VALUES ('analista');
+GO
+
+IF (SELECT Id FROM Rol WHERE Nombre = 'analista') <> 5
+    RAISERROR('El rol analista debe tener Id = 5 (ROL_ANALISTA en la API). Revisar la tabla Rol.', 16, 1);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM Usuario WHERE UsuarioEmpleado = 'analista' OR Email = 'analista@puntocell.com.ar' OR DNI = '10000099')
+    INSERT INTO Usuario (DNI, Apellido, Nombre, Email, Celular, EsCliente, UsuarioEmpleado, Pwd, IdRol, IdSucursal, IdLocalidad)
+    VALUES ('10000099', 'Sistema', 'Analista', 'analista@puntocell.com.ar', '3510000099', 0, 'analista',
+            '$2b$10$gUgu/vOi91jfZjLiK.Va5uf..sahaabuSE8L9RuI7HHxr3/eq51Jy',
+            (SELECT Id FROM Rol WHERE Nombre = 'analista'), (SELECT TOP 1 Id FROM Sucursal ORDER BY Id), NULL);
+ELSE
+    -- Si el usuario ya existía (base previa), se unifica la clave inicial: Punt0C311.iC
+    UPDATE Usuario
+    SET Pwd = '$2b$10$gUgu/vOi91jfZjLiK.Va5uf..sahaabuSE8L9RuI7HHxr3/eq51Jy'
+    WHERE UsuarioEmpleado = 'analista';
 GO
 
 --- MÓDULO INVENTARIO ---

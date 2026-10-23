@@ -40,6 +40,8 @@ const InventarioList = () => {
   const [esMayorista, setEsMayorista] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('todos');
+  const [categorias, setCategorias] = useState([]);
+  const [filtroCategoria, setFiltroCategoria] = useState('todas');
   const [openModal, setOpenModal] = useState(false);
   const [productoTransferir, setProductoTransferir] = useState(null);
   const [inventario, setInventario] = useState([]);
@@ -52,6 +54,12 @@ const InventarioList = () => {
     inventarioService.getSucursales()
       .then((res) => setSucursales(Array.isArray(res) ? res : (res?.data || [])))
       .catch(() => setSucursales([]));
+  }, []);
+
+  useEffect(() => {
+    inventarioService.getCategorias()
+      .then((res) => setCategorias(Array.isArray(res) ? res : (res?.data || [])))
+      .catch(() => setCategorias([]));
   }, []);
 
   const nombreSucursal = (id) => {
@@ -73,15 +81,16 @@ const InventarioList = () => {
       const inventarioAdaptado = datosBackend.map(row => {
         const art = row.articulo || row.Articulo || {};
         const bat = row.bateria || row.Bateria;
-        const batPct = bat && bat.Porcentaje != null ? Number(bat.Porcentaje) : null;
+        const batPct = (row.BateriaPorcentaje != null) ? Number(row.BateriaPorcentaje) : (bat && bat.Porcentaje != null ? Number(bat.Porcentaje) : null);
         return {
           id: row.Id || row.id,
           idArticulo: art.Id || art.id,
           producto: art.Nombre || 'Equipo sin nombre',
           modelo: art.modelo?.Nombre || row.modelo?.Nombre || '',
+          idCategoria: art.modelo?.IdCategoriaArticulo ?? null,
           imei: row.IMEI || null,
           color: row.color?.Nombre || row.Color?.Nombre || null,
-          memoria: row.memoria?.Capacidad || row.Memoria?.Capacidad || null,
+          memoria: row.almacenamiento?.Capacidad || row.memoria?.Capacidad || row.Memoria?.Capacidad || null,
           bateria: Number.isFinite(batPct) ? `${batPct}%` : null,
           stock: row.Stock || 0,
           precioMenor: row.PrecioVenta || 0,
@@ -103,10 +112,11 @@ const InventarioList = () => {
     const coincideBusqueda = item.producto.toLowerCase().includes(busqueda.toLowerCase()) ||
                              (item.imei && item.imei.includes(busqueda));
     const coincideStock = mostrarAgotados ? item.stock === 0 : item.stock > 0;
-    return coincideBusqueda && coincideStock;
+    const coincideCategoria = filtroCategoria === 'todas' || item.idCategoria === filtroCategoria;
+    return coincideBusqueda && coincideStock && coincideCategoria;
   });
 
-  useEffect(() => { setPagina(1); }, [busqueda, mostrarAgotados, sucursalActual, filtroTipo]);
+  useEffect(() => { setPagina(1); }, [busqueda, mostrarAgotados, sucursalActual, filtroTipo, filtroCategoria]);
 
   const resumen = useMemo(() => ({
     articulos: inventario.length,
@@ -151,12 +161,17 @@ const InventarioList = () => {
   const chips = [];
   if (busqueda) chips.push({ campo: 'busqueda', texto: busqueda });
   if (filtroTipo !== 'todos') chips.push({ campo: 'filtroTipo', texto: capitalizar(filtroTipo) });
+  if (filtroCategoria !== 'todas') {
+    const cat = categorias.find((c) => (c.Id ?? c.id) === filtroCategoria);
+    chips.push({ campo: 'filtroCategoria', texto: capitalizar(cat?.Nombre ?? cat?.nombre ?? 'Categoría') });
+  }
   if (mostrarAgotados) chips.push({ campo: 'mostrarAgotados', texto: 'Solo agotados' });
   if (esMayorista) chips.push({ campo: 'esMayorista', texto: 'Precio mayorista' });
 
   const quitarChip = (campo) => {
     if (campo === 'busqueda') setBusqueda('');
     if (campo === 'filtroTipo') setFiltroTipo('todos');
+    if (campo === 'filtroCategoria') setFiltroCategoria('todas');
     if (campo === 'mostrarAgotados') setMostrarAgotados(false);
     if (campo === 'esMayorista') setEsMayorista(false);
   };
@@ -176,7 +191,7 @@ const InventarioList = () => {
         meta={`Sucursal ${nombreSucursal(sucursalActual)} · ${resumen.articulos} ${resumen.articulos === 1 ? 'artículo' : 'artículos'}`}
         action={
           <Button variant="outlined" startIcon={<PointOfSale sx={{ fontSize: '16px !important' }} />} onClick={() => navigate('/app/punto-venta')}>
-            Ir a caja
+            Registrar una venta
           </Button>
         }
       />
@@ -203,7 +218,7 @@ const InventarioList = () => {
       </Box>
 
       <FilterBar
-        columns="minmax(180px,1.6fr) minmax(140px,1fr) auto auto"
+        columns="minmax(180px,1.6fr) minmax(140px,1fr) minmax(140px,1fr) auto auto"
         chips={chips.map((c) => (
           <StatusPill
             key={c.campo}
@@ -244,6 +259,15 @@ const InventarioList = () => {
             startAdornment={<Store sx={{ fontSize: 15, color: 'text.disabled', mr: .75 }} />}>
             {sucursales.map((s) => (
               <MenuItem key={s.Id ?? s.id} value={s.Id ?? s.id}>{capitalizar(s.Nombre ?? s.nombre)}</MenuItem>
+            ))}
+          </Select>
+        </FilterField>
+
+        <FilterField label="Categoría">
+          <Select size="small" fullWidth value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
+            <MenuItem value="todas">Todas</MenuItem>
+            {categorias.map((c) => (
+              <MenuItem key={c.Id ?? c.id} value={c.Id ?? c.id}>{capitalizar(c.Nombre ?? c.nombre)}</MenuItem>
             ))}
           </Select>
         </FilterField>

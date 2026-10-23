@@ -1,10 +1,7 @@
-import { Box, Button, IconButton } from '@mui/material'
+import { Box, Pagination } from '@mui/material'
 
-// Paginador plano, sin elipsis. Con más de ~12 páginas conviene
-// truncar con "…"; hoy ninguna vista llega, así que no está.
+// Paginador con soporte de elipsis (truncamiento) nativo de MUI.
 export default function TablePager({ page, pageCount, from, to, total, unidad = 'registros', onChange }) {
-  const go = (n) => n >= 1 && n <= pageCount && n !== page && onChange?.(n)
-
   return (
     <Box
       sx={{
@@ -25,41 +22,23 @@ export default function TablePager({ page, pageCount, from, to, total, unidad = 
         {' '}{unidad}
       </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-        <IconButton size="small" aria-label="Página anterior" disabled={page <= 1} onClick={() => go(page - 1)}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="m14 6-6 6 6 6" />
-          </svg>
-        </IconButton>
-
-        {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
-          <Button
-            key={n}
-            size="small"
-            onClick={() => go(n)}
-            aria-current={n === page ? 'page' : undefined}
-            sx={{
-              minWidth: 28,
-              px: 1.125,
-              color: n === page ? 'primary.contrastText' : 'text.secondary',
-              bgcolor: n === page ? 'primary.main' : 'transparent',
-              fontWeight: n === page ? 700 : 500,
-              fontVariantNumeric: 'tabular-nums',
-              '&:hover': {
-                bgcolor: n === page ? 'primary.dark' : 'pc.surfaceMuted',
-              },
-            }}
-          >
-            {n}
-          </Button>
-        ))}
-
-        <IconButton size="small" aria-label="Página siguiente" disabled={page >= pageCount} onClick={() => go(page + 1)}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="m10 6 6 6-6 6" />
-          </svg>
-        </IconButton>
-      </Box>
+      <Pagination 
+        count={pageCount} 
+        page={page} 
+        onChange={(_, p) => onChange?.(p)}
+        color="primary"
+        shape="rounded"
+        size="small"
+        sx={{
+          '& .MuiPaginationItem-root': {
+            fontVariantNumeric: 'tabular-nums',
+            fontWeight: 500,
+          },
+          '& .Mui-selected': {
+            fontWeight: 700,
+          }
+        }}
+      />
     </Box>
   )
 }

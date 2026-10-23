@@ -1,3 +1,5 @@
+import logger from '../../core/utils/logger.js';
+
 export default class PagosController {
   constructor(service) {
     this.service = service;
@@ -39,7 +41,7 @@ export default class PagosController {
     try {
       if (paymentId) await this.service.consultarPago(String(paymentId));
     } catch (err) {
-      console.error('Webhook de Mercado Pago falló:', err.message);
+      logger.error('Webhook de Mercado Pago falló:', err.message);
     }
     return res.status(200).send('ok');
   };

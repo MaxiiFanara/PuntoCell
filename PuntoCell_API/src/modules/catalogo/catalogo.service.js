@@ -130,4 +130,8 @@ export default class CatalogoService {
 
     return { productos, cotizacionDolar };
   }
+
+  async getCotizaciones() {
+    return await models.Cotizacion.findAll({ order: [['CreatedAt', 'DESC']] });
+  }
 }

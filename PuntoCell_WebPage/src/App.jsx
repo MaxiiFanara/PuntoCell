@@ -21,8 +21,6 @@ import AdminLayout from './layouts/AdminLayout';
 import LandingPage from './features/landing/views/LandingPage';
 import PuntoVentaScreen from './features/punto-venta/views/PuntoVentaScreen';
 import UsersScreen from './features/admin/views/usuarios/UsersScreen';
-import RolesScreen from './features/admin/views/roles/RolesScreen';
-import PermissionsScreen from './features/admin/views/permisos/PermissionsScreen';
 import BitacoraList from './features/admin/views/bitacora/BitacoraList';
 import HistorialVentas from './features/venta/views/HistorialVentas';
 import TicketVenta from './features/venta/views/TicketVenta';
@@ -44,12 +42,25 @@ import DashboardReparaciones from './features/dashboards/views/DashboardReparaci
 import DashboardControl from './features/dashboards/views/DashboardControl';
 import DashboardFinanciero from './features/dashboards/views/DashboardFinanciero';
 import DashboardCaja from './features/dashboards/views/DashboardCaja';
+import InformeOperativoPage from './pages/InformeOperativoPage';
+import { ROL_ANALISTA, RUTA_INFORME_ANALISTA } from './utils/roles';
 
 // --- WRAPPERS DE SEGURIDAD ---
 const ProtectedRoute = ({ children }) => {
   const { usuario, loading } = useAuth();
   if (loading) return null;
   if (!usuario) return <Navigate to="/login" replace />;
+  // El analista (rol técnico) solo ve su informe: no entra al sistema operativo
+  if (usuario.rol === ROL_ANALISTA) return <Navigate to={RUTA_INFORME_ANALISTA} replace />;
+  return children;
+};
+
+// Exclusiva del rol analista (ni administrador ni owner)
+const AnalistaRoute = ({ children }) => {
+  const { usuario, loading } = useAuth();
+  if (loading) return null;
+  if (!usuario) return <Navigate to="/login" replace />;
+  if (usuario.rol !== ROL_ANALISTA) return <Navigate to="/app" replace />;
   return children;
 };
 
@@ -160,12 +171,13 @@ const App = () => (
         }>
           <Route index element={<Navigate to="/app/admin/usuarios" replace />} />
           <Route path="usuarios" element={<UsersScreen />} />
-          <Route path="roles" element={<RolesScreen />} />
-          <Route path="permisos" element={<PermissionsScreen />} />
           {/* Ya no está BitacoraList aquí adentro */}
         </Route>
 
       </Route>
+
+      {/* ---------------- INFORME TÉCNICO (rol analista) ---------------- */}
+      <Route path="/analista/informe" element={<AnalistaRoute><InformeOperativoPage /></AnalistaRoute>} />
 
       {/* ---------------- 404 ---------------- */}
       <Route path="*" element={<Navigate to="/" replace />} />

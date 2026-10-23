@@ -79,7 +79,7 @@ const InventarioDetails = () => {
         const mapa = mapVigentePorInventario(preciosArticulos);
         const listasMay = idsListasMayoristas(listas);
         const { minorista, mayorista, costoBase } = resolverPrecioInventario(mapa, idInv, listasMay);
-        const nombreLista = (lid) => (listas.find((l) => (l.Id ?? l.id) === lid)?.Nombre) || `Lista #${lid}`;
+        const nombreLista = (lid) => (listas.find((l) => (l.Id ?? l.id) === lid)?.Nombre) || 'Lista';
         const otras = Object.entries(mapa[idInv] || {})
           .filter(([lid]) => listasMay.includes(Number(lid)))
           .map(([lid, p]) => ({ lista: nombreLista(Number(lid)), valorFinal: Number(p.ValorFinal) || 0 }));
@@ -90,7 +90,7 @@ const InventarioDetails = () => {
           modelo: art.modelo?.Nombre || '',
           imei: data.IMEI || null,
           color: data.color?.Nombre || null,
-          memoria: data.memoria?.Capacidad || null,
+          memoria: data.almacenamiento?.Capacidad || data.memoria?.Capacidad || null,
           bateria: null,
           observaciones: data.Observaciones,
           costoBase,
@@ -139,7 +139,7 @@ const InventarioDetails = () => {
           <StatusPill tone={tonoStock(item.stock)} label={`${item.stock} un.`} />
         </Box>
         <Typography className="mono" sx={{ mt: '1px', fontSize: '.78rem', color: 'text.secondary' }}>
-          #{item.id}{item.modelo && ` · ${item.modelo}`}
+          {item.modelo}
         </Typography>
       </Box>
 

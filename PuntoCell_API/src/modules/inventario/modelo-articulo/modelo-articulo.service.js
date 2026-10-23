@@ -1,4 +1,5 @@
 import { registerAudit } from '../../../core/utils/audit.util.js';
+import logger from '../../../core/utils/logger.js';
 
 export default class ModeloArticuloService {
   constructor(modeloDAO, bitacoraService = null) {
@@ -22,7 +23,7 @@ export default class ModeloArticuloService {
         order: [['Nombre', 'ASC']]
       });
     } catch (error) {
-      console.error("🔥 ERROR EXACTO DE SQL:", error.message);
+      logger.error("🔥 ERROR EXACTO DE SQL:", error.message);
       await registerAudit(this.bitacoraService, {
         detalle: `Error obteniendo Modelos: ${error.message}`,
         Accion: 'Obtener Modelos',
@@ -43,7 +44,7 @@ export default class ModeloArticuloService {
     ] });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `ModeloArticulo no encontrado (Id=${id})`,
+        detalle: `ModeloArticulo no encontrado`,
         Accion: 'Obtener ModeloArticulo',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -74,7 +75,7 @@ export default class ModeloArticuloService {
     const marca = await MarcaArticulo.findByPk(data.IdMarcaArticulo);
     if (!marca) {
       await registerAudit(this.bitacoraService, {
-        detalle: `MarcaArticulo no encontrada Id=${data.IdMarcaArticulo}`,
+        detalle: `MarcaArticulo no encontrada`,
         Accion: 'Crear ModeloArticulo',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -86,7 +87,7 @@ export default class ModeloArticuloService {
     const categoria = await CategoriaArticulo.findByPk(data.IdCategoriaArticulo);
     if (!categoria) {
       await registerAudit(this.bitacoraService, {
-        detalle: `CategoriaArticulo no encontrada Id=${data.IdCategoriaArticulo}`,
+        detalle: `CategoriaArticulo no encontrada`,
         Accion: 'Crear ModeloArticulo',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -98,7 +99,7 @@ export default class ModeloArticuloService {
 
     const created = await this.modeloDAO.create(data);
     await registerAudit(this.bitacoraService, {
-      detalle: `ModeloArticulo creado Id=${created.Id || created.id || ''}`,
+      detalle: `ModeloArticulo creado`,
       Accion: 'Crear ModeloArticulo',
       IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
       IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -112,7 +113,7 @@ export default class ModeloArticuloService {
     const item = await this.modeloDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `ModeloArticulo no encontrado (Id=${id})`,
+        detalle: `ModeloArticulo no encontrado`,
         Accion: 'Actualizar ModeloArticulo',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -142,7 +143,7 @@ export default class ModeloArticuloService {
       const marca = await MarcaArticulo.findByPk(data.IdMarcaArticulo);
       if (!marca) {
         await registerAudit(this.bitacoraService, {
-          detalle: `MarcaArticulo no encontrada Id=${data.IdMarcaArticulo}`,
+          detalle: `MarcaArticulo no encontrada`,
           Accion: 'Actualizar ModeloArticulo',
           IdEmpleado: auditContext?.IdEmpleado,
           IdSucursal: auditContext?.IdSucursal,
@@ -156,7 +157,7 @@ export default class ModeloArticuloService {
       const categoria = await CategoriaArticulo.findByPk(data.IdCategoriaArticulo);
       if (!categoria) {
         await registerAudit(this.bitacoraService, {
-          detalle: `CategoriaArticulo no encontrada Id=${data.IdCategoriaArticulo}`,
+          detalle: `CategoriaArticulo no encontrada`,
           Accion: 'Actualizar ModeloArticulo',
           IdEmpleado: auditContext?.IdEmpleado,
           IdSucursal: auditContext?.IdSucursal,
@@ -169,7 +170,7 @@ export default class ModeloArticuloService {
 
     const updated = await this.modeloDAO.update(id, data);
     await registerAudit(this.bitacoraService, {
-      detalle: `ModeloArticulo actualizado Id=${id}`,
+      detalle: `ModeloArticulo actualizado`,
       Accion: 'Actualizar ModeloArticulo',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,
@@ -183,7 +184,7 @@ export default class ModeloArticuloService {
     const item = await this.modeloDAO.getById(id);
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `ModeloArticulo no encontrado (Id=${id})`,
+        detalle: `ModeloArticulo no encontrado`,
         Accion: 'Eliminar ModeloArticulo',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -194,7 +195,7 @@ export default class ModeloArticuloService {
     }
     const removed = await this.modeloDAO.remove(id);
     await registerAudit(this.bitacoraService, {
-      detalle: `ModeloArticulo eliminada Id=${id}`,
+      detalle: `ModeloArticulo eliminada`,
       Accion: 'Eliminar ModeloArticulo',
       IdEmpleado: auditContext?.IdEmpleado,
       IdSucursal: auditContext?.IdSucursal,

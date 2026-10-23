@@ -16,7 +16,7 @@ export default class DescuentoService {
     const item = await this.descuentoDAO.getById(id, { attributes: this.ATTRIBUTES });
     if (!item) {
       await registerAudit(this.bitacoraService, {
-        detalle: `Descuento no encontrado (Id=${id})`,
+        detalle: `Descuento no encontrado`,
         Accion: 'Obtener Descuento',
         IdEmpleado: auditContext?.IdEmpleado,
         IdSucursal: auditContext?.IdSucursal,
@@ -32,7 +32,7 @@ export default class DescuentoService {
     try {
       const created = await this.descuentoDAO.create(data);
       await registerAudit(this.bitacoraService, {
-        detalle: `Descuento creado Id=${created.Id || created.id || ''}`,
+        detalle: `Descuento creado`,
         Accion: 'Crear Descuento',
         IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
         IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
@@ -57,7 +57,7 @@ export default class DescuentoService {
     const item = await this.descuentoDAO.getById(id);
     if (!item) { const e = new Error('Descuento no encontrado'); e.statusCode = 404; throw e; }
     const actualizado = await this.descuentoDAO.update(id, data);
-    await auditar(this.bitacoraService, ctx, `Modificó el descuento #${id}`, `Campos: ${Object.keys(data).join(', ')}`);
+    await auditar(this.bitacoraService, ctx, `Modificó el descuento`, `Campos: ${Object.keys(data).join(', ')}`);
     return actualizado;
   }
 
@@ -65,7 +65,7 @@ export default class DescuentoService {
     const item = await this.descuentoDAO.getById(id);
     if (!item) { const e = new Error('Descuento no encontrado'); e.statusCode = 404; throw e; }
     const eliminado = await this.descuentoDAO.remove(id);
-    await auditar(this.bitacoraService, ctx, `Eliminó el descuento #${id}`, `Baja de descuento`);
+    await auditar(this.bitacoraService, ctx, `Eliminó el descuento`, `Baja de descuento`);
     return eliminado;
   }
 }

@@ -64,7 +64,7 @@ const SECCIONES = [
   { path: '/app/compras', nombre: 'Compras', detalle: 'Se usa para ingresar compras y abastecimiento del negocio.' },
   { path: '/app/precios', nombre: 'Precios', detalle: 'Permite administrar listas y valores de venta.' },
   { path: '/app/reportes', nombre: 'Reportes', detalle: 'Sirve para consultar reportes y resumir información operativa.' },
-  { path: '/app/admin/usuarios', nombre: 'Usuarios', detalle: 'Acá se administran usuarios, roles y permisos.' },
+  { path: '/app/admin/usuarios', nombre: 'Usuarios', detalle: 'Acá se administran los usuarios.' },
   { path: '/app/admin/bitacora', nombre: 'Bitácora', detalle: 'Muestra el historial de acciones y eventos del sistema.' },
 ];
 

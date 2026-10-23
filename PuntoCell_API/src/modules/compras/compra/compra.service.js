@@ -1,5 +1,7 @@
 import { registerAudit } from '../../../core/utils/audit.util.js';
 import { resolverListasPrecioCategoria, reprecificarInventario } from '../../../core/utils/precios.util.js';
+import logger from '../../../core/utils/logger.js';
+import { esMetodoEfectivo, montoEfectivo } from '../../../core/utils/efectivo.util.js';
 
 const round2 = (value) => Number(Number(value || 0).toFixed(2));
 
@@ -102,7 +104,7 @@ export default class CompraService {
         );
       }
       if (!item.MesesGarantiaLocal) {
-        throw bizError(`Falta "MesesGarantiaLocal" para el renglón de IdArticulo=${item.IdArticulo} (requerido al crear un Inventario nuevo).`);
+        throw bizError(`Falta "MesesGarantiaLocal" para el renglón del artículo (requerido al crear un Inventario nuevo).`);
       }
 
       const resultado = [];
@@ -136,7 +138,7 @@ export default class CompraService {
     }
 
     if (!item.MesesGarantiaLocal) {
-      throw bizError(`Falta "MesesGarantiaLocal" para el renglón de IdArticulo=${item.IdArticulo} (requerido al crear un Inventario nuevo).`);
+      throw bizError(`Falta "MesesGarantiaLocal" para el renglón del artículo (requerido al crear un Inventario nuevo).`);
     }
     const inventario = await Inventario.create({
       ...baseData,
@@ -151,7 +153,7 @@ export default class CompraService {
   // Misma lógica que usa el alta directa de Inventario (canje) — ver core/utils/precios.util.js.
   async _reprecificarPorCompra(inventarioId, idCategoria, costoUnitario, sequelize, t, advertencias) {
     const listas = await resolverListasPrecioCategoria(sequelize, idCategoria, t);
-    if (!listas.length) throw bizError('No existe ninguna lista de precios (ni la Id=1 por defecto).', 500);
+    if (!listas.length) throw bizError('No existe ninguna lista de precios (ni la lista por defecto).', 500);
     if (idCategoria && !listas.some((l) => Number(l.IdCategoriaProducto) === Number(idCategoria))) {
       advertencias.push(`No hay lista de precios activa para la categoría ${idCategoria}. Se usó la lista por defecto (Id=1).`);
     }
@@ -185,14 +187,27 @@ export default class CompraService {
 
       // 2. Totales: el backend es la única fuente de verdad, nunca confía en el body.
       const detallesInput = data.Detalles;
-      const pagosInput = data.Pagos || [];
+      // En efectivo cada pago es un importe entero.
+      const pagosInput = [];
+      for (const p of (data.Pagos || [])) {
+        const efectivo = await esMetodoEfectivo(sequelize.models, p.IdMetodoPago, t);
+        pagosInput.push(efectivo ? { ...p, Monto: montoEfectivo(p.Monto), esEfectivo: true } : p);
+      }
 
       const totalCosto = round2(detallesInput.reduce(
         (acc, item) => acc + Number(item.Cantidad) * Number(item.PrecioCostoUnitario), 0
       ));
       const totalPagado = round2(pagosInput.reduce((acc, p) => acc + Number(p.Monto), 0));
 
-      if (totalPagado > totalCosto) {
+      // Un pago en efectivo redondeado que iguala el total redondeado de la compra la salda,
+      // aunque difiera unos centavos del total exacto.
+      const redondeoEfectivo = (pagosInput.some((p) => p.esEfectivo) && totalPagado !== totalCosto && totalPagado === Math.round(totalCosto))
+        ? round2(totalPagado - totalCosto)
+        : 0;
+      const totalPagadoAplicado = round2(totalPagado - redondeoEfectivo);
+      const idxAjusteRedondeo = redondeoEfectivo !== 0 ? pagosInput.map((p) => !!p.esEfectivo).lastIndexOf(true) : -1;
+
+      if (totalPagadoAplicado > totalCosto) {
         throw bizError(`El total de los pagos (${totalPagado}) no puede superar el total de la compra (${totalCosto}).`);
       }
 
@@ -208,8 +223,8 @@ export default class CompraService {
       }
 
       // 4. SaldoPendiente / EstadoPago (TotalPagado=0 manda primero).
-      const saldoPendiente = round2(totalCosto - totalPagado);
-      const estadoPago = totalPagado === 0 ? 1 : (totalPagado < totalCosto ? 2 : 3);
+      const saldoPendiente = round2(totalCosto - totalPagadoAplicado);
+      const estadoPago = totalPagadoAplicado === 0 ? 1 : (totalPagadoAplicado < totalCosto ? 2 : 3);
 
       const compra = await this.compraDAO.create({
         Fecha: data.Fecha ? new Date(data.Fecha) : new Date(),
@@ -259,7 +274,7 @@ export default class CompraService {
       );
 
       // 7. Pagos iniciales: PagoCompra + Haber en cuenta corriente por cada uno.
-      for (const pago of pagosInput) {
+      for (const [idxPago, pago] of pagosInput.entries()) {
         const pagoCompra = await PagoCompra.create({
           Monto: round2(pago.Monto),
           FechaPago: pago.FechaPago ? new Date(pago.FechaPago) : new Date(),
@@ -269,7 +284,7 @@ export default class CompraService {
         }, { transaction: t });
 
         await this.cuentaCorrienteProveedorService.registrarPago(
-          { IdProveedor: data.IdProveedor, IdCompra: compra.Id, IdPagoCompra: pagoCompra.Id, Monto: round2(pago.Monto) },
+          { IdProveedor: data.IdProveedor, IdCompra: compra.Id, IdPagoCompra: pagoCompra.Id, Monto: round2(pago.Monto - (idxPago === idxAjusteRedondeo ? redondeoEfectivo : 0)) },
           { transaction: t }
         );
 
@@ -278,7 +293,8 @@ export default class CompraService {
             IdTurnoCaja: data.IdTurnoCaja,
             IdEmpleado: data.IdEmpleado,
             Monto: pagoCompra.Monto,
-            Descripcion: `Pago de compra Id=${compra.Id}`,
+            IdMetodoPago: pagoCompra.IdMetodoPago,
+            Descripcion: `Pago a Proveedor: ${proveedor.Nombre} - Compra #${compra.Id}`,
             Fecha: pagoCompra.FechaPago
           }, { transaction: t });
         }
@@ -290,8 +306,11 @@ export default class CompraService {
         include: [{ model: DetalleCompra, as: 'detalles' }]
       });
 
+      const prov = await sequelize.models.Proveedor.findByPk(data.IdProveedor);
+      const nombreProv = prov ? prov.Nombre : `Proveedor #${data.IdProveedor}`;
+      
       await registerAudit(this.bitacoraService, {
-        detalle: `Compra registrada Id=${compra.Id} (TotalCosto=${totalCosto}, EstadoPago=${estadoPago})`,
+        detalle: `Ingresó una compra a ${nombreProv} por $${totalCosto} (${detallesInput.length} renglones)`,
         Accion: 'Crear Compra',
         IdEmpleado: data.IdEmpleado || auditContext?.IdEmpleado,
         IdSucursal: data.IdSucursalDestino || auditContext?.IdSucursal,
@@ -301,9 +320,9 @@ export default class CompraService {
 
       return { compra: creada, totalPagado, advertencias };
     } catch (err) {
-      await t.rollback();
+      if (!t.finished) await t.rollback();
       if (err.statusCode) throw err; // error de negocio ya tipado -> se respeta su status
-      console.error('❌ Error registrando compra transaccional:', err);
+      logger.error('❌ Error registrando compra transaccional:', err);
       const message = (err.original && (err.original.message || err.original.sqlMessage)) || err.message || 'Error al registrar la compra';
       throw new Error(message);
     }

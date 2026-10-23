@@ -116,6 +116,11 @@ export const inventarioService = {
     return response?.data || response || [];
   },
 
+  getAlmacenamientos: async () => {
+    const response = await fetchApi('/inventario/almacenamientos');
+    return response?.data || response || [];
+  },
+
   getBaterias: async () => {
     const response = await fetchApi('/inventario/baterias');
     return response?.data || response || [];
@@ -191,7 +196,7 @@ export const inventarioService = {
       IdEstadoInventario: formData.idEstadoInventario ? Number(formData.idEstadoInventario) : 1,
       IMEI: formData.esSerializado && formData.imei ? String(formData.imei).trim() : null,
       IdColor: formData.idColor ? Number(formData.idColor) : null,
-      IdMemoria: formData.idMemoria ? Number(formData.idMemoria) : null,
+      IdAlmacenamiento: formData.idAlmacenamiento ? Number(formData.idAlmacenamiento) : null,
       IdBateria: formData.idBateria ? Number(formData.idBateria) : null,
       Observaciones: formData.observaciones ? formData.observaciones : null,
       MesesGarantiaLocal: formData.mesesGarantiaLocal || new Date().toISOString(),

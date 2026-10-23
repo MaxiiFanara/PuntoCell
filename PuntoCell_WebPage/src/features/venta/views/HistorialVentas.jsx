@@ -22,6 +22,7 @@ import NumberField from '../../../components/ui/NumberField';
 import FilterBar, { FilterField } from '../../../components/ui/FilterBar';
 import TablePager from '../../../components/ui/TablePager';
 import { toast } from 'sonner';
+import { esEfectivoNombre, redondearEfectivo } from '../../../utils/efectivo';
 
 const FILAS_POR_PAGINA = 10;
 const FILAS_POR_PAGINA_DEUDAS = 5;
@@ -228,6 +229,8 @@ const HistorialVentas = () => {
   const aplicarFiltros = () => cargarVentas(filtros);
   const limpiarFiltros = () => { setFiltros(FILTROS_VACIOS); cargarVentas(FILTROS_VACIOS); };
 
+  const esEfectivoId = (idMetodo) => esEfectivoNombre(metodosPago.find((m) => String(m.Id) === String(idMetodo))?.Nombre);
+
   const abrirModalCobro = (deuda) => {
     setCobroData({
       idCuota: deuda.idCuota,
@@ -235,7 +238,8 @@ const HistorialVentas = () => {
       cliente: deuda.cliente,
       detalle: `cuota ${deuda.numeroCuota} · venta #${deuda.idVenta}`,
       montoDeuda: deuda.monto,
-      montoAAbonar: deuda.monto,
+      // En efectivo el monto propuesto es la cuota redondeada al entero.
+      montoAAbonar: esEfectivoId(metodosPago[0]?.Id) ? redondearEfectivo(deuda.monto) : deuda.monto,
       idMetodoPago: metodosPago[0]?.Id ?? '',
     });
     setOpenCobro(true);
@@ -243,22 +247,37 @@ const HistorialVentas = () => {
 
   const confirmarCobro = async () => {
     if (!cobroData.idMetodoPago) return toast.warning('Seleccioná el método de pago.');
-    const monto = Number(cobroData.montoAAbonar);
+    const efectivo = esEfectivoId(cobroData.idMetodoPago);
+    // En efectivo el cobro es siempre un importe entero.
+    const monto = efectivo ? redondearEfectivo(cobroData.montoAAbonar) : Number(cobroData.montoAAbonar);
     if (isNaN(monto) || monto <= 0) return toast.warning('Ingresá un monto válido.');
 
     setCobrando(true);
     try {
       const ahora = new Date().toISOString();
-      // 1. Marcamos la cuota como pagada
-      await ventasService.pagarCuota(cobroData.idCuota, { FechaPago: ahora });
-      // 2. Registramos el ingreso de dinero contra la venta (mismo mecanismo que cualquier otro cobro)
+      // Cobrar en efectivo el importe redondeado de la cuota la saldea.
+      const saldaPorRedondeo = efectivo && monto === Math.round(cobroData.montoDeuda);
+      const montoRestante = saldaPorRedondeo ? 0 : cobroData.montoDeuda - monto;
+
+      // 1. Si es pago total, marcamos pagada; si es parcial, restamos el monto a la cuota
+      const payloadCuota = montoRestante <= 0.01 
+        ? { FechaPago: ahora } 
+        : { MontoCuota: montoRestante };
+        
+      await ventasService.pagarCuota(cobroData.idCuota, payloadCuota);
+
+      const cuotasVenta = deudas.filter(d => d.idVenta === cobroData.idVenta);
+      const esUltimaCuota = cuotasVenta.length === 1 && montoRestante <= 0.01;
+
+      // 2. Registramos el ingreso de dinero contra la venta
       await ventasService.crearPago({
         Monto: monto,
         FechaPago: ahora,
-        Observacion: 'Cobro de cuota',
+        Observacion: montoRestante <= 0.01 ? 'Cobro de cuota' : 'Cobro parcial de cuota',
         IdVenta: cobroData.idVenta,
         IdMetodoPago: Number(cobroData.idMetodoPago),
         IdTurnoCaja: 1,
+        Pagado: esUltimaCuota
       });
       setOpenCobro(false);
       await cargarDeudas();
@@ -429,10 +448,10 @@ const HistorialVentas = () => {
                   ) : ventasPaginadas.map((item) => {
                     const clienteNombre = item.cliente
                       ? `${item.cliente.Nombre ?? ''} ${item.cliente.Apellido ?? ''}`.trim()
-                      : `Cliente #${item.IdCliente ?? '?'}`;
+                      : 'Cliente';
                     const vendedorNombre = item.empleado
                       ? `${item.empleado.Nombre ?? ''} ${item.empleado.Apellido ?? ''}`.trim()
-                      : `#${item.IdEmpleado ?? '?'}`;
+                      : '—';
                     const totalUsd = Number(item.TotalVenta ?? 0);
                     // El ARS guardado en la venta es el histórico (congelado a la cotización
                     // de ese día); solo si no está se recalcula con el dólar actual.
@@ -645,7 +664,13 @@ const HistorialVentas = () => {
             <Select
               fullWidth size="small" displayEmpty
               value={cobroData.idMetodoPago}
-              onChange={(e) => setCobroData({ ...cobroData, idMetodoPago: e.target.value })}
+              onChange={(e) => setCobroData({
+                ...cobroData,
+                idMetodoPago: e.target.value,
+                montoAAbonar: esEfectivoId(e.target.value) && Number(cobroData.montoAAbonar) > 0
+                  ? redondearEfectivo(cobroData.montoAAbonar)
+                  : cobroData.montoAAbonar,
+              })}
             >
               <MenuItem value="" disabled>Elegí un método</MenuItem>
               {metodosPago.map((m) => (

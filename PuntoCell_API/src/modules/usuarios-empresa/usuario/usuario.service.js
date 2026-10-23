@@ -1,3 +1,5 @@
+import { Op } from 'sequelize';
+import { ROL_ANALISTA } from '../../../core/constants/roles.js';
 import { hashPassword } from '../../../core/utils/bcrypt.js';
 import { models } from '../../../models/index.js';
 import { registerAudit } from '../../../core/utils/audit.util.js';
@@ -13,7 +15,8 @@ export default class UsuarioService {
   async #validarRelaciones(data, auditContext = {}) {
     if (data.IdRol) {
       const rol = await models.Rol.findByPk(data.IdRol);
-      if (!rol) {
+      // El rol analista es técnico y único: se da de alta solo por script, nunca desde la API
+      if (!rol || rol.Id === ROL_ANALISTA) {
         const err = new Error('El Rol especificado no existe en el sistema.');
         err.statusCode = 400;
         try { await registerAudit(this.bitacoraService, { detalle: `Validación fallida al crear/actualizar usuario: Rol ${data.IdRol} inexistente`, Accion: 'Validar Usuario', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
@@ -90,7 +93,8 @@ export default class UsuarioService {
     // frontend, trayendo TODOS los usuarios activos. Se filtra en el servidor para que la
     // búsqueda sea explícita y consistente con lo que realmente hay en la base.
     const { page, limit, DNI, EsCliente } = query;
-    const where = { Activo: true };
+    // El usuario analista no se lista en ningún módulo (los clientes tienen IdRol NULL, de ahí el OR)
+    const where = { Activo: true, IdRol: { [Op.or]: [{ [Op.is]: null }, { [Op.ne]: ROL_ANALISTA }] } };
     if (DNI) where.DNI = String(DNI);
     if (EsCliente !== undefined) where.EsCliente = EsCliente === true || EsCliente === 'true' || EsCliente === '1';
 
@@ -106,7 +110,7 @@ export default class UsuarioService {
     const usuario = await this.usuarioDAO.getById(id, {
       attributes: this.ATTRIBUTES
     });
-    if (!usuario) {
+    if (!usuario || usuario.IdRol === ROL_ANALISTA) {
       const err = new Error('Usuario no encontrado');
       err.statusCode = 404;
       try { await registerAudit(this.bitacoraService, { detalle: `Consulta de usuario fallida: Usuario ${id} no encontrado`, Accion: 'Consultar Usuario', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
@@ -153,7 +157,7 @@ export default class UsuarioService {
 
   async update(id, data, auditContext = {}) {
     const usuario = await this.usuarioDAO.getById(id);
-    if (!usuario) {
+    if (!usuario || usuario.IdRol === ROL_ANALISTA) {
       const err = new Error('Usuario no encontrado');
       err.statusCode = 404;
       try { await registerAudit(this.bitacoraService, { detalle: `Modificación de usuario fallida: Usuario ${id} no encontrado`, Accion: 'Modificar Usuario', IdEmpleado: auditContext?.IdEmpleado || null, IdSucursal: auditContext?.IdSucursal || null, IpAddress: auditContext?.IpAddress || null }); } catch(e){}
@@ -172,7 +176,8 @@ export default class UsuarioService {
   }
 
   async delete(id, auditContext = {}) {
-    const actualizado = await this.usuarioDAO.update(id, { Activo: false });
+    const objetivo = await this.usuarioDAO.getById(id);
+    const actualizado = objetivo?.IdRol === ROL_ANALISTA ? null : await this.usuarioDAO.update(id, { Activo: false });
     if (!actualizado) {
       const err = new Error('Usuario no encontrado');
       err.statusCode = 404;

@@ -6,6 +6,7 @@ import { Box, Paper, Skeleton } from '@mui/material'
 export default function ProductCardSkeleton() {
   return (
     <Paper sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 3, borderRadius: 2 }}>
+      <Skeleton variant="rectangular" animation="wave" sx={{ width: '100%', aspectRatio: '4 / 3', mb: 2, borderRadius: 1 }} />
       <Skeleton variant="text" animation="wave" sx={{ fontSize: '.78rem', width: '38%' }} />
       <Skeleton variant="text" animation="wave" sx={{ fontSize: '1.0625rem', mt: 0.5 }} />
       <Skeleton variant="text" animation="wave" sx={{ fontSize: '1.0625rem', width: '65%' }} />

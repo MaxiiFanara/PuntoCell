@@ -13,6 +13,7 @@ export default () => {
   const asistenteController = new AsistenteCatalogoController(new AsistenteCatalogoService(new CatalogoService()));
 
   router.get('/productos', controller.getProductos);
+  router.get('/cotizaciones', controller.getCotizaciones);
   router.get('/asistente/consultar', asistenteController.consultar);
   router.post('/asistente/consultar', validateFields(asistenteChatSchema), asistenteController.consultar);
 

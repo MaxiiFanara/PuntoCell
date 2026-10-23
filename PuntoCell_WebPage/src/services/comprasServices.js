@@ -28,7 +28,7 @@ export const comprasService = {
 
   // payload: { Fecha?, IdProveedor, IdSucursalDestino, IdEmpleado, IdTurnoCaja?, Detalles[], Pagos[] }
   //   Detalles[]: { IdInventario? | IdArticulo?, Cantidad, PrecioCostoUnitario,
-  //                 IdColor?, IdMemoria?, IdBateria?, MesesGarantiaLocal?, IMEIs?[], Observaciones? }
+  //                 IdColor?, IdAlmacenamiento?, IdBateria?, MesesGarantiaLocal?, IMEIs?[], Observaciones? }
   //   Pagos[]:    { IdMetodoPago, Monto, FechaPago? }
   crearCompra: async (payload) => {
     const res = await fetchApi('/compras/compras', {

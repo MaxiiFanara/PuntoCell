@@ -17,6 +17,7 @@ export default class InventarioDashboardService {
     const { from, to } = this._resolveRange(query, days)
     const idSucursal = resolveIdSucursal(query)
     const inventarios = plainList(await models.Inventario.findAll({
+      ...(idSucursal !== null ? { where: { IdSucursal: idSucursal } } : {}),
       include: [
         { model: models.Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'], required: false },
         { model: models.Articulo, as: 'articulo', attributes: ['Id', 'Nombre', 'IdModeloArticulo'], required: false, include: [{ model: models.ModeloArticulo, as: 'modelo', attributes: ['Id', 'Nombre', 'IdMarcaArticulo', 'IdCategoriaArticulo'], required: false, include: [{ model: models.MarcaArticulo, as: 'marca', attributes: ['Id', 'Nombre'], required: false }, { model: models.CategoriaArticulo, as: 'categoria', attributes: ['Id', 'Nombre'], required: false }] }] },

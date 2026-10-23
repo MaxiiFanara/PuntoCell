@@ -1,6 +1,12 @@
 import { sequelize } from '../../../models/index.js';
 import { auditar } from '../../../core/utils/audit.util.js';
 import { reprecificarInventario, resolverListasPrecioCategoria } from '../../../core/utils/precios.util.js';
+import logger from '../../../core/utils/logger.js';
+import { esMetodoEfectivo, montoEfectivo } from '../../../core/utils/efectivo.util.js';
+
+// Los importes se persisten en DECIMAL(18,2): sin redondear, la suma de flotantes (22.79 + 6.22 =
+// 29.009999999999998) hace que Sequelize/tedious arme un parámetro Numeric inválido.
+const round2 = (value) => Number(Number(value || 0).toFixed(2));
 
 const ESTADO_TERMINADO = 3;
 const ESTADO_ABANDONADO = 6;
@@ -152,12 +158,12 @@ export default class OrdenReparacionService {
         });
 
         if (!articulo) {
-          throw new Error(`No se encontró un Articulo vendible para el modelo ${dispositivo.IdModeloArticulo} de la orden #${ordenBloqueada.Id}.`);
+          throw new Error(`No se encontró un Articulo vendible para el modelo del dispositivo de la orden #${ordenBloqueada.Id}.`);
         }
 
         const modeloArticulo = await models.ModeloArticulo.findByPk(articulo.IdModeloArticulo, { transaction });
         if (!modeloArticulo) {
-          throw new Error(`No se encontró el ModeloArticulo asociado al articulo ${articulo.Id} de la orden #${ordenBloqueada.Id}.`);
+          throw new Error(`No se encontró el ModeloArticulo asociado al artículo de la orden #${ordenBloqueada.Id}.`);
         }
 
         const garantiaLocal = new Date(ahora);
@@ -237,8 +243,8 @@ export default class OrdenReparacionService {
         await auditar(
           this.bitacoraService,
           ctx ?? { IdEmpleado: ordenBloqueada.IdEmpleado, IdSucursal: sucursalId },
-          `Marcó la orden de reparación #${ordenBloqueada.Id} como abandonada y la reingresó al inventario`,
-          `Inventario ${inventario.Id} · IMEI ${dispositivo.IMEI || 'N/D'}`
+          'Marcó una orden de reparación como abandonada y reingresó el equipo al inventario',
+          `Equipo del cliente ${ordenBloqueada.dispositivo?.cliente?.Nombre ?? 'sin datos'}`
         ).catch(() => {});
 
         const email = ordenBloqueada.dispositivo?.cliente?.Email;
@@ -246,12 +252,12 @@ export default class OrdenReparacionService {
         if (email) {
           this.notificacionService
             .enviarCambioEstado(email, nombre, ordenBloqueada.Id, estadoAbandonado.Id)
-            .catch((err) => console.error(`❌ No se pudo notificar el abandono de la orden #${ordenBloqueada.Id}:`, err.message));
+            .catch((err) => logger.error(`❌ No se pudo notificar el abandono de la orden #${ordenBloqueada.Id}:`, err.message));
         }
       } catch (error) {
         await transaction.rollback();
         resumen.errores += 1;
-        console.error(`❌ Error al procesar la orden abandonada #${orden.Id}:`, error.message);
+        logger.error(`❌ Error al procesar la orden abandonada #${orden.Id}:`, error.message);
       }
     }
 
@@ -259,10 +265,16 @@ export default class OrdenReparacionService {
   }
 
   async create(datosPaquete, idEmpleadoSesion, ctx = null) {
-    const { cliente, dispositivo, idsFallas, observacionIngreso, sena } = datosPaquete;
+    const { cliente, dispositivo, idsFallas, observacionIngreso, sena: senaOriginal } = datosPaquete;
+    let sena = senaOriginal;
     const t = await sequelize.transaction();
 
     try {
+      // En efectivo la seña es siempre un importe entero.
+      if (sena && sena.Monto > 0 && await esMetodoEfectivo(sequelize.models, sena.IdMetodoPago, t)) {
+        sena = { ...sena, Monto: montoEfectivo(sena.Monto) };
+      }
+
       // Cliente
 let idClienteAsignado = cliente.Id;
 
@@ -330,7 +342,8 @@ if (!idClienteAsignado) {
             IdTurnoCaja: sena.IdTurnoCaja,
             IdEmpleado: idEmpleadoSesion,
             Monto: sena.Monto,
-            Descripcion: `Seña de reparación Id=${nuevaOrden.Id}`,
+            IdMetodoPago: sena.IdMetodoPago,
+            Descripcion: 'Seña de reparación',
             Fecha: new Date()
           }, { transaction: t });
         }
@@ -347,9 +360,16 @@ if (!idClienteAsignado) {
 
       await t.commit();
 
+      // Detalle legible (cliente y equipo por nombre, nunca por Id). Es solo auditoría: si falla la
+      // consulta, la orden ya está confirmada y se registra igual con un texto genérico.
+      const [clienteAud, modeloAud] = await Promise.all([
+        this.usuarioDAO.getById(idClienteAsignado, { attributes: ['Nombre', 'Apellido'] }).catch(() => null),
+        sequelize.models.ModeloArticulo.findByPk(dispositivo.IdModeloArticulo, { attributes: ['Nombre'] }).catch(() => null)
+      ]);
+      const nombreClienteAud = [clienteAud?.Nombre, clienteAud?.Apellido].filter(Boolean).join(' ');
       await auditar(this.bitacoraService, ctx ?? { IdEmpleado: idEmpleadoSesion },
-        `Creó la orden de reparación #${nuevaOrden.Id}`,
-        `Cliente ${idClienteAsignado} · dispositivo ${nuevoDispositivo.Id}`);
+        'Creó una orden de reparación',
+        `Ingreso de ${modeloAud?.Nombre ?? 'un equipo'}${nombreClienteAud ? ` del cliente ${nombreClienteAud}` : ''}`);
 
       return {
         IdOrden: nuevaOrden.Id,
@@ -435,9 +455,9 @@ if (!idClienteAsignado) {
         // PrecioManoObra debe cargarse en USD desde el frontend por el mismo motivo — de lo
         // contrario esta suma mezclaría monedas sin conversión.
         const costoRepuestos = Number(orden.CostoRepuestos);
-        const precioManoObra = Number(PrecioManoObra);
+        const precioManoObra = round2(PrecioManoObra);
         const senia = Number(orden.Senia || 0);
-        const totalReparacion = costoRepuestos + precioManoObra - senia;
+        const totalReparacion = round2(costoRepuestos + precioManoObra - senia);
 
         await orden.update({
           IdEstadoOrden: 3,
@@ -452,7 +472,7 @@ if (!idClienteAsignado) {
           transaction: t
         }) || 0;
 
-        const saldo = Number(orden.TotalReparacion) - Number(pagosAnteriores);
+        const saldo = round2(Number(orden.TotalReparacion) - Number(pagosAnteriores));
 
         if (saldo > 0) {
           if (!pagoFinal || !pagoFinal.IdMetodoPago || !pagoFinal.IdTurnoCaja) {
@@ -460,8 +480,10 @@ if (!idClienteAsignado) {
             err.statusCode = 400;
             throw err;
           }
+          // En efectivo el saldo final se cobra redondeado al entero y queda saldado.
+          const montoFinal = (await esMetodoEfectivo(sequelize.models, pagoFinal.IdMetodoPago, t)) ? montoEfectivo(saldo) : saldo;
           const pagoFinalCreado = await sequelize.models.PagoReparacion.create({
-            Monto: saldo,
+            Monto: montoFinal,
             FechaPago: sequelize.fn('SYSDATETIME'),
             Observacion: 'Saldo final al entregar',
             IdOrdenReparacion: idOrden,
@@ -473,8 +495,9 @@ if (!idClienteAsignado) {
             await this.cajaService.registrarIngreso({
               IdTurnoCaja: pagoFinal.IdTurnoCaja,
               IdEmpleado: idEmpleadoSesion,
-              Monto: saldo,
-              Descripcion: `Pago final de reparación Id=${idOrden}`,
+              Monto: montoFinal,
+              IdMetodoPago: pagoFinal.IdMetodoPago,
+              Descripcion: 'Pago final de reparación',
               Fecha: new Date()
             }, { transaction: t });
           }
@@ -509,7 +532,7 @@ if (!idClienteAsignado) {
 
       const estados = { 1: 'En espera', 2: 'En reparación', 3: 'Terminado', 4: 'Entregado', 5: 'Anulado', 6: 'Abandonado' };
       await auditar(this.bitacoraService, ctx ?? { IdEmpleado: idEmpleadoSesion },
-        `Cambió la orden de reparación #${idOrden} a estado "${estados[nuevoEstado] ?? nuevoEstado}"`,
+        `Cambió una orden de reparación a estado "${estados[nuevoEstado] ?? nuevoEstado}"`,
         ObservacionTecnico || 'Actualización de estado');
 
       if (nuevoEstado !== estadoActual && nuevoEstado !== 4) {
@@ -518,7 +541,7 @@ if (!idClienteAsignado) {
         if (email) {
           this.notificacionService
             .enviarCambioEstado(email, nombre, idOrden, nuevoEstado)
-            .catch(err => console.error('❌ Notificación fallida:', err.message));
+            .catch(err => logger.error('❌ Notificación fallida:', err.message));
         }
       }
 
@@ -542,8 +565,9 @@ if (!idClienteAsignado) {
         {
           association: 'dispositivo',
           include: [
-            { association: 'modelo', attributes: ['Nombre'] },
-            { association: 'cliente', attributes: ['Nombre', 'Apellido', 'DNI'] }
+            // Marca y categoría del modelo: el front las usa para Tipo/Marca del modal y del PDF
+            { association: 'modelo', attributes: ['Nombre', 'IdCategoriaArticulo'], include: [{ association: 'marca', attributes: ['Nombre'] }] },
+            { association: 'cliente', attributes: ['Nombre', 'Apellido', 'DNI', 'Celular', 'Email'] }
           ]
         },
         { association: 'empleado', attributes: ['Nombre', 'Apellido'] },
