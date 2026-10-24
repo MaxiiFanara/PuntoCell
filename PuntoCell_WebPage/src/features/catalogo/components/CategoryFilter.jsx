@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Box, ToggleButton, ToggleButtonGroup } from '@mui/material'
 
 import { useProducts } from '../context/ProductContext'
@@ -34,15 +34,20 @@ const pildora = (t) => ({
       background: t.vars.palette.background.paper,
     },
   },
+  // Por encima del indicador que se desliza (ver abajo).
+  position: 'relative',
+  zIndex: 1,
   '&.Mui-selected': {
-    background: t.vars.palette.text.primary,
+    // El relleno lo pone el indicador deslizante: así el color viaja de una píldora a la
+    // otra en un solo movimiento en vez de apagarse y encenderse por separado.
+    background: 'transparent',
     color: t.vars.palette.background.default,
-    borderColor: `${t.vars.palette.text.primary} !important`,
+    borderColor: 'transparent !important',
     // La activa no reacciona al hover: ya está en su estado final.
     '&:hover': {
-      background: t.vars.palette.text.primary,
+      background: 'transparent',
       color: t.vars.palette.background.default,
-      borderColor: `${t.vars.palette.text.primary} !important`,
+      borderColor: 'transparent !important',
     },
   },
 })
@@ -60,6 +65,27 @@ export default function CategoryFilter({ categories, products: productos, select
     return acumulado
   }, [products])
 
+  // Indicador: un solo elemento que se desliza hasta la píldora activa.
+  const grupo = useRef(null)
+  const [marca, setMarca] = useState(null)
+  useLayoutEffect(() => {
+    const el = grupo.current
+    if (!el) return undefined
+    const medir = () => {
+      const activa = el.querySelector('.Mui-selected')
+      if (!activa) return setMarca(null)
+      setMarca((prev) =>
+        prev && prev.x === activa.offsetLeft && prev.w === activa.offsetWidth && prev.h === activa.offsetHeight
+          ? prev
+          : { x: activa.offsetLeft, y: activa.offsetTop, w: activa.offsetWidth, h: activa.offsetHeight },
+      )
+    }
+    medir()
+    const ro = new ResizeObserver(medir)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [selected, categories])
+
   return (
     // En pantallas angostas las píldoras se deslizan en una sola fila en vez de apilarse.
     <Box sx={{ overflowX: { xs: 'auto', md: 'visible' }, pb: { xs: 0.5, md: 0 }, mx: { xs: -1, md: 0 }, px: { xs: 1, md: 0 } }}>
@@ -70,8 +96,28 @@ export default function CategoryFilter({ categories, products: productos, select
       // haya exactamente una categoría vigente.
       onChange={(_, valor) => valor !== null && onChange(valor)}
       aria-label="Filtrar por categoría"
-      sx={{ gap: 1, flexWrap: { xs: 'nowrap', md: 'wrap' }, '& .MuiToggleButton-root': { flex: 'none' } }}
+      ref={grupo}
+      sx={{ position: 'relative', gap: 1, flexWrap: { xs: 'nowrap', md: 'wrap' }, '& .MuiToggleButton-root': { flex: 'none' } }}
     >
+      {marca && (
+        <Box
+          aria-hidden
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: marca.w,
+            height: marca.h,
+            borderRadius: '18px',
+            bgcolor: 'text.primary',
+            pointerEvents: 'none',
+            transform: `translate(${marca.x}px, ${marca.y}px)`,
+            transition:
+              'transform 280ms cubic-bezier(.77,0,.175,1), width 280ms cubic-bezier(.77,0,.175,1)',
+            '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
+          }}
+        />
+      )}
       {categories.map((cat) => (
         <ToggleButton key={cat} value={cat} sx={pildora}>
           {cat === 'Todos' ? cat : formatCategoria(cat)}

@@ -17,6 +17,10 @@ import { MONO, PUBLIC_MAXW, PUBLIC_GUTTER, PUBLIC_SECTION_Y, PUBLIC_CONTROL_H } 
  *  - `text.disabled` no se usa nunca para texto: va `pc.textMuted`.
  */
 
+/** Tipografía de carácter de la cara pública: títulos en grotesk y una palabra en serif itálica. */
+export const DISPLAY = '"Bricolage Grotesque", Archivo, ui-sans-serif, system-ui, sans-serif'
+export const SERIF = '"Instrument Serif", Georgia, "Times New Roman", serif'
+
 /** Ancho y márgenes del contenido. Lo usa todo bloque de la cara pública. */
 export const shell = {
   width: '100%',

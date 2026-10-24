@@ -1,8 +1,7 @@
 // Tokens de la landing. La cara oscura (hero, carrusel, "Visitanos") es siempre
 // oscura, sea cual sea el modo del sitio: es la identidad de la apertura.
-export const DISPLAY = '"Bricolage Grotesque", Archivo, ui-sans-serif, system-ui, sans-serif'
-// Itálica editorial: una palabra por título, nunca más.
-export const SERIF = '"Instrument Serif", Georgia, "Times New Roman", serif'
+// DISPLAY y SERIF viven en publicStyles (los usa también el catálogo). Itálica editorial: una palabra por título.
+export { DISPLAY, SERIF } from '../../components/ui/publicStyles'
 export const MONO = '"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace'
 export const NOCHE = '#04120d'
 export const MENTA = '#3ddc97'

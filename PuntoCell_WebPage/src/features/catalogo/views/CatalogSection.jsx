@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Box,
   Button,
@@ -19,8 +19,8 @@ import CategoryFilter from '../components/CategoryFilter'
 import CatalogBreadcrumbs from '../components/CatalogBreadcrumbs'
 
 import { STORE_CONFIG } from '../config/store'
-import { PUBLIC_CONTROL_H } from '../../../theme'
-import { btn, field, muted } from '../../../components/ui/publicStyles'
+import { MONO, PUBLIC_CONTROL_H } from '../../../theme'
+import { btn, DISPLAY, field, muted, SERIF } from '../../../components/ui/publicStyles'
 
 const { catalog } = STORE_CONFIG
 
@@ -61,6 +61,21 @@ export default function CatalogSection({
   // devuelve al campo para no dejar al teclado en el body.
   const buscador = useRef(null)
 
+  // Escalonado de entrada sólo al cargar y al cambiar de página; al filtrar o escribir
+  // las tarjetas aparecen sin demora (es una acción frecuente y no debe sentirse lenta).
+  const [escalonar, setEscalonar] = useState(true)
+  useEffect(() => {
+    if (loading) return undefined
+    const t = setTimeout(() => setEscalonar(false), 900)
+    return () => clearTimeout(t)
+  }, [loading, page])
+  const cambiarPagina = (e, valor) => {
+    setEscalonar(true)
+    onPageChange(e, valor)
+  }
+
+  const titulo = catalog.title.trim().split(/\s+/)
+
   const hayFiltros =
     filtros.search !== '' || filtros.category !== 'Todos'
 
@@ -79,14 +94,30 @@ export default function CatalogSection({
           flexWrap: 'wrap',
         }}
       >
-        <Typography component="h1" variant="d2">
-          {catalog.title}
+        <Typography
+          component="h1"
+          sx={{
+            fontFamily: DISPLAY,
+            fontWeight: 800,
+            fontSize: 'clamp(2.5rem, 5.6vw, 4.5rem)',
+            lineHeight: 0.98,
+            letterSpacing: '-.04em',
+          }}
+        >
+          {titulo.slice(0, -1).join(' ')}{titulo.length > 1 ? ' ' : ''}
+          <Box
+            component="span"
+            sx={{ fontFamily: SERIF, fontStyle: 'italic', fontWeight: 400, fontSize: '1.06em', letterSpacing: '-.02em', color: 'primary.main' }}
+          >
+            {titulo[titulo.length - 1]}
+          </Box>
         </Typography>
         {!loading && (
-          <Typography className="num" sx={{ ...muted, fontSize: '.875rem', whiteSpace: 'nowrap' }}>
-            {totalFiltered === totalCount
-              ? `${totalCount} productos`
-              : `${totalFiltered} de ${totalCount}`}
+          <Typography className="num" sx={{ ...muted, fontFamily: MONO, fontSize: '.8125rem', whiteSpace: 'nowrap' }}>
+            <Box component="span" sx={{ color: 'primary.main' }}>
+              ({totalFiltered === totalCount ? totalCount : `${totalFiltered} de ${totalCount}`})
+            </Box>{' '}
+            productos
           </Typography>
         )}
       </Box>
@@ -119,6 +150,13 @@ export default function CatalogSection({
               // El placeholder por defecto de MUI es la tinta al 42%: no llega a
               // 4.5:1 y acá es la única pista de qué busca el campo.
               '& input::placeholder': { color: 'pc.textMuted', opacity: 1 },
+              // Anillo suave al enfocar: el campo "se enciende" en vez de saltar de borde.
+              '& .MuiOutlinedInput-root': {
+                ...field['& .MuiOutlinedInput-root'],
+                borderRadius: 99,
+                transition: 'box-shadow 220ms cubic-bezier(.23,1,.32,1)',
+                '&.Mui-focused': { boxShadow: '0 0 0 4px color-mix(in srgb, var(--pc-palette-primary-main) 16%, transparent)' },
+              },
             }}
             slotProps={{
               htmlInput: { 'aria-label': 'Buscar productos' },
@@ -230,18 +268,34 @@ export default function CatalogSection({
       ) : (
         <>
           <Box sx={GRILLA}>
-            {filtered.map((product) => <ProductCard key={product.id} product={product} />)}
+            {filtered.map((product, i) => (
+              <ProductCard key={product.id} product={product} retraso={escalonar ? Math.min(i, 11) * 40 : 0} />
+            ))}
           </Box>
           
           {/* Controles de paginación al final de la grilla */}
           {totalPages > 1 && (
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6, mb: 4 }}>
-              <Pagination 
-                count={totalPages} 
-                page={page} 
-                onChange={onPageChange} 
-                color="primary" 
-                size="large" 
+              <Pagination
+                count={totalPages}
+                page={page}
+                onChange={cambiarPagina}
+                size="large"
+                sx={{
+                  '& .MuiPaginationItem-root': {
+                    fontFamily: MONO,
+                    fontWeight: 500,
+                    borderRadius: '12px',
+                    transition: 'background-color 180ms ease, color 180ms ease, transform 160ms cubic-bezier(.23,1,.32,1)',
+                    '&:active': { transform: 'scale(.95)' },
+                  },
+                  // Igual que la categoría activa: tinta plena, no verde.
+                  '& .MuiPaginationItem-root.Mui-selected': {
+                    bgcolor: 'text.primary',
+                    color: 'background.default',
+                    '&:hover': { bgcolor: 'text.primary' },
+                  },
+                }}
               />
             </Box>
           )}
