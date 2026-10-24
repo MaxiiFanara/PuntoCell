@@ -1,8 +1,10 @@
 import { Box, Typography } from '@mui/material'
 import { RadarChart } from '@mui/x-charts/RadarChart'
 
-import { armarRadar } from '../utils/metricasComparador'
-import { muted } from '../../../components/ui/publicStyles'
+import { armarRadar, COLORES_SERIES } from '../utils/metricasComparador'
+import { DISPLAY, muted } from '../../../components/ui/publicStyles'
+import { MONO } from '../../../theme'
+import Aparece from './Aparece'
 
 /**
  * Radar de los equipos elegidos sobre los datos que se pueden medir (batería,
@@ -15,14 +17,30 @@ export default function CompararRadar({ productos }) {
   if (!radar) return null
 
   return (
-    <Box component="section" aria-label="Gráfico comparativo" sx={{ mb: 5 }}>
-      <Typography component="h2" sx={{ fontSize: '1.0625rem', fontWeight: 600, letterSpacing: '-.02em' }}>
+    <Aparece
+      component="section"
+      aria-label="Gráfico comparativo"
+      sx={{
+        mb: 6,
+        p: { xs: 2.5, md: 4 },
+        borderRadius: '28px',
+        bgcolor: 'background.paper',
+        boxShadow: '0 4px 6px -1px rgba(0,0,0,.08), 0 2px 4px -2px rgba(0,0,0,.08)',
+      }}
+    >
+      <Typography sx={{ fontFamily: MONO, fontSize: '.8125rem', fontWeight: 500, color: 'pc.textMuted' }}>
+        <Box component="span" sx={{ color: 'primary.main', mr: 1 }}>(01)</Box>
         Vista general
       </Typography>
-      <Typography sx={{ ...muted, fontSize: '.8125rem', mb: 1 }}>
+      <Typography component="h2" sx={{ mt: 1, fontFamily: DISPLAY, fontWeight: 800, fontSize: 'clamp(1.5rem, 3vw, 2rem)', letterSpacing: '-.04em', lineHeight: 1.05 }}>
+        Quién llega más lejos
+      </Typography>
+      <Typography sx={{ ...muted, fontSize: '.875rem', mt: 1, mb: 1 }}>
         Cuanto más lejos del centro, mejor en ese aspecto. Pasá el cursor para ver los valores.
       </Typography>
-      <RadarChart height={380} series={radar.series} radar={{ metrics: radar.metrics }} />
-    </Box>
+      <Aparece clase="cmp-radar" demora={120}>
+        <RadarChart height={380} colors={COLORES_SERIES} series={radar.series} radar={{ metrics: radar.metrics }} />
+      </Aparece>
+    </Aparece>
   )
 }
