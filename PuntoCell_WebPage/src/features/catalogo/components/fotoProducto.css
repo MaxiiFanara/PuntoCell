@@ -1,0 +1,80 @@
+/*
+ * Pulido de las fotos de producto (listado y detalle): sombra de contacto suave,
+ * elevación y zoom al pasar el mouse. Es sólo CSS.
+ *
+ * Las fotos traen fondo blanco opaco, así que un drop-shadow dibujaría el rectángulo
+ * de la imagen. En su lugar hay una elipse bajo el producto (con multiply, que sólo
+ * oscurece el blanco) que se achica cuando la foto se eleva: eso es lo que da la
+ * sensación de flotar.
+ *
+ * Uso: el anfitrión lleva `.pc-foto-host` (lo que reacciona al hover) y adentro
+ * va `.pc-foto` con `.pc-foto__flota > img.pc-foto__img` y `.pc-foto__sombra`.
+ * `--pc-foto-lift` y `--pc-foto-zoom` ajustan la intensidad por anfitrión.
+ */
+
+.pc-foto {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.pc-foto__flota {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.pc-foto__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform-origin: 50% 55%;
+  transition: transform 520ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.pc-foto__sombra {
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  width: 46%;
+  height: 8%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.3), transparent 70%);
+  mix-blend-mode: multiply;
+  filter: blur(2px);
+  opacity: 0.55;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition:
+    transform 520ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 520ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@keyframes pc-foto-flota {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+/* Sólo con mouse y sin preferencia de menos movimiento: en táctil el hover queda pegado. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .pc-foto-host:hover .pc-foto__img {
+    transform: translateY(var(--pc-foto-lift, -3px)) scale(var(--pc-foto-zoom, 1.04));
+  }
+
+  .pc-foto-host:hover .pc-foto__sombra {
+    transform: translateX(-50%) scale(0.76);
+    opacity: 0.32;
+  }
+
+  /* Una vez elevada, la foto "respira" apenas; arranca cuando termina la subida. */
+  .pc-foto-host:hover .pc-foto__flota {
+    animation: pc-foto-flota 3.6s ease-in-out 520ms infinite;
+  }
+}

@@ -11,6 +11,7 @@ import { formatCategoria } from '../utils/categorias'
 import ProductSpecs from './ProductSpecs'
 import CategoriaIcon from './CategoriaIcon'
 import ReflectiveCard from '../../../components/ui/ReflectiveCard'
+import './fotoProducto.css'
 import { muted, price as priceSx } from '../../../components/ui/publicStyles'
 
 /**
@@ -63,9 +64,10 @@ export default function ProductCard({ product }) {
         },
         '@media (hover: hover) and (pointer: fine)': {
           '&:hover .pc-add': { opacity: 1 },
-          '&:hover .pc-img img': { transform: 'scale(1.05)' },
         },
       }}
+      // Toda la tarjeta es el anfitrión del efecto de la foto (ver fotoProducto.css).
+      className="pc-foto-host"
     >
       <ReflectiveCard
         theme={oscuro ? 'dark' : 'light'}
@@ -102,17 +104,12 @@ export default function ProductCard({ product }) {
             }}
           >
             {product.imagenPortada ? (
-              <img
-                src={product.imagenPortada}
-                alt={product.name}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
-                  transition: 'transform 420ms cubic-bezier(.23,1,.32,1)',
-                }}
-                loading="lazy"
-              />
+              <span className="pc-foto">
+                <span className="pc-foto__flota">
+                  <img className="pc-foto__img" src={product.imagenPortada} alt={product.name} loading="lazy" />
+                </span>
+                <span className="pc-foto__sombra" aria-hidden="true" />
+              </span>
             ) : (
               <CategoriaIcon categoria={product.category} sx={{ fontSize: 56, color: 'primary.main', opacity: 0.5 }} />
             )}
