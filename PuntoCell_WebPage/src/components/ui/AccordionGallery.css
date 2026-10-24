@@ -160,14 +160,16 @@
   padding: 14px;
   box-sizing: border-box;
   border-radius: 12px;
-  /* Las fotos de producto traen fondo blanco: sobre una tarjeta oscura se
-     leen como un escenario claro en vez de un recuadro pegado. */
-  background: #fff;
+  /* Las fotos de producto traen fondo blanco: con `multiply` ese blanco toma el color
+     del escenario (un halo verdoso, igual que en el catálogo) y el producto queda
+     apoyado en él en vez de verse como un recuadro blanco pegado. */
+  background: radial-gradient(ellipse 80% 75% at 50% 42%, #f4f7f5 0%, #c3d8cd 100%);
   will-change: filter;
 }
 
 .accordion-gallery--card .ag-panel__media img {
   object-fit: contain;
+  mix-blend-mode: multiply;
 }
 
 /* Sin foto: el ícono de la categoría ocupa el lugar. */
