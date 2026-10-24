@@ -1,0 +1,50 @@
+/* Movimiento propio de la landing. Todo se apaga con prefers-reduced-motion. */
+
+@keyframes lp-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes lp-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.lp-float {
+  animation: lp-float 6s ease-in-out infinite;
+}
+
+.lp-marquee {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+
+.lp-marquee__track {
+  display: flex;
+  width: max-content;
+  animation: lp-marquee 48s linear infinite;
+}
+
+.lp-marquee:hover .lp-marquee__track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-float {
+    animation: none;
+  }
+  .lp-marquee {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  .lp-marquee__track {
+    animation: none;
+    flex-wrap: wrap;
+    width: auto;
+    justify-content: center;
+  }
+  .lp-marquee__track [data-copia] {
+    display: none;
+  }
+}
