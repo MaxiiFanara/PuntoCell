@@ -6,7 +6,9 @@ import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 
 import { STORE_CONFIG } from '../../catalogo/config/store'
 import { shell } from '../../../components/ui/publicStyles'
-import { DISPLAY, ESQUEMA_OSCURO, MENTA, NOCHE } from '../landingTokens'
+import { boton, ESQUEMA_OSCURO, LIMA, LIMA_HOVER, MENTA, NOCHE } from '../landingTokens'
+import Reveal from './Reveal'
+import { Acento, Eyebrow, Titulo } from './Tipografia'
 
 const { name, whatsapp, address, hours } = STORE_CONFIG.business
 
@@ -49,30 +51,18 @@ export default function Location() {
       id="visitanos"
       aria-labelledby="visitanos-titulo"
       {...ESQUEMA_OSCURO}
-      sx={{ bgcolor: NOCHE, color: '#fff', py: 'clamp(4.5rem, 9vw, 8rem)' }}
+      sx={{ color: '#fff', py: 'clamp(4.5rem, 9vw, 8rem)' }}
     >
       <Box sx={shell}>
-        <Typography
-          sx={{ fontSize: '.8125rem', fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: MENTA }}
-        >
-          Dónde estamos
-        </Typography>
-        <Typography
-          id="visitanos-titulo"
-          component="h2"
-          sx={{
-            mt: 1.5,
-            fontFamily: DISPLAY,
-            fontWeight: 700,
-            fontSize: 'clamp(2.25rem, 5vw, 3.75rem)',
-            lineHeight: 1,
-            letterSpacing: '-.04em',
-          }}
-        >
-          Visitanos en el local
-        </Typography>
+        <Reveal>
+          <Eyebrow n="03">Dónde estamos</Eyebrow>
+          <Titulo id="visitanos-titulo">
+            Visitanos en <Acento>el local</Acento>
+          </Titulo>
+        </Reveal>
 
-        <Box
+        <Reveal
+          delay={100}
           sx={{
             position: 'relative',
             mt: 'clamp(2rem, 4vw, 3rem)',
@@ -133,16 +123,7 @@ export default function Location() {
                 target="_blank"
                 rel="noopener"
                 startIcon={<DirectionsIcon />}
-                sx={{
-                  height: 48,
-                  px: 2.5,
-                  borderRadius: '12px',
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  bgcolor: MENTA,
-                  color: NOCHE,
-                  '&:hover': { bgcolor: '#6ff0b8' },
-                }}
+                sx={boton({ bg: LIMA, color: NOCHE, hoverBg: LIMA_HOVER, height: 48 })}
               >
                 Cómo llegar
               </Button>
@@ -151,22 +132,19 @@ export default function Location() {
                 target="_blank"
                 rel="noopener"
                 startIcon={<WhatsAppIcon />}
-                sx={{
-                  height: 48,
-                  px: 2.5,
-                  borderRadius: '12px',
-                  textTransform: 'none',
-                  fontWeight: 600,
+                sx={boton({
                   color: '#fff',
                   border: '1px solid rgba(255,255,255,.4)',
-                  '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.08)' },
-                }}
+                  hoverBorder: '#fff',
+                  hoverBg: 'rgba(255,255,255,.08)',
+                  height: 48,
+                })}
               >
                 Escribinos
               </Button>
             </Box>
           </Box>
-        </Box>
+        </Reveal>
       </Box>
     </Box>
   )

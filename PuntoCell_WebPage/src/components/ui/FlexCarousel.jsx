@@ -246,6 +246,7 @@ const FlexCarousel = ({
   focusOnClick = true,
   autoplay = false,
   interval = 4,
+  flow = 0,
   captions = true,
   captureWheel = true,
   onChange,
@@ -291,6 +292,7 @@ const FlexCarousel = ({
       focusOnClick,
       autoplay,
       interval,
+      flow,
       captureWheel,
     }
     engineRef.current?.wake()
@@ -713,6 +715,25 @@ const FlexCarousel = ({
           introState.done = true
           setRevealed(true)
         }
+        animating = true
+      }
+
+      // Desplazamiento continuo (`flow`, px/s): la meta avanza a velocidad constante y el
+      // resorte la sigue, como una cinta. Se frena con el puntero encima, al arrastrar o
+      // con una tarjeta abierta, y retoma 1,5 s después de la última interacción.
+      if (
+        s.flow > 0 &&
+        !reducedMotion &&
+        introState.done &&
+        focus.target === 0 &&
+        focus.t < 0.01 &&
+        !pointer.over &&
+        !pointer.down &&
+        !hasFocus &&
+        mode === 'spring' &&
+        now - interactedAt > 1500
+      ) {
+        goal += s.flow * dt
         animating = true
       }
 

@@ -2,7 +2,9 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Typography, useMediaQuery } from '@mui/material'
 
 import { shell } from '../../../components/ui/publicStyles'
-import { DISPLAY, ESQUEMA_OSCURO, MENTA, NOCHE } from '../landingTokens'
+import { ESQUEMA_OSCURO, NOCHE } from '../landingTokens'
+import Reveal from './Reveal'
+import { Acento, Eyebrow, Titulo } from './Tipografia'
 import { lamina } from '../posters'
 
 // El carrusel (y la librería WebGL que usa) se descarga recién cuando la sección
@@ -86,32 +88,18 @@ export default function ServiceShowcase() {
       id="servicios"
       aria-labelledby="servicios-titulo"
       {...ESQUEMA_OSCURO}
-      sx={{ bgcolor: NOCHE, color: '#fff', pt: 'clamp(4.5rem, 9vw, 8rem)', pb: 'clamp(4rem, 8vw, 7rem)', overflow: 'hidden' }}
+      sx={{ color: '#fff', pt: 'clamp(4.5rem, 9vw, 8rem)', pb: 'clamp(4rem, 8vw, 7rem)', overflow: 'hidden' }}
     >
       <Box sx={shell}>
-        <Typography
-          sx={{ fontSize: '.8125rem', fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: MENTA }}
-        >
-          El local
-        </Typography>
-        <Typography
-          id="servicios-titulo"
-          component="h2"
-          sx={{
-            mt: 1.5,
-            fontFamily: DISPLAY,
-            fontWeight: 700,
-            fontSize: 'clamp(2.25rem, 5.5vw, 4.5rem)',
-            lineHeight: 1,
-            letterSpacing: '-.04em',
-            maxWidth: '18ch',
-          }}
-        >
-          Lo que se hace en el local
-        </Typography>
-        <Typography sx={{ mt: 2.5, maxWidth: '40ch', fontSize: '1.125rem', lineHeight: 1.6, color: 'rgba(255,255,255,.78)' }}>
-          Calidad, confianza y atención personalizada.
-        </Typography>
+        <Reveal>
+          <Eyebrow n="01">El local</Eyebrow>
+          <Titulo id="servicios-titulo" sx={{ maxWidth: '22ch' }}>
+            Lo que se hace en <Acento>el local</Acento>
+          </Titulo>
+          <Typography sx={{ mt: 2.5, maxWidth: '40ch', fontSize: '1.125rem', lineHeight: 1.6, color: 'rgba(255,255,255,.78)' }}>
+            Calidad, confianza y atención personalizada.
+          </Typography>
+        </Reveal>
       </Box>
 
       {webgl2 && (
@@ -137,9 +125,8 @@ export default function ServiceShowcase() {
                 gap={14}
                 squeeze={0.2}
                 radius={18}
-                captions
-                autoplay
-                interval={4}
+                flow={120}
+                captions={false}
                 captureWheel={false}
               />
             </Suspense>

@@ -10,7 +10,9 @@ import { formatCurrency } from '../../catalogo/utils/whatsapp'
 import { formatCategoria } from '../../catalogo/utils/categorias'
 import AccordionGallery from '../../../components/ui/AccordionGallery'
 import { muted, price as priceSx, section, shell } from '../../../components/ui/publicStyles'
-import { DISPLAY } from '../landingTokens'
+import { ESQUEMA_OSCURO } from '../landingTokens'
+import Reveal from './Reveal'
+import { Acento, Eyebrow, Titulo } from './Tipografia'
 
 const pastilla = {
   fontSize: '.75rem',
@@ -136,9 +138,15 @@ export default function CatalogHighlight() {
   if (!loading && disponibles.length === 0) return null
 
   return (
-    <Box component="section" id="disponibles" sx={section(true)}>
+    <Box
+      component="section"
+      id="disponibles"
+      aria-labelledby="disponibles-titulo"
+      {...ESQUEMA_OSCURO}
+      sx={{ ...section(false), color: '#fff' }}
+    >
       <Box sx={shell}>
-        <Box
+        <Reveal
           sx={{
             display: 'flex',
             alignItems: 'baseline',
@@ -148,24 +156,12 @@ export default function CatalogHighlight() {
           }}
         >
           <Box>
-            <Typography
-              sx={{ fontSize: '.8125rem', fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: 'primary.main' }}
-            >
+            <Eyebrow n="02">
               En el mostrador
-            </Typography>
-            <Typography
-              component="h2"
-              sx={{
-                mt: 1.5,
-                fontFamily: DISPLAY,
-                fontWeight: 700,
-                fontSize: 'clamp(2.25rem, 5vw, 3.75rem)',
-                lineHeight: 1,
-                letterSpacing: '-.04em',
-              }}
-            >
-              Disponibles ahora
-            </Typography>
+            </Eyebrow>
+            <Titulo id="disponibles-titulo" sx={{ fontSize: 'clamp(2.25rem, 5vw, 3.75rem)' }}>
+              Disponibles <Acento>ahora</Acento>
+            </Titulo>
           </Box>
 
           {/* La flecha que avanza 3px es la única coquetería de la página, y
@@ -194,9 +190,9 @@ export default function CatalogHighlight() {
             Ver todo el catálogo
             <ArrowForwardIcon />
           </Box>
-        </Box>
+        </Reveal>
 
-        <Box sx={{ mt: 'clamp(2.5rem, 4.5vw, 3.5rem)' }}>
+        <Reveal delay={120} sx={{ mt: 'clamp(2.5rem, 4.5vw, 3.5rem)' }}>
           {loading ? (
             <Box
               sx={{
@@ -228,7 +224,7 @@ export default function CatalogHighlight() {
               gap={12}
             />
           )}
-        </Box>
+        </Reveal>
       </Box>
     </Box>
   )

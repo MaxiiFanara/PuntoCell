@@ -1,50 +1,44 @@
 /* Movimiento propio de la landing. Todo se apaga con prefers-reduced-motion. */
 
-@keyframes lp-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+:root {
+  --lp-ease: cubic-bezier(.23, 1, .32, 1);
 }
 
-@keyframes lp-marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
+@keyframes lp-sube {
+  to { transform: translateY(0); }
 }
 
-.lp-float {
-  animation: lp-float 6s ease-in-out infinite;
-}
-
-.lp-marquee {
+/* Título del hero: cada línea sube desde una máscara. Padding + margen negativo
+   para que la máscara no recorte los descendentes ni la itálica. */
+.lp-linea {
+  display: block;
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  padding-bottom: .12em;
+  margin-bottom: -.12em;
 }
 
-.lp-marquee__track {
-  display: flex;
-  width: max-content;
-  animation: lp-marquee 48s linear infinite;
+.lp-linea > span {
+  display: block;
 }
 
-.lp-marquee:hover .lp-marquee__track {
-  animation-play-state: paused;
+/* Entrada al hacer scroll (ver Reveal.jsx). */
+@media (prefers-reduced-motion: no-preference) {
+  .lp-linea > span {
+    transform: translateY(105%);
+    animation: lp-sube 700ms var(--lp-ease) forwards;
+    animation-delay: calc(var(--i, 0) * 70ms + 80ms);
+  }
+
+  .lp-reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 500ms var(--lp-ease), transform 500ms var(--lp-ease);
+    transition-delay: var(--lp-delay, 0ms);
+  }
+
+  .lp-reveal[data-visto] {
+    opacity: 1;
+    transform: none;
+  }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .lp-float {
-    animation: none;
-  }
-  .lp-marquee {
-    -webkit-mask-image: none;
-    mask-image: none;
-  }
-  .lp-marquee__track {
-    animation: none;
-    flex-wrap: wrap;
-    width: auto;
-    justify-content: center;
-  }
-  .lp-marquee__track [data-copia] {
-    display: none;
-  }
-}
