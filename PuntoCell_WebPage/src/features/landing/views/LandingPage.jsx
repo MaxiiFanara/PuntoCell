@@ -35,7 +35,7 @@ export default function LandingPage() {
         <ServiceShowcase />
         <CatalogHighlight />
         <Location />
-        <PublicFooter conCta={false} />
+        <PublicFooter />
       </Box>
     </ProductProvider>
   )
