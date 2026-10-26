@@ -84,14 +84,33 @@ export default function ProductCard({ product, retraso = 0 }) {
         },
         // El botón de agregar aparece con la tarjeta (sólo puntero fino): sube 4px y se funde.
         '& .pc-add': { translate: '0 0' },
-        '@media (hover: hover) and (pointer: fine)': {
-          transition: 'transform 240ms cubic-bezier(.23,1,.32,1), box-shadow 240ms cubic-bezier(.23,1,.32,1)',
-          '&:hover': { transform: 'translateY(-4px)', boxShadow: sombraAlta },
-          '& .pc-add': { translate: '0 4px' },
-          '&:hover .pc-add, & .pc-add:focus-visible': { opacity: 1, translate: '0 0' },
+        transition: 'transform 240ms cubic-bezier(.23,1,.32,1)',
+        // La sombra alta vive en un pseudo-elemento y sólo se funde: animar `box-shadow`
+        // repinta en cada cuadro, y en una grilla larga se nota.
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          inset: 0,
+          borderRadius: 'inherit',
+          boxShadow: sombraAlta,
+          opacity: 0,
+          pointerEvents: 'none',
+          transition: 'opacity 240ms cubic-bezier(.23,1,.32,1)',
         },
+        '@media (hover: hover) and (pointer: fine)': {
+          '&:hover': { transform: 'translateY(-4px)' },
+          '&:hover::before': { opacity: 1 },
+          '& .pc-add': { translate: '0 4px' },
+          // También aparece al llegar con el teclado: el foco cae en el enlace de la card.
+          '&:hover .pc-add, & .pc-add:focus-visible, &:has(a:focus-visible) .pc-add': { opacity: 1, translate: '0 0' },
+        },
+        // Presionar la card (el enlace cubre toda la card, los botones quedan por encima).
+        '&:has(.MuiLink-root:active)': { transform: 'scale(.985)' },
         '@media (prefers-reduced-motion: reduce)': {
+          transition: 'none',
+          '&::before': { transition: 'none' },
           '@media (hover: hover) and (pointer: fine)': { '&:hover': { transform: 'none' } },
+          '&:has(.MuiLink-root:active)': { transform: 'none' },
         },
       }}
       // Toda la tarjeta es el anfitrión del efecto de la foto (ver fotoProducto.css).
@@ -293,7 +312,7 @@ export default function ProductCard({ product, retraso = 0 }) {
                       color: enComparacion ? 'primary.contrastText' : 'text.primary',
                       bgcolor: enComparacion ? 'primary.main' : 'transparent',
                       transition: 'background-color 180ms ease, border-color 180ms ease, transform 160ms cubic-bezier(.23,1,.32,1)',
-                      '&:active': { transform: 'scale(.94)' },
+                      '&:active': { transform: 'scale(.95)' },
                       '&:hover': { bgcolor: enComparacion ? 'primary.dark' : undefined },
                     }}
                   >
@@ -323,7 +342,7 @@ export default function ProductCard({ product, retraso = 0 }) {
                       bgcolor: 'primary.main',
                       boxShadow: '0 4px 14px color-mix(in srgb, var(--pc-palette-primary-main) 38%, transparent)',
                       transition: 'opacity 180ms ease, translate 240ms cubic-bezier(.23,1,.32,1), background-color 180ms ease, transform 160ms cubic-bezier(.23,1,.32,1)',
-                      '&:active': { transform: 'scale(.92)' },
+                      '&:active': { transform: 'scale(.95)' },
                       '&.Mui-disabled': { bgcolor: 'action.disabledBackground', boxShadow: 'none' },
                       // En puntero fino aparece en hover; en táctil está siempre,
                       // porque no hay hover que lo revele.

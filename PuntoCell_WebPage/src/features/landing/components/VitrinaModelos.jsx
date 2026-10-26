@@ -106,7 +106,31 @@ const pastilla = {
 }
 
 function Panel({ producto, i, activo, vertical, apilado, auto, pausado, onAbrir, onEntrar, onTecla, registrar }) {
-  const transicion = `flex 620ms ${EASE}, background-color 320ms ease, border-color 320ms ease`
+  // 420ms: lo bastante largo para leer el cambio de panel, sin hacer esperar a quien recorre la fila.
+  const transicion = `flex 420ms ${EASE}, background-color 200ms ease, border-color 200ms ease, transform 160ms ${EASE}`
+
+  // `flex` es layout: mientras el panel crece, un visor 3D adentro se redimensionaría en cada
+  // cuadro. El texto entra enseguida y el modelo se monta cuando el panel ya terminó de abrirse.
+  const [entrado, setEntrado] = useState(false)
+  const [montarModelo, setMontarModelo] = useState(false)
+  useEffect(() => {
+    if (!activo) {
+      setEntrado(false)
+      setMontarModelo(false)
+      return undefined
+    }
+    const sinMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    let r2
+    const r1 = requestAnimationFrame(() => {
+      r2 = requestAnimationFrame(() => setEntrado(true))
+    })
+    const t = setTimeout(() => setMontarModelo(true), sinMovimiento ? 0 : 400)
+    return () => {
+      cancelAnimationFrame(r1)
+      cancelAnimationFrame(r2)
+      clearTimeout(t)
+    }
+  }, [activo])
 
   return (
     <Box
@@ -133,6 +157,8 @@ function Panel({ producto, i, activo, vertical, apilado, auto, pausado, onAbrir,
         ...(activo && !vertical && { flexGrow: 5 }),
         transition: transicion,
         '&:focus-visible': { boxShadow: `0 0 0 2px ${MENTA}` },
+        // Un panel cerrado es un botón: se hunde un poco al presionarlo.
+        ...(!activo && { '&:active': { transform: 'scale(.98)' } }),
         '@media (hover: hover) and (pointer: fine)': {
           '&:hover': activo ? undefined : { bgcolor: 'rgba(255,255,255,.05)' },
         },
@@ -151,7 +177,7 @@ function Panel({ producto, i, activo, vertical, apilado, auto, pausado, onAbrir,
           fontSize: '.75rem',
           letterSpacing: '.1em',
           color: activo ? MENTA : 'rgba(255,255,255,.5)',
-          transition: 'color 320ms ease',
+          transition: 'color 200ms ease',
         }}
       >
         {N(i)}
@@ -169,7 +195,7 @@ function Panel({ producto, i, activo, vertical, apilado, auto, pausado, onAbrir,
           pl: vertical ? 7 : 0,
           pb: vertical ? 0 : 3,
           opacity: activo ? 0 : 1,
-          transition: `opacity ${activo ? 120 : 380}ms ease ${activo ? 0 : 220}ms`,
+          transition: `opacity ${activo ? 100 : 200}ms ease ${activo ? 0 : 140}ms`,
           pointerEvents: 'none',
         }}
       >
@@ -216,12 +242,12 @@ function Panel({ producto, i, activo, vertical, apilado, auto, pausado, onAbrir,
             inset: 0,
             display: 'flex',
             flexDirection: apilado ? 'column' : 'row',
-            animation: `vitrinaEntra 520ms ${EASE} 160ms both`,
-            '@keyframes vitrinaEntra': {
-              from: { opacity: 0, transform: 'translateY(8px)' },
-              to: { opacity: 1, transform: 'none' },
-            },
-            '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+            // Transición y no keyframes: con el auto-avance y el hover el panel cambia seguido
+            // y una transición se reorienta sin reiniciar desde cero.
+            opacity: entrado ? 1 : 0,
+            transform: entrado ? 'none' : 'translateY(8px)',
+            transition: `opacity 240ms ease-out 80ms, transform 240ms ${EASE} 80ms`,
+            '@media (prefers-reduced-motion: reduce)': { transition: 'opacity 160ms ease' },
           }}
         >
           <Box sx={{ position: 'relative', flex: apilado ? '1 1 0' : '1.15 1 0', minHeight: 0, minWidth: 0 }}>
@@ -232,15 +258,17 @@ function Panel({ producto, i, activo, vertical, apilado, auto, pausado, onAbrir,
                 inset: '12% 6%',
                 borderRadius: '50%',
                 background: 'radial-gradient(circle, rgba(61,220,151,.30), transparent 68%)',
-                filter: 'blur(26px)',
+                filter: 'blur(18px)',
               }}
             />
-            <ProductMedia
-              src={producto.modelo}
-              alt={`Modelo 3D del ${producto.marca} ${producto.nombre}`}
-              interactive
-              fallback={<CategoriaIcon categoria={producto.categoria} sx={{ fontSize: 96 }} />}
-            />
+            {montarModelo && (
+              <ProductMedia
+                src={producto.modelo}
+                alt={`Modelo 3D del ${producto.marca} ${producto.nombre}`}
+                interactive
+                fallback={<CategoriaIcon categoria={producto.categoria} sx={{ fontSize: 96 }} />}
+              />
+            )}
           </Box>
 
           <Box

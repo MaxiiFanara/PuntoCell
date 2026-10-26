@@ -201,7 +201,18 @@ function Cargando({ n }) {
           </Box>
         ))}
       </Box>
-      <Typography role="status" sx={{ ...muted, textAlign: 'center', fontSize: '.9375rem' }}>
+      <Typography
+        key={largo ? 'largo' : 'corto'}
+        role="status"
+        sx={{
+          ...muted,
+          textAlign: 'center',
+          fontSize: '.9375rem',
+          // El cambio de mensaje a los 8 s entra con un fundido en vez de aparecer de golpe.
+          '@media (prefers-reduced-motion: no-preference)': { animation: 'cmpTexto 240ms ease-out' },
+          '@keyframes cmpTexto': { from: { opacity: 0 } },
+        }}
+      >
         {largo
           ? 'Es la primera vez que se consulta este modelo y puede tardar un poco más. Ya casi está.'
           : 'Buscando la ficha técnica…'}
@@ -435,7 +446,7 @@ export default function CompararPage() {
               py: 1.25,
               borderRadius: '20px',
               bgcolor: 'color-mix(in srgb, var(--pc-palette-background-default) 88%, transparent)',
-              backdropFilter: 'blur(12px)',
+              backdropFilter: 'blur(8px)',
               boxShadow: '0 1px 0 var(--pc-palette-divider)',
             }}
           >
