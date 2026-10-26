@@ -29,6 +29,33 @@ const PRODUCTOS = [
     specs: ['6,1" OLED', 'A17 Pro', 'USB-C'],
   },
   {
+    id: 's24-ultra',
+    nombre: 'Galaxy S24 Ultra',
+    marca: 'Samsung',
+    categoria: 'Celulares',
+    modelo: '/models/samsung-galaxy-s24-ultra.glb',
+    frase: 'Marco de titanio, S Pen integrado y zoom de 100x.',
+    specs: ['6,8" QHD+', 'S Pen', 'Zoom 100x'],
+  },
+  {
+    id: 'iphone-14-pro-max',
+    nombre: 'iPhone 14 Pro Max',
+    marca: 'Apple',
+    categoria: 'Celulares',
+    modelo: '/models/apple-iphone-14-pro-max.glb',
+    frase: 'Dynamic Island, cámara de 48 MP y pantalla siempre activa.',
+    specs: ['6,7" OLED', 'A16 Bionic', '48 MP'],
+  },
+  {
+    id: 's26-ultra',
+    nombre: 'Galaxy S26 Ultra',
+    marca: 'Samsung',
+    categoria: 'Celulares',
+    modelo: '/models/samsung-galaxy-s26-ultra.glb',
+    frase: 'El tope de gama de Samsung: pantalla enorme y zoom de largo alcance.',
+    specs: ['6,9" QHD+', 'S Pen', '5G'],
+  },
+  {
     id: 'iphone-12-pro',
     nombre: 'iPhone 12 Pro',
     marca: 'Apple',
@@ -38,15 +65,29 @@ const PRODUCTOS = [
     specs: ['6,1" OLED', 'A14 Bionic', 'MagSafe'],
   },
   {
-    id: 's24-ultra',
-    nombre: 'Galaxy S24 Ultra',
+    id: 's24',
+    nombre: 'Galaxy S24',
     marca: 'Samsung',
     categoria: 'Celulares',
-    modelo: '/models/samsung-galaxy-s24-ultra.glb',
-    frase: 'Marco de titanio, S Pen integrado y zoom de 100x.',
-    specs: ['6,8" QHD+', 'S Pen', 'Zoom 100x'],
+    modelo: '/models/samsung-galaxy-s24.glb',
+    frase: 'Compacto, con Galaxy AI y una pantalla que se ve en pleno sol.',
+    specs: ['6,2" AMOLED', 'Galaxy AI', '5G'],
+  },
+  {
+    id: 'iphone-11-pro-max',
+    nombre: 'iPhone 11 Pro Max',
+    marca: 'Apple',
+    categoria: 'Celulares',
+    modelo: '/models/apple-iphone-11-pro-max.glb',
+    frase: 'Triple cámara y batería para todo el día. Un clásico accesible.',
+    specs: ['6,5" OLED', 'A13 Bionic', 'Triple cámara'],
   },
 ]
+
+// Cuánto dura cada panel mientras la vitrina recorre sola los productos.
+const TIEMPO_PANEL = 6000
+// Sin que nadie toque la vitrina durante este tiempo, el recorrido automático se retoma.
+const REPOSO = 12000
 
 const N = (i) => String(i + 1).padStart(2, '0')
 
@@ -64,7 +105,7 @@ const pastilla = {
   whiteSpace: 'nowrap',
 }
 
-function Panel({ producto, i, activo, vertical, onAbrir, onEntrar, onTecla, registrar }) {
+function Panel({ producto, i, activo, vertical, apilado, auto, pausado, onAbrir, onEntrar, onTecla, registrar }) {
   const transicion = `flex 620ms ${EASE}, background-color 320ms ease, border-color 320ms ease`
 
   return (
@@ -89,7 +130,7 @@ function Panel({ producto, i, activo, vertical, onAbrir, onEntrar, onTecla, regi
         cursor: activo ? 'default' : 'pointer',
         outline: 'none',
         flex: activo ? '1 1 0' : vertical ? '0 0 76px' : '1 1 0',
-        ...(activo && !vertical && { flexGrow: 3.4 }),
+        ...(activo && !vertical && { flexGrow: 5 }),
         transition: transicion,
         '&:focus-visible': { boxShadow: `0 0 0 2px ${MENTA}` },
         '@media (hover: hover) and (pointer: fine)': {
@@ -148,13 +189,33 @@ function Panel({ producto, i, activo, vertical, onAbrir, onEntrar, onTecla, regi
       </Box>
 
       {/* Abierto: el modelo 3D y la ficha. Se monta recién con el panel activo. */}
+      {/* Cuenta regresiva del recorrido automático: sólo es visual: el avance lo maneja el temporizador de la vitrina. */}
+      {activo && auto && (
+        <Box
+          aria-hidden
+          sx={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 3,
+            height: 2,
+            bgcolor: MENTA,
+            transformOrigin: 'left',
+            animation: `vitrinaTiempo ${TIEMPO_PANEL}ms linear both`,
+            animationPlayState: pausado ? 'paused' : 'running',
+            '@keyframes vitrinaTiempo': { from: { transform: 'scaleX(0)' }, to: { transform: 'scaleX(1)' } },
+          }}
+        />
+      )}
+
       {activo && (
         <Box
           sx={{
             position: 'absolute',
             inset: 0,
             display: 'flex',
-            flexDirection: vertical ? 'column' : 'row',
+            flexDirection: apilado ? 'column' : 'row',
             animation: `vitrinaEntra 520ms ${EASE} 160ms both`,
             '@keyframes vitrinaEntra': {
               from: { opacity: 0, transform: 'translateY(8px)' },
@@ -163,7 +224,7 @@ function Panel({ producto, i, activo, vertical, onAbrir, onEntrar, onTecla, regi
             '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
           }}
         >
-          <Box sx={{ position: 'relative', flex: vertical ? '1 1 0' : '1.15 1 0', minHeight: 0, minWidth: 0 }}>
+          <Box sx={{ position: 'relative', flex: apilado ? '1 1 0' : '1.15 1 0', minHeight: 0, minWidth: 0 }}>
             <Box
               aria-hidden
               sx={{
@@ -184,13 +245,13 @@ function Panel({ producto, i, activo, vertical, onAbrir, onEntrar, onTecla, regi
 
           <Box
             sx={{
-              flex: vertical ? '0 0 auto' : '1 1 0',
+              flex: apilado ? '0 0 auto' : '1 1 0',
               minWidth: 0,
               display: 'flex',
               flexDirection: 'column',
-              justifyContent: vertical ? 'flex-end' : 'center',
+              justifyContent: apilado ? 'flex-end' : 'center',
               gap: 1.5,
-              p: vertical ? '0 20px 20px' : '32px 36px 32px 8px',
+              p: apilado ? '0 24px 24px' : '32px 36px 32px 8px',
             }}
           >
             <Typography
@@ -209,7 +270,7 @@ function Panel({ producto, i, activo, vertical, onAbrir, onEntrar, onTecla, regi
               sx={{
                 fontFamily: DISPLAY,
                 fontWeight: 600,
-                fontSize: vertical ? '1.625rem' : 'clamp(1.75rem, 2.6vw, 2.5rem)',
+                fontSize: apilado ? '1.625rem' : 'clamp(1.75rem, 2.6vw, 2.5rem)',
                 lineHeight: 1.05,
                 letterSpacing: '-.03em',
                 color: '#fff',
@@ -241,8 +302,78 @@ export default function VitrinaModelos() {
   const [activo, setActivo] = useState(0)
   const paneles = useRef([])
   const espera = useRef(null)
+  const raiz = useRef(null)
 
-  useEffect(() => () => clearTimeout(espera.current), [])
+  // El recorrido automático muestra los 3D a quien no los toca. Se pausa cuando la
+  // persona interactúa y se retoma tras un rato sin actividad.
+  const [auto, setAuto] = useState(true)
+  const [encima, setEncima] = useState(false)
+  const [visible, setVisible] = useState(false)
+  const [pestana, setPestana] = useState(true)
+
+  const reposo = useRef(null)
+  const restante = useRef(TIEMPO_PANEL)
+  const encimaRef = useRef(false)
+  useEffect(
+    () => () => {
+      clearTimeout(espera.current)
+      clearTimeout(reposo.current)
+    },
+    [],
+  )
+
+  // Sólo avanza mientras la vitrina está en pantalla y la pestaña a la vista.
+  useEffect(() => {
+    const el = raiz.current
+    if (!el) return undefined
+    const io = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { threshold: 0.4 })
+    io.observe(el)
+    const onVis = () => setPestana(!document.hidden)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      io.disconnect()
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [])
+
+  // Cada interacción pausa el recorrido y rearma la cuenta del reposo; mientras el
+  // puntero siga encima no se retoma, aunque haya pasado el tiempo.
+  const programarReanudar = () => {
+    clearTimeout(reposo.current)
+    reposo.current = setTimeout(() => {
+      if (encimaRef.current) {
+        programarReanudar()
+        return
+      }
+      restante.current = TIEMPO_PANEL
+      setAuto(true)
+    }, REPOSO)
+  }
+  const detener = () => {
+    setAuto(false)
+    programarReanudar()
+  }
+  const pausado = encima || !visible || !pestana
+
+  // Temporizador con pausa: al pausar guarda lo que faltaba y al seguir lo retoma.
+  // No depende de eventos CSS, así avanza aunque las animaciones estén desactivadas.
+  const panelCronometrado = useRef(activo)
+  useEffect(() => {
+    if (!auto || pausado) return undefined
+    if (panelCronometrado.current !== activo) {
+      panelCronometrado.current = activo
+      restante.current = TIEMPO_PANEL
+    }
+    const inicio = Date.now()
+    const id = setTimeout(() => {
+      restante.current = TIEMPO_PANEL
+      setActivo((a) => (a + 1) % PRODUCTOS.length)
+    }, restante.current)
+    return () => {
+      clearTimeout(id)
+      restante.current = Math.max(0, restante.current - (Date.now() - inicio))
+    }
+  }, [auto, pausado, activo])
 
   // Con hover, un pequeño retardo evita que pasar el mouse de largo cambie de panel;
   // y con un botón apretado (arrastrando el modelo) nunca cambia.
@@ -250,11 +381,15 @@ export default function VitrinaModelos() {
     if (!conHover) return
     clearTimeout(espera.current)
     if (e.buttons !== 0 || i === activo) return
-    espera.current = setTimeout(() => setActivo(i), 110)
+    espera.current = setTimeout(() => {
+      detener()
+      setActivo(i)
+    }, 110)
   }
 
   const abrir = (i) => {
     clearTimeout(espera.current)
+    detener()
     setActivo(i)
   }
 
@@ -278,12 +413,30 @@ export default function VitrinaModelos() {
       <Box
         role="group"
         aria-label="Selección de productos"
-        onMouseLeave={() => clearTimeout(espera.current)}
+        ref={raiz}
+        onMouseEnter={() => {
+          encimaRef.current = true
+          setEncima(true)
+        }}
+        onMouseLeave={() => {
+          clearTimeout(espera.current)
+          encimaRef.current = false
+          setEncima(false)
+        }}
+        onFocus={() => {
+          encimaRef.current = true
+          setEncima(true)
+        }}
+        onBlur={() => {
+          encimaRef.current = false
+          setEncima(false)
+        }}
+        onPointerDown={detener}
         sx={{
           display: 'flex',
           flexDirection: vertical ? 'column' : 'row',
           gap: '12px',
-          height: vertical ? 720 : 540,
+          height: vertical ? 76 * (PRODUCTOS.length - 1) + 12 * (PRODUCTOS.length - 1) + 440 : 560,
         }}
       >
         {PRODUCTOS.map((p, i) => (
@@ -293,6 +446,9 @@ export default function VitrinaModelos() {
             i={i}
             activo={i === activo}
             vertical={vertical}
+            apilado
+            auto={auto}
+            pausado={pausado}
             onAbrir={abrir}
             onEntrar={entrar}
             onTecla={tecla}
