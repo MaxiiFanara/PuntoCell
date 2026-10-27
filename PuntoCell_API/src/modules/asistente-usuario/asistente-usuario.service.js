@@ -85,6 +85,12 @@ const buildPrompt = ({ mensaje, contexto, historial, user }) => {
   ].join('\n');
 };
 
+const inventaResultadoPosterior = (respuesta, contexto) => {
+  const path = String(contexto?.pantalla?.path || '').toLowerCase();
+  if (path !== '/app/punto-venta') return false;
+  return /\b(?:ticket|comprobante|imprimir|enviar(?:lo)?\s+por)\b/i.test(String(respuesta || ''));
+};
+
 export default class AsistenteUsuarioService {
   async consultar({ mensaje, historial = [], contexto = null, modelo = null, user = null } = {}) {
     const textoMensaje = String(mensaje || '').trim();
@@ -128,6 +134,14 @@ export default class AsistenteUsuarioService {
           // La extensión visible sigue limitada por el prompt (80–180 palabras).
           maxTokens: 1400
         });
+
+        if (inventaResultadoPosterior(respuesta, normalizedContext)) {
+          const unsupportedError = new Error('El modelo inventó un resultado posterior no confirmado por la pantalla.');
+          unsupportedError.statusCode = 502;
+          unsupportedError.retryable = true;
+          unsupportedError.model = selectedModel;
+          throw unsupportedError;
+        }
 
         recordModelSuccess(selectedModel);
         return {
