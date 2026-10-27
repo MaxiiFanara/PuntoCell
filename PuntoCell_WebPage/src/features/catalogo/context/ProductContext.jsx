@@ -9,6 +9,15 @@ const capitalizar = (texto) =>
     .map((palabra) => palabra.charAt(0).toUpperCase() + palabra.slice(1))
     .join(' ');
 
+// Bucket de imágenes del catálogo. La base guarda solo la ruta relativa
+// ("smartphones/apple-iphone-11.webp"); acá se le antepone el dominio.
+const IMAGES_BASE_URL = (
+  import.meta.env.VITE_CATALOGO_IMAGES_URL ||
+  'https://puntocell-catalogo-imagenes-2.s3.us-east-2.amazonaws.com/'
+).replace(/\/+$/, '');
+
+const urlImagen = (img) => (img.startsWith('http') ? img : `${IMAGES_BASE_URL}/${img}`);
+
 const ProductContext = createContext();
 
 export const useProducts = () => useContext(ProductContext);
@@ -40,9 +49,9 @@ export const ProductProvider = ({ children }) => {
             price: p.priceUsd,
             comparePrice: null,
             category: p.categoria,
-            imagenes: (p.imagenes || []).map(img => img.startsWith('http') ? img : `https://puntocell-catalogo-imagenes.s3.us-east-2.amazonaws.com/${img}`),
-            imagenPortada: p.imagenPortada ? (p.imagenPortada.startsWith('http') ? p.imagenPortada : `https://puntocell-catalogo-imagenes.s3.us-east-2.amazonaws.com/${p.imagenPortada}`) : null,
-            gallery: (p.imagenes || []).map(img => img.startsWith('http') ? img : `https://puntocell-catalogo-imagenes.s3.us-east-2.amazonaws.com/${img}`),
+            imagenes: (p.imagenes || []).map(urlImagen),
+            imagenPortada: p.imagenPortada ? urlImagen(p.imagenPortada) : null,
+            gallery: (p.imagenes || []).map(urlImagen),
             stock: p.stock,
             material: color || 'Estándar',
             sucursal: p.sucursal,
