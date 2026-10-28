@@ -94,6 +94,7 @@ services:
       PUBLIC_FRONT_URL: ${PUBLIC_FRONT_URL:-http://localhost:5176}
       API_PROXY_TARGET: ${API_PROXY_TARGET:-http://api-v2:3000}
       VITE_API_URL: ${VITE_API_URL:-}
+      VITE_CATALOGO_IMAGES_URL: ${VITE_CATALOGO_IMAGES_URL:-}
     ports:
       - "5176:5173"
     volumes:

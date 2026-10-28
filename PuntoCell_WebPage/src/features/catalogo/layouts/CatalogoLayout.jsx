@@ -36,6 +36,11 @@ export default function CatalogoLayout() {
             display: 'flex',
             flexDirection: 'column',
             bgcolor: 'background.default',
+            // Un lavado verde suave arriba a la derecha: le da atmósfera al catálogo sin
+            // pelearse con las tarjetas. Usa el verde del tema, así sigue al modo claro/oscuro.
+            backgroundImage:
+              'radial-gradient(60% 520px at 88% -80px, color-mix(in srgb, var(--pc-palette-primary-main) 17%, transparent), transparent 70%), radial-gradient(40% 420px at 0% 340px, color-mix(in srgb, var(--pc-palette-primary-main) 7%, transparent), transparent 70%)',
+            backgroundRepeat: 'no-repeat',
           }}
         >
           <PublicNavbar />

@@ -1,0 +1,62 @@
+/*
+ * Movimiento del comparador. Todo se apaga con prefers-reduced-motion.
+ * Las entradas ocurren una sola vez (al llegar a la vista) y duran < 500 ms.
+ */
+
+@media (prefers-reduced-motion: no-preference) {
+  .cmp-aparece {
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 480ms cubic-bezier(0.23, 1, 0.32, 1), transform 480ms cubic-bezier(0.23, 1, 0.32, 1);
+    transition-delay: var(--cmp-demora, 0ms);
+  }
+
+  .cmp-aparece[data-visto] {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* El radar se "dibuja": crece desde el centro. */
+  .cmp-radar {
+    opacity: 0;
+    transform: scale(0.88);
+    transform-origin: 50% 50%;
+    transition: opacity 560ms cubic-bezier(0.23, 1, 0.32, 1), transform 560ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .cmp-radar[data-visto] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Radar: relleno más suave y trazo más firme que los de MUI. */
+.cmp-radar path[data-series]:not([data-highlighted]):not([data-faded]) {
+  fill-opacity: 0.13;
+  stroke-width: 2.25;
+}
+
+/* Fila de la tabla: el fondo acompaña al cursor de lado a lado (sólo puntero fino). */
+@media (hover: hover) and (pointer: fine) {
+  .cmp-fila {
+    transition: background-color 160ms ease;
+  }
+
+  .cmp-fila:hover {
+    background-color: color-mix(in srgb, var(--pc-palette-primary-main) 6%, transparent);
+  }
+}
+
+/* Barra de comparar: entra desde abajo. */
+@keyframes cmp-barra-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cmp-barra {
+    animation: cmp-barra-in 320ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+}

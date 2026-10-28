@@ -5,13 +5,13 @@
 // `ref` es el máximo del eje cuando ningún equipo lo supera; si alguno lo supera,
 // el eje se estira para que entre. Todos los ejes parten de cero.
 
-const numeros = (texto, regex) =>
+export const numeros = (texto, regex) =>
   [...String(texto || '').matchAll(regex)].map((m) => parseFloat(m[1])).filter(Number.isFinite)
 
-const maximo = (lista) => (lista.length ? Math.max(...lista) : null)
+export const maximo = (lista) => (lista.length ? Math.max(...lista) : null)
 
 // "256gb" / "1tb" -> GB
-const aGb = (texto) => {
+export const aGb = (texto) => {
   const m = String(texto || '').toLowerCase().match(/([\d.]+)\s*(gb|tb)/)
   if (!m) return null
   return parseFloat(m[1]) * (m[2] === 'tb' ? 1024 : 1)
@@ -93,3 +93,8 @@ export function armarRadar(productos) {
     })),
   }
 }
+
+// Color de cada equipo, el mismo en el radar y en la tarjeta de arriba (hace de leyenda):
+// el verde de la marca, un ámbar y un azul pizarra. Distinguibles entre sí y sin el
+// azul/amarillo/rojo por defecto de la librería.
+export const COLORES_SERIES = ['#1f9d74', '#e0a23a', '#5b7fa8']

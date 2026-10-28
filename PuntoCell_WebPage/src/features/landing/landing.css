@@ -1,0 +1,44 @@
+/* Movimiento propio de la landing. Todo se apaga con prefers-reduced-motion. */
+
+:root {
+  --lp-ease: cubic-bezier(.23, 1, .32, 1);
+}
+
+@keyframes lp-sube {
+  to { transform: translateY(0); }
+}
+
+/* Título del hero: cada línea sube desde una máscara. Padding + margen negativo
+   para que la máscara no recorte los descendentes ni la itálica. */
+.lp-linea {
+  display: block;
+  overflow: hidden;
+  padding-bottom: .12em;
+  margin-bottom: -.12em;
+}
+
+.lp-linea > span {
+  display: block;
+}
+
+/* Entrada al hacer scroll (ver Reveal.jsx). */
+@media (prefers-reduced-motion: no-preference) {
+  .lp-linea > span {
+    transform: translateY(105%);
+    animation: lp-sube 700ms var(--lp-ease) forwards;
+    animation-delay: calc(var(--i, 0) * 70ms + 80ms);
+  }
+
+  .lp-reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 500ms var(--lp-ease), transform 500ms var(--lp-ease);
+    transition-delay: var(--lp-delay, 0ms);
+  }
+
+  .lp-reveal[data-visto] {
+    opacity: 1;
+    transform: none;
+  }
+}
+

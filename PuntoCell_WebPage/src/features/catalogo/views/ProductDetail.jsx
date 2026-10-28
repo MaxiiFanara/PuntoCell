@@ -5,6 +5,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 import ProductInfoSection from './ProductInfoSection';
 import ProductCard from '../components/ProductCard';
+import '../components/fotoProducto.css';
 import ProductSpecs from '../components/ProductSpecs';
 import CatalogBreadcrumbs from '../components/CatalogBreadcrumbs';
 import { useProducts } from '../context/ProductContext';
@@ -84,8 +85,16 @@ export default function ProductDetail() {
 
           {product.imagenes && product.imagenes.length > 0 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: { xs: 3, md: 4 } }}>
-              <Box sx={{ width: '100%', aspectRatio: '4/3', borderRadius: 2, overflow: 'hidden', bgcolor: 'background.paper', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 1, borderColor: 'divider' }}>
-                <img src={currentImage} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} loading="lazy" />
+              <Box
+                className="pc-foto-host"
+                sx={{ width: '100%', aspectRatio: '4/3', borderRadius: 2, overflow: 'hidden', bgcolor: 'background.paper', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 1, borderColor: 'divider', '--pc-foto-lift': '-4px', '--pc-foto-zoom': 1.03 }}
+              >
+                <span className="pc-foto">
+                  <span className="pc-foto__flota">
+                    <img className="pc-foto__img" src={currentImage} alt={product.name} loading="lazy" />
+                  </span>
+                  <span className="pc-foto__sombra" aria-hidden="true" />
+                </span>
               </Box>
               {product.imagenes.length > 1 && (
                 <Box sx={{ display: 'flex', gap: 1.5, overflowX: 'auto', pb: 1 }}>
