@@ -1,54 +1,23 @@
 import { useState, useEffect } from 'react'
-import { AppBar, Toolbar, Typography, Button, Box, Avatar, Divider, Tooltip, TextField, InputAdornment } from '@mui/material'
-import BuildIcon from '@mui/icons-material/Build'
+import { Box, Button, IconButton, TextField, Tooltip } from '@mui/material'
 import LogoutIcon from '@mui/icons-material/Logout'
-import { useNavigate, useLocation } from 'react-router-dom'
+import MenuIcon from '@mui/icons-material/Menu'
+import HelpOutlineOutlinedIcon from '@mui/icons-material/HelpOutlineOutlined'
 import { useAuth } from '../../context/AuthContext'
 import { useVenta } from '../../features/punto-venta/context/VentaContext'
+import { useDolarOficial } from '../../hooks/useDolarOficial'
+import { toast } from 'sonner';
+import FontSizeSelect from '../ui/FontSizeSelect'
 
-const ROL_CONFIG = {
-  1: { label: 'Admin',     color: '#f59e0b', bg: '#fffbeb' },
-  2: { label: 'Encargado', color: '#22c55e', bg: '#f0fdf4' },
-  3: { label: 'Atención',  color: '#3b82f6', bg: '#eff6ff' },
-  4: { label: 'Técnico',   color: '#8b5cf6', bg: '#f5f3ff' },
-}
+const fmtPeso = (v) => Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 
-const NavLink = ({ label, active, onClick }) => (
-  <Box
-    onClick={onClick}
-    role="button"
-    tabIndex={0}
-    onKeyDown={(e) => e.key === 'Enter' && onClick()}
-    sx={{
-      px: 1.5, py: 0.6,
-      borderRadius: 2,
-      cursor: 'pointer',
-      fontSize: '0.8rem',
-      fontWeight: 600,
-      color: active ? '#f1f5f9' : '#64748b',
-      backgroundColor: active ? 'rgba(255,255,255,0.08)' : 'transparent',
-      transition: 'color 0.15s, background-color 0.15s',
-      userSelect: 'none',
-      '&:hover': {
-        color: active ? '#f1f5f9' : '#cbd5e1',
-        backgroundColor: active ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.05)',
-      },
-    }}
-  >
-    {label}
-  </Box>
-)
-
-const Navbar = () => {
+// Topbar de 52px del nuevo diseño. La identidad del usuario vive en el rail
+// (AppLayout); acá quedan la cotización operativa (editable), el dólar oficial
+// de referencia (infodolar/dolarapi, solo lectura) y la salida.
+const Navbar = ({ onAbrirMenu, onAbrirAyuda }) => {
   const { usuario, cerrarSesion } = useAuth()
-  const { dolarGlobal, actualizarCotizacion } = useVenta()
-  const navigate = useNavigate()
-  const location = useLocation()
-  const rol = ROL_CONFIG[usuario?.rol] ?? ROL_CONFIG[3]
-  const iniciales = usuario?.user
-    ? usuario.user.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()
-    : '?'
-  const esAdminOEncargado = usuario?.rol === 1 || usuario?.rol === 2
+  const { dolarGlobal, actualizarCotizacion, nombreSucursal } = useVenta()
+  const { dato: dolarOficial } = useDolarOficial()
 
   const [montoDolar, setMontoDolar] = useState('')
   const [guardandoDolar, setGuardandoDolar] = useState(false)
@@ -69,7 +38,7 @@ const Navbar = () => {
     try {
       await actualizarCotizacion(montoDolar)
     } catch (err) {
-      alert('❌ ' + (err.message || 'No se pudo actualizar el valor del dólar.'))
+      toast.error('❌ ' + (err.message || 'No se pudo actualizar el valor del dólar.'))
       setMontoDolar(dolarGlobal ? String(dolarGlobal) : '')
     } finally {
       setGuardandoDolar(false)
@@ -77,100 +46,131 @@ const Navbar = () => {
   }
 
   return (
-    <AppBar
-      position="sticky"
-      elevation={0}
+    <Box
+      component="header"
       sx={{
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-        zIndex: 1201,
+        flex: 'none',
+        position: 'sticky',
+        top: 0,
+        zIndex: 30,
+        minHeight: 52,
+        py: 0.75,
+        px: 2.5,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: 1.25,
+        flexWrap: 'wrap',
+        bgcolor: 'background.paper',
+        borderBottom: 1,
+        borderColor: 'divider',
       }}
     >
-      <Toolbar sx={{ minHeight: 68, gap: 2, px: { xs: 2, sm: 4 } }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mr: 'auto', gap: 1.5 }}>
+        <IconButton
+          onClick={onAbrirMenu}
+          size="small"
+          sx={{ display: { lg: 'none' } }}
+          aria-label="Abrir menú"
+        >
+          <MenuIcon fontSize="small" />
+        </IconButton>
 
-        
-
-        <Box sx={{ flex: 1 }} />
-
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography sx={{ color: '#f1f5f9', fontWeight: 700, fontSize: '0.85rem', letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-            <BuildIcon sx={{ fontSize: '1.1rem', verticalAlign: 'middle', mr: 0.5, color: '#facc15' }} />
-            Valor Dólar
-          </Typography>
-          <Tooltip title="Editá y presioná Enter para actualizar. Recalcula los precios en todo el sistema.">
-            <TextField
-              name="montoDolar" type="number" size="small" sx={{ width: 120, bgcolor: 'rgba(255,255,255,0.06)', borderRadius: 1 }}
-              InputProps={{
-                startAdornment: <InputAdornment position="start" sx={{ color: '#facc15' }}>$</InputAdornment>,
-                sx: { color: '#000000' },
+        {nombreSucursal && (
+          <Tooltip title="Sucursal operativa actual">
+            <Box
+              sx={{
+                display: 'flex', alignItems: 'center', gap: 0.75,
+                px: 1.25, py: 0.5, borderRadius: '6px',
+                bgcolor: 'pc.accentSoft', color: 'primary.main',
+                whiteSpace: 'nowrap', fontWeight: 600, fontSize: '0.85rem'
               }}
-              disabled={guardandoDolar}
-              value={montoDolar}
-              onFocus={() => setEditandoDolar(true)}
-              onChange={(e) => setMontoDolar(e.target.value)}
-              onBlur={guardarDolar}
-              onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
-            />
-          </Tooltip>
-        </Box>
-
-        {/* User zone */}
-        {usuario && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            {/* Rol badge */}
-            <Box sx={{
-              display: { xs: 'none', sm: 'flex' },
-              alignItems: 'center',
-              gap: 0.75,
-              px: 1.5, py: 0.6,
-              borderRadius: 6,
-              backgroundColor: 'rgba(255,255,255,0.07)',
-              border: '1px solid rgba(255,255,255,0.1)',
-            }}>
-              <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: rol.color, flexShrink: 0 }} />
-              <Typography sx={{ color: '#94a3b8', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.04em' }}>
-                {rol.label}
-              </Typography>
+            >
+              📍 {nombreSucursal}
             </Box>
-
-            {/* Name */}
-            <Typography sx={{ color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 600, display: { xs: 'none', sm: 'block' } }}>
-              {usuario.user}
-            </Typography>
-
-            {/* Avatar */}
-            <Tooltip title={`${usuario.user} · ${rol.label}`}>
-              <Avatar sx={{
-                width: 36, height: 36, fontSize: '0.8rem', fontWeight: 800, cursor: 'default',
-                background: `linear-gradient(135deg, ${rol.color}bb, ${rol.color})`,
-                border: '2px solid rgba(255,255,255,0.14)',
-                letterSpacing: '-0.01em',
-              }}>
-                {iniciales}
-              </Avatar>
-            </Tooltip>
-
-            <Divider orientation="vertical" flexItem sx={{ borderColor: 'rgba(255,255,255,0.07)', mx: 0.25 }} />
-
-            {/* Logout */}
-            <Tooltip title="Cerrar sesión">
-              <Button
-                size="small"
-                onClick={cerrarSesion}
-                startIcon={<LogoutIcon sx={{ fontSize: '15px !important' }} />}
-                sx={{
-                  color: '#64748b', borderRadius: 2, px: 1.5, py: 0.75,
-                  fontSize: '0.78rem', fontWeight: 600, minWidth: 0,
-                  '&:hover': { color: '#e2e8f0', backgroundColor: 'rgba(255,255,255,0.07)' },
-                }}
-              >
-                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Salir</Box>
-              </Button>
-            </Tooltip>
-          </Box>
+          </Tooltip>
         )}
-      </Toolbar>
-    </AppBar>
+      </Box>
+
+      <FontSizeSelect />
+
+      {/* Dólar oficial de referencia (dolarapi.com) — solo lectura, no toca la cotización operativa */}
+      {dolarOficial && (
+        <Tooltip title={`Dólar oficial de referencia (dolarapi.com)${dolarOficial.fechaActualizacion ? ` · actualizado ${new Date(dolarOficial.fechaActualizacion).toLocaleString('es-AR')}` : ''}`}>
+          <Box
+            sx={{
+              display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1,
+              px: 1.25, py: 0.6, borderRadius: '8px',
+              bgcolor: 'pc.surfaceMuted', border: 1, borderColor: 'divider',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>Oficial</Box>
+            <Box className="mono" sx={{ fontSize: '.78rem', fontWeight: 600, color: 'text.secondary' }}>
+              Compra <Box component="span" sx={{ color: 'text.primary', fontWeight: 700 }}>${fmtPeso(dolarOficial.compra)}</Box>
+              {'  ·  '}
+              Venta <Box component="span" sx={{ color: 'text.primary', fontWeight: 700 }}>${fmtPeso(dolarOficial.venta)}</Box>
+            </Box>
+          </Box>
+        </Tooltip>
+      )}
+
+      <Tooltip title="Editá y presioná Enter. Recalcula los precios en todo el sistema.">
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.125,
+            bgcolor: 'pc.surfaceMuted',
+            border: 1,
+            borderColor: 'divider',
+            borderRadius: '8px',
+            p: '4px 4px 4px 11px',
+          }}
+        >
+          <Box sx={{ typography: 'eyebrow', color: 'text.disabled', whiteSpace: 'nowrap' }}>
+            Dólar hoy
+          </Box>
+          <TextField
+            name="montoDolar"
+            type="number"
+            size="small"
+            aria-label="Valor del dólar"
+            sx={{ width: 90, '& .MuiOutlinedInput-root': { bgcolor: 'background.paper' } }}
+            slotProps={{ input: { className: 'mono' } }}
+            disabled={guardandoDolar}
+            value={montoDolar}
+            onFocus={() => setEditandoDolar(true)}
+            onChange={(e) => setMontoDolar(e.target.value)}
+            onBlur={guardarDolar}
+            onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+          />
+        </Box>
+      </Tooltip>
+
+      {usuario && (
+        <Tooltip title="Abrir asistente de usuario">
+          <Button
+            variant="outlined"
+            onClick={onAbrirAyuda}
+            startIcon={<HelpOutlineOutlinedIcon sx={{ fontSize: '16px !important' }} />}
+            sx={{
+              minWidth: { xs: 40, sm: 'auto' },
+              px: { xs: 1, sm: 1.5 },
+              '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.75 } },
+            }}
+          >
+            <Box sx={{ display: { xs: 'none', sm: 'inline' } }}>Ayuda</Box>
+          </Button>
+        </Tooltip>
+      )}
+
+      {usuario && (
+        <Button onClick={cerrarSesion} startIcon={<LogoutIcon sx={{ fontSize: '16px !important' }} />}>
+          Salir
+        </Button>
+      )}
+    </Box>
   )
 }
 

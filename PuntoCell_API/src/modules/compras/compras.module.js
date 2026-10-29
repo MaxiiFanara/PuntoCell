@@ -24,29 +24,38 @@ import PagoCompraDAO from './pago-compra/pago-compra.dao.js';
 import PagoCompraService from './pago-compra/pago-compra.service.js';
 import PagoCompraController from './pago-compra/pago-compra.controller.js';
 
-export function createComprasModule() {
+import CuentaCorrienteProveedorDAO from './cuenta-corriente-proveedor/cuenta-corriente-proveedor.dao.js';
+import CuentaCorrienteProveedorService from './cuenta-corriente-proveedor/cuenta-corriente-proveedor.service.js';
+import CuentaCorrienteProveedorController from './cuenta-corriente-proveedor/cuenta-corriente-proveedor.controller.js';
+
+export function createComprasModule(bitacoraService = null, cajaService = null) {
   const proveedorDAO = new ProveedorDAO(models.Proveedor);
-  const proveedorService = new ProveedorService(proveedorDAO);
+  const proveedorService = new ProveedorService(proveedorDAO, bitacoraService);
   const proveedorController = new ProveedorController(proveedorService);
 
-  const compraDAO = new CompraDAO(models.Compra);
-  const compraService = new CompraService(compraDAO);
-  const compraController = new CompraController(compraService);
+  // Cuenta corriente primero: la consumen CompraService y PagoCompraService.
+  const cuentaCorrienteProveedorDAO = new CuentaCorrienteProveedorDAO(models.CuentaCorrienteProveedor);
+  const cuentaCorrienteProveedorService = new CuentaCorrienteProveedorService(cuentaCorrienteProveedorDAO, proveedorDAO, bitacoraService);
+  const cuentaCorrienteProveedorController = new CuentaCorrienteProveedorController(cuentaCorrienteProveedorService);
 
   const detalleCompraDAO = new DetalleCompraDAO(models.DetalleCompra);
-  const detalleCompraService = new DetalleCompraService(detalleCompraDAO);
+  const detalleCompraService = new DetalleCompraService(detalleCompraDAO, bitacoraService);
   const detalleCompraController = new DetalleCompraController(detalleCompraService);
 
+  const compraDAO = new CompraDAO(models.Compra);
+  const compraService = new CompraService(compraDAO, detalleCompraDAO, cuentaCorrienteProveedorService, bitacoraService, cajaService);
+  const compraController = new CompraController(compraService);
+
   const detalleDevolucionCompraDAO = new DetalleDevolucionCompraDAO(models.DetalleDevolucionCompra);
-  const detalleDevolucionCompraService = new DetalleDevolucionCompraService(detalleDevolucionCompraDAO);
+  const detalleDevolucionCompraService = new DetalleDevolucionCompraService(detalleDevolucionCompraDAO, bitacoraService);
   const detalleDevolucionCompraController = new DetalleDevolucionCompraController(detalleDevolucionCompraService);
 
   const devolucionCompraDAO = new DevolucionCompraDAO(models.DevolucionCompra);
-  const devolucionCompraService = new DevolucionCompraService(devolucionCompraDAO);
+  const devolucionCompraService = new DevolucionCompraService(devolucionCompraDAO, bitacoraService);
   const devolucionCompraController = new DevolucionCompraController(devolucionCompraService);
 
   const pagoCompraDAO = new PagoCompraDAO(models.PagoCompra);
-  const pagoCompraService = new PagoCompraService(pagoCompraDAO);
+  const pagoCompraService = new PagoCompraService(pagoCompraDAO, cuentaCorrienteProveedorService, bitacoraService, cajaService);
   const pagoCompraController = new PagoCompraController(pagoCompraService);
 
   return {
@@ -55,6 +64,10 @@ export function createComprasModule() {
     detalleCompraController,
     detalleDevolucionCompraController,
     devolucionCompraController,
-    pagoCompraController
+    pagoCompraController,
+    cuentaCorrienteProveedorController,
+    // compras dashboard moved to central dashboard module
+    // Expuesto para que los flujos de Compra / PagoCompra asienten movimientos (integración pendiente).
+    cuentaCorrienteProveedorService
   };
 }

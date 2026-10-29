@@ -5,12 +5,10 @@ import { preventDoubleLogin } from '../../core/middlewares/auth.middleware.js';
 
 export default (container) => {
   const router = Router();
-  const { authController } = container.auth;
+  const { authController, verifyRecaptcha } = container.auth;
 
-  console.log('resetPassword:', typeof authController.resetPassword);
-console.log('forgotPassword:', typeof authController.forgotPassword);
-
-  router.post('/login',preventDoubleLogin,validateFields(loginSchema), authController.login);
+  router.post('/login',preventDoubleLogin,validateFields(loginSchema), verifyRecaptcha, authController.login);
+  router.get('/me', authController.me);
   router.post('/logout', authController.logout);
   router.post('/forgot-password', validateFields(forgotPasswordSchema), authController.forgotPassword);
   router.post('/reset-password', validateFields(resetPasswordSchema), authController.resetPassword);

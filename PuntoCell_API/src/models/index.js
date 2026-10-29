@@ -24,6 +24,7 @@ import detalleCompraModel from '../modules/compras/detalle-compra/detalle-compra
 import detalleDevolucionCompraModel from '../modules/compras/detalle-devolucion-compra/detalle-devolucion-compra.model.js';
 import devolucionCompraModel from '../modules/compras/devolucion-compra/devolucion-compra.model.js';
 import pagoCompraModel from '../modules/compras/pago-compra/pago-compra.model.js';
+import cuentaCorrienteProveedorModel from '../modules/compras/cuenta-corriente-proveedor/cuenta-corriente-proveedor.model.js';
 import bateriaModel from '../modules/inventario/bateria/bateria.model.js';
 import colorModel from '../modules/inventario/color/color.model.js';
 import estadoInventarioModel from '../modules/inventario/estado-inventario/estado-inventario.model.js';
@@ -36,6 +37,9 @@ import articuloModel from '../modules/inventario/articulo/articulo.model.js';
 import inventarioModel from '../modules/inventario/inventario/inventario.model.js';
 import movimientoStockModel from '../modules/inventario/movimiento-stock/movimiento-stock.model.js';
 import transferenciaModel from '../modules/inventario/transferencia/transferencia.model.js';
+import listaPrecioModel from '../modules/precios/lista-de-precios/lista-de-precios.model.js';
+import precioArticuloModel from '../modules/precios/precios-articulos/precios-articulos.model.js';
+import imagenProductoModel from '../modules/inventario/imagen-producto/imagen-producto.model.js';
 
 // Modelos de solo lectura mapeados a las vistas de estadísticas
 import metricaMarcaReparadaModel from '../modules/estadisticas/marca-reparada.model.js';
@@ -64,7 +68,6 @@ import turnoCajaModel from '../modules/caja/turno-caja/turno-caja.model.js';
 import movimientoCajaModel from '../modules/caja/movimiento-caja/movimiento-caja.model.js';
 
 // Módulo Auditoría
-import accionModel from '../modules/auditoria/accion/accion.model.js';
 import bitacoraModel from '../modules/auditoria/bitacora/bitacora.model.js';
 
 export const sequelize = Database.getInstance().getConnection();
@@ -93,6 +96,8 @@ export const models = {
   DevolucionCompra: devolucionCompraModel(sequelize),
   PagoCompra: pagoCompraModel(sequelize)
   ,
+  CuentaCorrienteProveedor: cuentaCorrienteProveedorModel(sequelize)
+  ,
   Bateria: bateriaModel(sequelize)
   ,
   Color: colorModel(sequelize)
@@ -115,8 +120,10 @@ export const models = {
   ,
   MovimientoStock: movimientoStockModel(sequelize)
   ,
-  Transferencia: transferenciaModel(sequelize)
-  ,
+  Transferencia: transferenciaModel(sequelize),
+  ListaPrecio: listaPrecioModel(sequelize),
+  PrecioArticulo: precioArticuloModel(sequelize),
+  ImagenProducto: imagenProductoModel(sequelize),
   // Vistas de estadísticas (solo lectura)
   MetricaMarcaReparada: metricaMarcaReparadaModel(sequelize)
   ,
@@ -158,8 +165,6 @@ export const models = {
   MovimientoCaja: movimientoCajaModel(sequelize)
   ,
   // Módulo Auditoría
-  Accion: accionModel(sequelize)
-  ,
   Bitacora: bitacoraModel(sequelize)
 
 };

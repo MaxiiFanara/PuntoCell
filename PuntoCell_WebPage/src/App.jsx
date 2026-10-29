@@ -12,6 +12,8 @@ import DashboardPage from './pages/DashboardPage';
 import CatalogoLayout from './features/catalogo/layouts/CatalogoLayout';
 import CatalogPage from './features/catalogo/views/CatalogPage';
 import ProductDetail from './features/catalogo/views/ProductDetail';
+import CheckoutPage from './features/catalogo/views/CheckoutPage';
+import PagoResultado from './features/catalogo/views/PagoResultado';
 
 // --- LAYOUTS Y VISTAS DE TU PROYECTO (VENTAS, STOCK, ADMIN) ---
 import AppLayout from './layouts/AppLayout';
@@ -19,26 +21,46 @@ import AdminLayout from './layouts/AdminLayout';
 import LandingPage from './features/landing/views/LandingPage';
 import PuntoVentaScreen from './features/punto-venta/views/PuntoVentaScreen';
 import UsersScreen from './features/admin/views/usuarios/UsersScreen';
-import RolesScreen from './features/admin/views/roles/RolesScreen';
-import PermissionsScreen from './features/admin/views/permisos/PermissionsScreen';
 import BitacoraList from './features/admin/views/bitacora/BitacoraList';
 import HistorialVentas from './features/venta/views/HistorialVentas';
 import TicketVenta from './features/venta/views/TicketVenta';
 import InventarioList from './features/inventario/views/InventarioList';
-import InventarioCreate from './features/inventario/views/InventarioCreate';
-import InventarioEdit from './features/inventario/views/InventarioEdit';
 import InventarioDetails from './features/inventario/views/InventarioDetails';
-import BalanceList from './features/reportes/views/BalanceList';
+import ReportesScreen from './features/reportes/views/ReportesScreen';
+import ComprasList from './features/compras/views/ComprasList';
+import PreciosScreen from './features/precios/precios';
 import { VentaProvider } from './features/punto-venta/context/VentaContext';
+import ThemeToggle from './components/ui/ThemeToggle';
+import CajaList from './features/caja/views/CajaList';
+import { Toaster } from 'sonner';
 
-
-
+// --- IMPORTACIONES DE DASHBOARDS
+import DashboardVentas from './features/dashboards/views/DashboardVentas';
+import DashboardCompras from './features/dashboards/views/DashboardCompras';
+import DashboardInventario from './features/dashboards/views/DashboardInventario';
+import DashboardReparaciones from './features/dashboards/views/DashboardReparaciones';
+import DashboardControl from './features/dashboards/views/DashboardControl';
+import DashboardFinanciero from './features/dashboards/views/DashboardFinanciero';
+import DashboardCaja from './features/dashboards/views/DashboardCaja';
+import InformeOperativoPage from './pages/InformeOperativoPage';
+import { ROL_ANALISTA, RUTA_INFORME_ANALISTA } from './utils/roles';
 
 // --- WRAPPERS DE SEGURIDAD ---
 const ProtectedRoute = ({ children }) => {
   const { usuario, loading } = useAuth();
   if (loading) return null;
   if (!usuario) return <Navigate to="/login" replace />;
+  // El analista (rol técnico) solo ve su informe: no entra al sistema operativo
+  if (usuario.rol === ROL_ANALISTA) return <Navigate to={RUTA_INFORME_ANALISTA} replace />;
+  return children;
+};
+
+// Exclusiva del rol analista (ni administrador ni owner)
+const AnalistaRoute = ({ children }) => {
+  const { usuario, loading } = useAuth();
+  if (loading) return null;
+  if (!usuario) return <Navigate to="/login" replace />;
+  if (usuario.rol !== ROL_ANALISTA) return <Navigate to="/app" replace />;
   return children;
 };
 
@@ -52,6 +74,10 @@ const AdminRoute = ({ children }) => {
 
 const App = () => (
   <AuthProvider>
+    <Toaster richColors position="top-right" />
+    {/* Único switch de tema del sistema: fuera de <Routes> para que aparezca en
+        todas las pantallas, públicas e internas. */}
+    
     <Routes>
       {/* ---------------- PUBLICAS ---------------- */}
       <Route path="/" element={<LandingPage />} />
@@ -66,6 +92,10 @@ const App = () => (
         <Route index element={<CatalogPage />} />
         {/* Ruta de detalle: /catalogo/product/123 */}
         <Route path="product/:id" element={<ProductDetail />} />
+        {/* Checkout: /catalogo/checkout */}
+        <Route path="checkout" element={<CheckoutPage />} />
+        {/* Vuelta desde Mercado Pago: /catalogo/pago/resultado */}
+        <Route path="pago/resultado" element={<PagoResultado />} />
       </Route>
 
       {/* ---------------- APP PRINCIPAL PROTEGIDA ---------------- */}
@@ -84,25 +114,44 @@ const App = () => (
 
         {/* -------- MÓDULO REPARACIONES Y DASHBOARD (BASE) -------- */}
         <Route path="reparaciones" element={<ReparacionesPage />} />
-        <Route path="dashboard" element={
-          <AdminRoute>
-            <DashboardPage />
-          </AdminRoute>
-        } />
+        <Route path="dashboard">
+          {/* Ruta base del hub: /app/dashboard */}
+          <Route index element={
+            <AdminRoute>
+              <DashboardPage />
+            </AdminRoute>
+          } />
+          
+          {/* Sub-módulo: /app/dashboard/ventas */}
+          <Route path="ventas" element={<AdminRoute><DashboardVentas /></AdminRoute>} />
+          <Route path="compras" element={<AdminRoute><DashboardCompras /></AdminRoute>} /> 
+          <Route path="inventario" element={<AdminRoute><DashboardInventario /></AdminRoute>} />
+          <Route path="reparaciones" element={<AdminRoute><DashboardReparaciones /></AdminRoute>} />
+          <Route path="control" element={<AdminRoute><DashboardControl /></AdminRoute>} />
+          <Route path="financiero" element={<AdminRoute><DashboardFinanciero /></AdminRoute>} />
+          <Route path="caja" element={<AdminRoute><DashboardCaja /></AdminRoute>} />
+        </Route>
 
         {/* -------- VENTAS Y POS -------- */}
         <Route path="ventas/historial" element={<HistorialVentas />} />
         <Route path="punto-venta" element={<PuntoVentaScreen />} />
         <Route path="ventas/detalle/:id" element={<TicketVenta />} />
 
-        {/* -------- INVENTARIO -------- */}
+        {/* -------- INVENTARIO (solo listado + traspaso; el alta entra por Compras) -------- */}
         <Route path="inventario" element={<InventarioList />} />
-        <Route path="inventario/nuevo" element={<InventarioCreate />} />
-        <Route path="inventario/editar/:id" element={<InventarioEdit />} />
         <Route path="inventario/detalle/:id" element={<InventarioDetails />} />
 
+        {/* -------- COMPRAS / ABASTECIMIENTO -------- */}
+        <Route path="compras" element={<AdminRoute><ComprasList /></AdminRoute>} />
+
+        {/* -------- CAJA -------- */}
+        <Route path="caja" element={<AdminRoute><CajaList /></AdminRoute>} />
+
+        {/* -------- PRECIOS -------- */}
+        <Route path="precios" element={<AdminRoute><PreciosScreen /></AdminRoute>} />
+
         {/* -------- REPORTES -------- */}
-        <Route path="reportes" element={<BalanceList />} />
+        <Route path="reportes" element={<ReportesScreen />} />
 
         {/* -------- BITÁCORA INDEPENDIENTE (Sin AdminLayout) -------- */}
         <Route 
@@ -122,12 +171,13 @@ const App = () => (
         }>
           <Route index element={<Navigate to="/app/admin/usuarios" replace />} />
           <Route path="usuarios" element={<UsersScreen />} />
-          <Route path="roles" element={<RolesScreen />} />
-          <Route path="permisos" element={<PermissionsScreen />} />
           {/* Ya no está BitacoraList aquí adentro */}
         </Route>
 
       </Route>
+
+      {/* ---------------- INFORME TÉCNICO (rol analista) ---------------- */}
+      <Route path="/analista/informe" element={<AnalistaRoute><InformeOperativoPage /></AnalistaRoute>} />
 
       {/* ---------------- 404 ---------------- */}
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,102 +1,100 @@
-import {
-  FormControlLabel, Switch,
-  Button, Divider, Box, Paper, Typography
-} from '@mui/material';
-import InventoryIcon from '@mui/icons-material/Inventory';
-import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import { Box, Button, Paper, Switch, Typography } from '@mui/material';
+import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import { useVenta } from '../context/VentaContext';
+import { toast } from 'sonner';
+import { verificarCajaAbierta } from '../../../services/api';
 
 export const TotalSection = ({ onCobrar }) => {
-  const {
-    totalVenta,
-    esMayorista,
-    dolarGlobal,
-    carrito,
-    cliente,
-    toggleMayorista
-  } = useVenta();
+  const { totalVenta, esMayorista, dolarGlobal, carrito, cliente, toggleMayorista } = useVenta();
 
   const totalArs = totalVenta * dolarGlobal;
+  const unidades = carrito.reduce((a, i) => a + (Number(i.Cantidad) || 0), 0);
 
-  const formatArs = new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS'
-  });
+  const faltaCliente = !cliente;
+  const carritoVacio = carrito.length === 0;
 
-  const handleToggleMayorista = (e) => {
-    const nuevoValor = e.target.checked;
-    toggleMayorista(nuevoValor);
-    alert(nuevoValor ? "📉 Precios Mayoristas APLICADOS" : "📈 Precios Minoristas RESTAURADOS");
-  };
-
-  const handleCobrar = () => {
-    if (carrito.length === 0) {
-      alert("⚠️ El carrito está vacío.");
-      return;
-    }
-    if (!cliente) {
-      alert("⚠️ Falta seleccionar el CLIENTE.");
-      return;
-    }
+  const handleCobrar = async () => {
+    if (!(await verificarCajaAbierta())) return;
+    if (carritoVacio) return toast.error('⚠️ El carrito está vacío.');
+    if (faltaCliente) return toast.error('⚠️ Falta seleccionar el CLIENTE.');
     onCobrar();
   };
 
   return (
-    <Paper elevation={6} sx={{ bgcolor: '#020f30', color: 'white', p: 3, borderRadius: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', flex: 1 }}>
-      
-      <FormControlLabel
-        control={
-          <Switch
-            checked={esMayorista}
-            onChange={handleToggleMayorista}
-            sx={{ '& .MuiSwitch-thumb': { bgcolor: esMayorista ? '#facc15' : '#fff' }, '& .MuiSwitch-track': { bgcolor: esMayorista ? '#facc15' : '#fff' } }}
-          />
-        }
-        label={
-          <Box component="span" sx={{ color: '#facc15', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <InventoryIcon /> Cambiar a precio mayorista
-          </Box>
-        }
-        sx={{ mb: 2 }}
-      />
+    <Paper sx={{ overflow: 'hidden' }}>
+      {/* Mayorista es un modo que reescribe todos los precios del carrito, así que
+          va arriba y visible, no escondido abajo. */}
+      <Box
+        component="label"
+        sx={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.25,
+          p: '10px 15px', borderBottom: 1, borderColor: 'pc.dividerSoft', cursor: 'pointer',
+          bgcolor: esMayorista ? 'pc.accentSoft' : 'transparent',
+        }}
+      >
+        <Box>
+          <Typography sx={{ fontWeight: 600, fontSize: '.78rem', color: esMayorista ? 'primary.main' : 'text.primary' }}>
+            Precio mayorista
+          </Typography>
+          <Typography sx={{ color: 'text.disabled', fontSize: '.69rem', mt: '-2px' }}>
+            {esMayorista ? 'Aplicado a todo el carrito' : 'Usando precio minorista'}
+          </Typography>
+        </Box>
+        <Switch
+          checked={esMayorista}
+          onChange={(e) => toggleMayorista(e.target.checked)}
+          size="small"
+        />
+      </Box>
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', flex: 1, justifyContent: 'center' }}>
-        <Typography sx={{ color: 'grey.300', fontSize: '1.125rem', mb: 0.5 }}>TOTAL</Typography>
-        <Typography sx={{ color: '#4ade80', fontWeight: 'bold', fontSize: '3rem', mb: 1, lineHeight: 1 }}>
-          U$S {totalVenta.toFixed(2)}
-        </Typography>
-
-        <Divider sx={{ borderColor: 'grey.600', width: '100%', my: 2 }} />
-
-        <Typography sx={{ color: '#93c5fd', fontWeight: 600, fontSize: '1.5rem' }}>
-          {formatArs.format(totalArs)}
-        </Typography>
-
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 1.5, gap: 1 }}>
-          <Typography sx={{ color: 'grey.400', fontSize: '0.875rem' }}>Cotización: 1 USD = $</Typography>
-          <Typography sx={{ fontWeight: 'bold', fontSize: '1.125rem' }}>{dolarGlobal}</Typography>
+      {/* El dólar es la moneda central del sistema: es el número principal. El peso es
+          solo la representación visual según la cotización cargada. */}
+      <Box sx={{ p: '16px 15px 14px', display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+        <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>Total a cobrar</Box>
+        <Box
+          className="num"
+          sx={{ fontSize: '2.1rem', fontWeight: 600, letterSpacing: '-.04em', lineHeight: 1.05, color: 'primary.main' }}
+        >
+          U$S {totalVenta.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </Box>
+        <Box className="num" sx={{ fontSize: '.78rem', color: 'text.secondary' }}>
+          $ {Math.round(totalArs).toLocaleString('es-AR')}
         </Box>
       </Box>
 
-      <Button
-        variant="contained"
-        onClick={handleCobrar}
-        startIcon={<AttachMoneyIcon />}
-        sx={{ 
-          width: '100%', 
-          mt: 3, 
-          py: 1.5, 
-          fontSize: '1.125rem', 
-          fontWeight: 'bold', 
-          borderRadius: 3, 
-          textTransform: 'none', 
-          boxShadow: 3,
-          bgcolor: '#02631e', 
-          '&:hover': { bgcolor: 'white', color: '#02631e' }
-        }}
-      >
-        COBRAR
-      </Button>
+      <Box sx={{
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.25,
+        p: '9px 15px', borderTop: 1, borderColor: 'pc.dividerSoft', fontSize: '.75rem',
+      }}>
+        <Box sx={{ color: 'text.disabled' }}>Cotización aplicada</Box>
+        <Box className="mono" sx={{ fontWeight: 600 }}>$ {Number(dolarGlobal).toLocaleString('es-AR')}</Box>
+      </Box>
+      <Box sx={{
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.25,
+        p: '9px 15px', borderTop: 1, borderColor: 'pc.dividerSoft', fontSize: '.75rem',
+      }}>
+        <Box sx={{ color: 'text.disabled' }}>Ítems</Box>
+        <Box className="num" sx={{ fontWeight: 600 }}>
+          {carrito.length} {carrito.length === 1 ? 'ítem' : 'ítems'} · {unidades} {unidades === 1 ? 'unidad' : 'unidades'}
+        </Box>
+      </Box>
+
+      <Box sx={{ p: '12px 15px', borderTop: 1, borderColor: 'pc.dividerSoft', bgcolor: 'pc.surfaceMuted' }}>
+        <Button
+          fullWidth
+          size="large"
+          variant="contained"
+          onClick={handleCobrar}
+          startIcon={<PointOfSaleIcon sx={{ fontSize: '17px !important' }} />}
+        >
+          Cobrar
+        </Button>
+        {(carritoVacio || faltaCliente) && (
+          <Typography sx={{ mt: 1, color: 'text.disabled', fontSize: '.69rem', textAlign: 'center' }}>
+            {carritoVacio ? 'Agregá al menos un producto' : 'Falta elegir el cliente'}
+          </Typography>
+        )}
+      </Box>
     </Paper>
   );
 };

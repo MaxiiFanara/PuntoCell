@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 import {
-  Container, Snackbar, Alert, Dialog, DialogTitle,
+  Snackbar, Alert, Dialog, DialogTitle,
   DialogContent, DialogContentText, DialogActions,
-  Button, Box, Typography,
+  Button, Box,
 } from '@mui/material'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
-import Navbar from '../components/layout/Navbar'
-import DashboardMetrics from '../components/dashboard/DashboardMetrics'
+import PageHeader from '../components/ui/PageHeader'
+import KpiCard from '../components/ui/KpiCard'
 import AccionesReparacion from '../components/layout/AccionesReparacion'
 import FiltrosReparaciones from '../components/filters/FiltrosReparaciones'
 import TablaReparaciones from '../components/table/TablaReparaciones'
@@ -15,10 +15,24 @@ import ModalRegistroCliente from '../components/modals/ModalRegistroCliente'
 import ModalRegistroDispositivo from '../components/modals/ModalRegistroDispositivo'
 import ModalBuscarCliente from '../components/modals/ModalBuscarCliente'
 import ModalBuscarDispositivo from '../components/modals/ModalBuscarDispositivo'
+import AsistenteTecnicoChat from '../components/modals/AsistenteTecnicoChat'
 import { useOrdenes } from '../hooks/useOrdenes'
+import { verificarCajaAbierta } from '../services/api'
 import { useCatalogos } from '../hooks/useCatalogos'
 import { usePermisos } from '../hooks/usePermisos'
 import { useAuth } from '../context/AuthContext'
+
+// Tono de cada KPI, en el mismo gradiente de atención que EstadoChip
+// (espera/anulado neutros, en curso destacado, terminado en ámbar por la acción
+// pendiente de entrega, entregado en verde de éxito).
+const KPIS = [
+  { key: 'ordenesActivas', eyebrow: 'Activas',       tone: 'accent' },
+  { key: 'enEspera',       eyebrow: 'En espera',      tone: 'mute'   },
+  { key: 'enReparacion',   eyebrow: 'En reparación',  tone: 'accent' },
+  { key: 'terminado',      eyebrow: 'Terminado',      tone: 'warn'   },
+  { key: 'entregado',      eyebrow: 'Entregado',      tone: 'ok'     },
+  { key: 'anulado',        eyebrow: 'Anulado',        tone: 'mute'   },
+]
 
 const ReparacionesPage = () => {
   const { usuario } = useAuth()
@@ -36,6 +50,7 @@ const ReparacionesPage = () => {
   const [modalBuscar,          setModalBuscar]          = useState(false)
   const [modalBuscarDispositivo, setModalBuscarDispositivo] = useState(false)
   const [confirmarAnular,  setConfirmarAnular]  = useState(false)
+  const [chatAbierto, setChatAbierto] = useState(false)
 
   const [showMetrics, setShowMetrics] = useState(true)
 
@@ -48,7 +63,7 @@ const ReparacionesPage = () => {
   const notify = (msg, severity = 'success') => setSnack({ open: true, msg, severity })
 
   const handleRowClick     = (o) => setOrdenSeleccionada((prev) => prev?.NumOrden === o.NumOrden ? null : o)
-  const handleNueva        = () => setModalReparacion({ open: true, modoEdicion: false, modoSoloLectura: false })
+  const handleNueva        = async () => { if (await verificarCajaAbierta()) setModalReparacion({ open: true, modoEdicion: false, modoSoloLectura: false }) }
   const handleModificar    = () => { if (ordenSeleccionada) setModalReparacion({ open: true, modoEdicion: true,  modoSoloLectura: false }) }
   const handleVerDetalle   = () => { if (ordenSeleccionada) setModalReparacion({ open: true, modoEdicion: false, modoSoloLectura: true  }) }
   const handleGuardado     = () => { recargar(); setOrdenSeleccionada(null); notify(modalReparacion.modoEdicion ? 'Orden actualizada.' : 'Reparación registrada.') }
@@ -62,36 +77,50 @@ const ReparacionesPage = () => {
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: '#eef2f7' }}>
-      
+    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
 
-      <Container maxWidth="xl" sx={{ py: 4, px: { xs: 2, sm: 3 } }}>
+      <PageHeader
+        eyebrow="Reparaciones"
+        title="Órdenes de reparación"
+        meta={`${ordenes.length} ${ordenes.length === 1 ? 'orden listada' : 'órdenes listadas'}`}
+      />
 
-        {showMetrics && <DashboardMetrics metricas={metricas} loading={loading} />}
+      {showMetrics && (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3,1fr)', lg: 'repeat(6,1fr)' }, gap: 1.5 }}>
+          {KPIS.map((k) => (
+            <KpiCard
+              key={k.key}
+              eyebrow={k.eyebrow}
+              tone={k.tone}
+              loading={loading}
+              value={String(metricas?.[k.key] ?? 0)}
+            />
+          ))}
+        </Box>
+      )}
 
-        <AccionesReparacion
-          permisos={permisos}
-          ordenSeleccionada={ordenSeleccionada}
-          onNuevaReparacion={handleNueva}
-          onModificar={handleModificar}
-          onVerDetalle={handleVerDetalle}
-          onAnular={() => setConfirmarAnular(true)}
-          onBuscarCliente={() => setModalBuscar(true)}
-          onBuscarDispositivo={() => setModalBuscarDispositivo(true)}
-          onRegistrarCliente={() => setModalCliente({ open: true, dniInicial: '' })}
-          onRegistrarDispositivo={() => setModalDispositivo(true)}
-        />
+      <AccionesReparacion
+        permisos={permisos}
+        ordenSeleccionada={ordenSeleccionada}
+        onNuevaReparacion={handleNueva}
+        onModificar={handleModificar}
+        onVerDetalle={handleVerDetalle}
+        onAnular={() => setConfirmarAnular(true)}
+        onBuscarCliente={() => setModalBuscar(true)}
+        onBuscarDispositivo={() => setModalBuscarDispositivo(true)}
+        onRegistrarCliente={() => setModalCliente({ open: true, dniInicial: '' })}
+        onRegistrarDispositivo={() => setModalDispositivo(true)}
+        onAbrirAsistente={() => setChatAbierto(true)}
+      />
 
-        <FiltrosReparaciones filtros={filtros} setFiltros={setFiltros} empleados={catalogos.empleados} />
+      <FiltrosReparaciones filtros={filtros} setFiltros={setFiltros} empleados={catalogos.empleados} />
 
-        <TablaReparaciones
-          ordenes={ordenes}
-          loading={loading}
-          onRowClick={handleRowClick}
-          ordenSeleccionada={ordenSeleccionada}
-        />
-
-      </Container>
+      <TablaReparaciones
+        ordenes={ordenes}
+        loading={loading}
+        onRowClick={handleRowClick}
+        ordenSeleccionada={ordenSeleccionada}
+      />
 
       {/* Modales */}
       <ModalReparacion
@@ -137,25 +166,33 @@ const ReparacionesPage = () => {
         onDispositivoGuardado={() => { notify('Dispositivo registrado.'); catalogos.recargar() }}
       />
 
+      <AsistenteTecnicoChat
+        open={chatAbierto}
+        onClose={() => setChatAbierto(false)}
+        ordenSeleccionada={ordenSeleccionada}
+        usuario={usuario}
+      />
+
       {/* Confirmar anular */}
-      <Dialog open={confirmarAnular} onClose={() => setConfirmarAnular(false)} PaperProps={{ sx: { borderRadius: 3, maxWidth: 420 } }}>
+      <Dialog open={confirmarAnular} onClose={() => setConfirmarAnular(false)} PaperProps={{ sx: { maxWidth: 420 } }}>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 1.5 }}>
-          <Box sx={{ width: 40, height: 40, borderRadius: 2.5, background: 'linear-gradient(135deg, #fee2e2, #fecaca)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <WarningAmberIcon sx={{ color: '#dc2626', fontSize: 21 }} />
+          <Box sx={{
+            width: 40, height: 40, borderRadius: '10px', bgcolor: 'error.light',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <WarningAmberIcon sx={{ color: 'error.main', fontSize: 21 }} />
           </Box>
-          <Typography sx={{ fontWeight: 800, fontSize: '1rem' }}>Confirmar anulación</Typography>
+          Confirmar anulación
         </DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ color: '#475569', fontSize: '0.9rem' }}>
+          <DialogContentText sx={{ color: 'text.secondary' }}>
             ¿Estás seguro de que querés anular la orden{' '}
-            <strong style={{ color: '#0f172a' }}>#{ordenSeleccionada?.NumOrden}</strong>?{' '}
+            <Box component="strong" className="mono" sx={{ color: 'text.primary' }}>#{ordenSeleccionada?.NumOrden}</Box>?{' '}
             Esta acción cambiará el estado a <strong>Anulado</strong> y no puede deshacerse.
           </DialogContentText>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-          <Button variant="outlined" onClick={() => setConfirmarAnular(false)} sx={{ borderColor: '#e2e8f0', color: '#475569' }}>
-            Cancelar
-          </Button>
+        <DialogActions>
+          <Button onClick={() => setConfirmarAnular(false)}>Cancelar</Button>
           <Button variant="contained" color="error" onClick={handleAnularConfirm}>
             Sí, anular orden
           </Button>
@@ -164,8 +201,7 @@ const ReparacionesPage = () => {
 
       {/* Snackbar */}
       <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack((s) => ({ ...s, open: false }))}>
-        <Alert severity={snack.severity} variant="filled" onClose={() => setSnack((s) => ({ ...s, open: false }))}
-          sx={{ borderRadius: 2, minWidth: 300, boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
+        <Alert severity={snack.severity} variant="filled" onClose={() => setSnack((s) => ({ ...s, open: false }))} sx={{ minWidth: 300 }}>
           {snack.msg}
         </Alert>
       </Snackbar>

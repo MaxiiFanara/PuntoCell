@@ -1,0 +1,39 @@
+/* Al imprimir la pantalla de resultado queda solo el comprobante.
+
+   No se enumeran los elementos a ocultar: la barra es un <nav>, el switch de
+   tema y el flotante de WhatsApp son Box/Fab con clases de Emotion que cambian
+   en cada build, y cualquier lista se desactualiza sola. Se oculta todo y se
+   vuelve visible únicamente el comprobante y su contenido. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .comprobante,
+  .comprobante * {
+    visibility: visible;
+
+    /* En modo oscuro el comprobante hereda texto claro, y como los navegadores
+       no imprimen fondos por defecto, salía blanco sobre blanco. El papel es
+       siempre claro, así que el comprobante se fuerza a claro. */
+    color: #000 !important;
+    background: transparent !important;
+  }
+
+  /* Visible pero en su lugar original dejaría el comprobante corrido hacia
+     abajo, con la altura del encabezado en blanco. Se lleva al tope de la hoja. */
+  .comprobante {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+
+  body {
+    background: #fff !important;
+  }
+}

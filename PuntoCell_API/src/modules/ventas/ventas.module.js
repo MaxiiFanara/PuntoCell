@@ -30,36 +30,36 @@ import VentaDAO from './venta/venta.dao.js';
 import VentaService from './venta/venta.service.js';
 import VentaController from './venta/venta.controller.js';
 
-export function createVentasModule() {
+export function createVentasModule(bitacoraService = null, cajaService = null) {
   const cotizacionDAO = new CotizacionDAO(models.Cotizacion);
-  const cotizacionService = new CotizacionService(cotizacionDAO);
+  const cotizacionService = new CotizacionService(cotizacionDAO, bitacoraService);
   const cotizacionController = new CotizacionController(cotizacionService);
   const descuentoDAO = new DescuentoDAO(models.Descuento);
-  const descuentoService = new DescuentoService(descuentoDAO);
+  const descuentoService = new DescuentoService(descuentoDAO, bitacoraService);
   const descuentoController = new DescuentoController(descuentoService);
   const estadoReclamoDAO = new EstadoReclamoDAO(models.EstadoReclamo);
-  const estadoReclamoService = new EstadoReclamoService(estadoReclamoDAO);
+  const estadoReclamoService = new EstadoReclamoService(estadoReclamoDAO, bitacoraService);
   const estadoReclamoController = new EstadoReclamoController(estadoReclamoService);
   const detalleVentaDAO = new DetalleVentaDAO(models.DetalleVenta);
-  const detalleVentaService = new DetalleVentaService(detalleVentaDAO);
+  const detalleVentaService = new DetalleVentaService(detalleVentaDAO, bitacoraService);
   const detalleVentaController = new DetalleVentaController(detalleVentaService);
   const ventaDAO = new VentaDAO(models.Venta);
-  const ventaService = new VentaService(ventaDAO, detalleVentaDAO);
+  const ventaService = new VentaService(ventaDAO, detalleVentaDAO, bitacoraService, cajaService);
   const ventaController = new VentaController(ventaService);
   const devolucionDAO = new DevolucionVentaDAO(models.DevolucionVenta);
   const detalleDevolucionDAO = new DetalleDevolucionVentaDAO(models.DetalleDevolucionVenta);
-  const devolucionService = new DevolucionVentaService(devolucionDAO, detalleDevolucionDAO);
+  const devolucionService = new DevolucionVentaService(devolucionDAO, detalleDevolucionDAO, bitacoraService);
   const devolucionController = new DevolucionVentaController(devolucionService);
-  const detalleDevolucionService = new DetalleDevolucionVentaService(detalleDevolucionDAO);
+  const detalleDevolucionService = new DetalleDevolucionVentaService(detalleDevolucionDAO, bitacoraService);
   const detalleDevolucionController = new DetalleDevolucionVentaController(detalleDevolucionService);
   const pagoVentaDAO = new PagoVentaDAO(models.PagoVenta);
-  const pagoVentaService = new PagoVentaService(pagoVentaDAO);
+  const pagoVentaService = new PagoVentaService(pagoVentaDAO, bitacoraService, cajaService);
   const pagoVentaController = new PagoVentaController(pagoVentaService);
   const cuotaDAO = new CuotaDAO(models.Cuota);
-  const cuotaService = new CuotaService(cuotaDAO);
+  const cuotaService = new CuotaService(cuotaDAO, bitacoraService);
   const cuotaController = new CuotaController(cuotaService);
   const reclamoDAO = new ReclamoGarantiaDAO(models.ReclamoGarantia);
-  const reclamoService = new ReclamoGarantiaService(reclamoDAO);
+  const reclamoService = new ReclamoGarantiaService(reclamoDAO, bitacoraService);
   const reclamoController = new ReclamoGarantiaController(reclamoService);
 
   return {

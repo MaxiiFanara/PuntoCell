@@ -1,39 +1,119 @@
+import { registerAudit } from '../../../core/utils/audit.util.js';
+
 export default class CategoriaArticuloService {
-  constructor(dao) {
+  constructor(dao, bitacoraService = null) {
     this.dao = dao;
+    this.bitacoraService = bitacoraService;
     this.ATTRIBUTES = {};
   }
 
   async getAll(query = {}) {
     const { page, limit } = query;
-    return await this.dao.getAll({ page, limit, attributes: this.ATTRIBUTES });
+    return await this.dao.getAll({ page, limit, attributes: this.ATTRIBUTES, order: [['Nombre', 'ASC']] });
   }
 
-  async getById(id) {
+  async getById(id, auditContext = null) {
     const item = await this.dao.getById(id, { attributes: this.ATTRIBUTES });
-    if (!item) throw new Error('CategoriaArticulo no encontrada');
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `CategoriaArticulo no encontrada`,
+        Accion: 'Obtener CategoriaArticulo',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('CategoriaArticulo no encontrada');
+    }
     return item;
   }
 
-  async create(data) {
+  async create(data, auditContext = null) {
     const existe = await this.dao.findOne({ where: { Nombre: data.Nombre } });
-    if (existe) throw new Error('La categoría ya existe');
-    return await this.dao.create(data);
+    if (existe) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Intento crear CategoriaArticulo duplicada Nombre=${data.Nombre}`,
+        Accion: 'Crear CategoriaArticulo',
+        IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+        IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('La categoría ya existe');
+    }
+    const created = await this.dao.create(data);
+    await registerAudit(this.bitacoraService, {
+      detalle: `CategoriaArticulo creada`,
+      Accion: 'Crear CategoriaArticulo',
+      IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+      IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return created;
   }
 
-  async update(id, data) {
+  async update(id, data, auditContext = null) {
     const item = await this.dao.getById(id);
-    if (!item) throw new Error('CategoriaArticulo no encontrada');
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `CategoriaArticulo no encontrada`,
+        Accion: 'Actualizar CategoriaArticulo',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('CategoriaArticulo no encontrada');
+    }
     if (data.Nombre !== undefined) {
       const existe = await this.dao.findOne({ where: { Nombre: data.Nombre } });
-      if (existe && existe.Id !== parseInt(id)) throw new Error('Ya existe una categoría con ese nombre');
+      if (existe && existe.Id !== parseInt(id)) {
+        await registerAudit(this.bitacoraService, {
+          detalle: `Intento actualizar CategoriaArticulo a Nombre duplicado=${data.Nombre}`,
+          Accion: 'Actualizar CategoriaArticulo',
+          IdEmpleado: auditContext?.IdEmpleado,
+          IdSucursal: auditContext?.IdSucursal,
+          IpAddress: auditContext?.Ip,
+          Fecha: new Date()
+        }).catch(() => {});
+        throw new Error('Ya existe una categoría con ese nombre');
+      }
     }
-    return await this.dao.update(id, data);
+    const updated = await this.dao.update(id, data);
+    await registerAudit(this.bitacoraService, {
+      detalle: `CategoriaArticulo actualizada`,
+      Accion: 'Actualizar CategoriaArticulo',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return updated;
   }
 
-  async remove(id) {
+  async remove(id, auditContext = null) {
     const item = await this.dao.getById(id);
-    if (!item) throw new Error('CategoriaArticulo no encontrada');
-    return await this.dao.remove(id);
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `CategoriaArticulo no encontrada`,
+        Accion: 'Eliminar CategoriaArticulo',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('CategoriaArticulo no encontrada');
+    }
+    const removed = await this.dao.remove(id);
+    await registerAudit(this.bitacoraService, {
+      detalle: `CategoriaArticulo eliminada`,
+      Accion: 'Eliminar CategoriaArticulo',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return removed;
   }
 }

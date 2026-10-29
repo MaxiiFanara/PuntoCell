@@ -1,22 +1,25 @@
 import { STORE_CONFIG } from '../config/store';
 
 /**
- * Formatea números
+ * Formatea números (Configurado globalmente para mostrar 2 decimales obligatorios)
  */
 export const formatCurrency = (amount) =>
   new Intl.NumberFormat(
     STORE_CONFIG.locale,
     {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2, // Antes estaba en 0
+      maximumFractionDigits: 2, // Antes estaba en 0
     }
   ).format(amount);
 
 /**
  * Link WhatsApp
  */
+// paymentId es opcional: cuando viene, el mensaje deja de ser una consulta y
+// pasa a ser la coordinación de entrega de una compra ya pagada.
 export const buildWhatsAppLink = (
-  cartItems
+  cartItems,
+  paymentId = null
 ) => {
   const totalItems = cartItems.reduce(
     (sum, item) => sum + item.quantity,
@@ -36,21 +39,28 @@ export const buildWhatsAppLink = (
     return [
       `🪑 *${item.name}*`,
       `Cantidad: ${item.quantity}`,
-      `Subtotal: $${formatCurrency(
+      // Cambiamos $por U$S para que el cliente lo tenga claro en WhatsApp
+      `Subtotal: U$S ${formatCurrency(
         subtotal
       )}`,
     ].join('\n');
   });
 
   const message = [
-    `✨ *Nuevo pedido desde ${STORE_CONFIG.business.name}*`,
+    paymentId
+      ? `✅ *Compra pagada en ${STORE_CONFIG.business.name}*`
+      : `✨ *Nuevo pedido desde ${STORE_CONFIG.business.name}*`,
     '',
     ...lines.flatMap((line) => [line, '']),
     '──────────────────',
     `🛒 Productos: ${totalItems}`,
-    `💰 *Total: $${formatCurrency(total)}*`,
+    // Cambiamos $por U$S para el total general
+    `💰 *Total: U$S ${formatCurrency(total)}*`,
+    ...(paymentId ? ['', `🧾 Pago Mercado Pago: *${paymentId}*`] : []),
     '',
-    '¡Hola! Me gustaría realizar este pedido 😊',
+    paymentId
+      ? '¡Hola! Ya pagué este pedido, quería coordinar la entrega 😊'
+      : '¡Hola! Me gustaría realizar este pedido 😊',
   ].join('\n');
 
   return `https://wa.me/${

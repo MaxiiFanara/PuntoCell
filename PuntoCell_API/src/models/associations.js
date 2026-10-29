@@ -7,12 +7,13 @@ export const setupAssociations = (models) => {
     OrdenFalla, SeguimientoOrden, PagoReparacion, RepuestoOrden ,
 
     Proveedor,Compra, DetalleCompra,
-    DevolucionCompra, DetalleDevolucionCompra, PagoCompra
+    DevolucionCompra, DetalleDevolucionCompra, PagoCompra, CuentaCorrienteProveedor,
+    ListaPrecio, PrecioArticulo
     ,
-    Bateria, Color, EstadoInventario, CategoriaArticulo, MarcaArticulo, Memoria, ModeloArticulo, Almacenamiento, Articulo, Inventario,
+    Bateria, Color, EstadoInventario, CategoriaArticulo, MarcaArticulo, Memoria, ModeloArticulo, Almacenamiento, Articulo, Inventario, ImagenProducto,
     MetodoPago,
     TurnoCaja, MovimientoCaja,
-    Accion, Bitacora
+    Bitacora
   } = models;
 
   // Usuario
@@ -57,11 +58,6 @@ export const setupAssociations = (models) => {
       otherKey: 'IdRol',
       as: 'rolesAsociados'
     });
-  }
-
-  if (Permiso && Accion) {
-    Permiso.hasMany(Accion, { foreignKey: 'IdPermiso', as: 'acciones' });
-    Accion.belongsTo(Permiso, { foreignKey: 'IdPermiso', as: 'permiso' });
   }
 
   // Reparaciones
@@ -197,6 +193,20 @@ export const setupAssociations = (models) => {
     PagoCompra.belongsTo(TurnoCaja, { foreignKey: 'IdTurnoCaja', as: 'turnoCaja' });
   }
 
+  // Cuenta corriente de proveedores (historial de deuda)
+  if (CuentaCorrienteProveedor && Proveedor) {
+    Proveedor.hasMany(CuentaCorrienteProveedor, { foreignKey: 'IdProveedor', as: 'movimientosCuentaCorriente' });
+    CuentaCorrienteProveedor.belongsTo(Proveedor, { foreignKey: 'IdProveedor', as: 'proveedor' });
+  }
+  if (CuentaCorrienteProveedor && Compra) {
+    Compra.hasMany(CuentaCorrienteProveedor, { foreignKey: 'IdCompra', as: 'movimientosCuentaCorriente' });
+    CuentaCorrienteProveedor.belongsTo(Compra, { foreignKey: 'IdCompra', as: 'compra' });
+  }
+  if (CuentaCorrienteProveedor && PagoCompra) {
+    PagoCompra.hasOne(CuentaCorrienteProveedor, { foreignKey: 'IdPagoCompra', as: 'movimientoCuentaCorriente' });
+    CuentaCorrienteProveedor.belongsTo(PagoCompra, { foreignKey: 'IdPagoCompra', as: 'pagoCompra' });
+  }
+
   if (Compra && DevolucionCompra) {
     Compra.hasMany(DevolucionCompra, { foreignKey: 'IdCompra', as: 'devoluciones' });
     DevolucionCompra.belongsTo(Compra, { foreignKey: 'IdCompra', as: 'compra' });
@@ -242,6 +252,11 @@ export const setupAssociations = (models) => {
     Articulo.belongsTo(ModeloArticulo, { foreignKey: 'IdModeloArticulo', as: 'modelo' });
   }
 
+  if (Articulo && ImagenProducto) {
+    Articulo.hasMany(ImagenProducto, { foreignKey: 'IdProducto', as: 'imagenes' });
+    ImagenProducto.belongsTo(Articulo, { foreignKey: 'IdProducto', as: 'articulo' });
+  }
+
   if (Inventario && Articulo) {
     Articulo.hasMany(Inventario, { foreignKey: 'IdArticulo', as: 'inventarios' });
     Inventario.belongsTo(Articulo, { foreignKey: 'IdArticulo', as: 'articulo' });
@@ -273,6 +288,20 @@ export const setupAssociations = (models) => {
   if (Inventario && Almacenamiento) {
     Almacenamiento.hasMany(Inventario, { foreignKey: 'IdAlmacenamiento', as: 'inventarios' });
     Inventario.belongsTo(Almacenamiento, { foreignKey: 'IdAlmacenamiento', as: 'almacenamiento' });
+  }
+
+  // Precios (ListaPrecio + PrecioArticulo con historial de vigencia)
+  if (PrecioArticulo && Inventario) {
+    Inventario.hasMany(PrecioArticulo, { foreignKey: 'IdInventario', as: 'precios' });
+    PrecioArticulo.belongsTo(Inventario, { foreignKey: 'IdInventario', as: 'inventario' });
+  }
+  if (PrecioArticulo && ListaPrecio) {
+    ListaPrecio.hasMany(PrecioArticulo, { foreignKey: 'IdListaPrecio', as: 'precios' });
+    PrecioArticulo.belongsTo(ListaPrecio, { foreignKey: 'IdListaPrecio', as: 'lista' });
+  }
+  if (ListaPrecio && CategoriaArticulo) {
+    CategoriaArticulo.hasMany(ListaPrecio, { foreignKey: 'IdCategoriaProducto', as: 'listasPrecio' });
+    ListaPrecio.belongsTo(CategoriaArticulo, { foreignKey: 'IdCategoriaProducto', as: 'categoria' });
   }
 
   if (DispositivoCliente && Color) {
@@ -345,10 +374,7 @@ export const setupAssociations = (models) => {
     Sucursal.hasMany(Bitacora, { foreignKey: 'IdSucursal', as: 'bitacoras' });
     Bitacora.belongsTo(Sucursal, { foreignKey: 'IdSucursal', as: 'sucursal' });
   }
-  if (Bitacora && Accion) {
-    Accion.hasMany(Bitacora, { foreignKey: 'IdAccion', as: 'bitacoras' });
-    Bitacora.belongsTo(Accion, { foreignKey: 'IdAccion', as: 'accion' });
-  }
+  // Bitacora.Accion es texto libre que arma el backend (no hay tabla Accion).
 
   // Ventas
   if (models.Venta && models.DetalleVenta) {

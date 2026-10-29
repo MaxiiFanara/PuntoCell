@@ -28,6 +28,7 @@ export default (container) => {
     almacenamientoController,
     articuloController
   } = container.inventario;
+  const { inventarioDashboardController } = container.inventario;
 
   // Baterias
   router.get('/baterias', bateriaController.getAll);
@@ -113,6 +114,9 @@ export default (container) => {
   router.post('/transferencias', validateFields(transferenciaSchema), container.inventario.transferenciaController.create);
   router.put('/transferencias/:id', validateFields(transferenciaUpdateSchema), container.inventario.transferenciaController.update);
   router.delete('/transferencias/:id', container.inventario.transferenciaController.remove);
+
+  // Analíticas - Inventario
+  router.get('/analitica/productos-baja-rotacion', inventarioDashboardController.productosBajaRotacion);
 
   return router;
 };

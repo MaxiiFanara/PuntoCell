@@ -1,51 +1,58 @@
-import { Outlet } from 'react-router-dom';
-import { Box, ThemeProvider, createTheme } from '@mui/material';
+import { useEffect } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
+import { Box } from '@mui/material';
 
-// 1. Importamos tus contextos del catálogo
 import { ProductProvider } from '../context/ProductContext';
 import { CartProvider } from '../context/CartContext';
 
-// 2. Importamos los componentes visuales del catálogo
-import Navbar from '../components/Navbar';
+import PublicNavbar from '../../../components/ui/PublicNavbar';
 import CartDrawer from '../components/CartDrawer';
-import Footer from '../components/Footer';
+import PublicFooter from '../../../components/ui/PublicFooter';
 import WhatsappFloating from '../components/WhatsappFloating';
+import CatalogAssistantChat from '../components/CatalogAssistantChat';
+import { shell } from '../../../components/ui/publicStyles';
 
-// 3. Importamos el tema específico del catálogo (los colores azules limpios)
-// Asegúrate de que la ruta apunte correctamente a donde guardaste el theme
-import puntocellTheme from '../../../theme/presets/puntocell'; 
-
-const theme = createTheme(puntocellTheme);
-
+// El catálogo hereda el tema único del root (src/theme). No tiene tema propio.
 export default function CatalogoLayout() {
+  const { pathname } = useLocation();
+
+  // BrowserRouter + <Routes> no es un data router, así que no hay
+  // <ScrollRestoration/>: al navegar de la vitrina al detalle el scroll se
+  // quedaba donde estaba. Va acá, en el layout, y no en cada card, así cubre
+  // también los enlaces que entran desde la landing.
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [pathname]);
+
   return (
-    // Envolvemos SOLO el catálogo con su propio tema y contextos
-    <ThemeProvider theme={theme}>
-      <ProductProvider>
-        <CartProvider>
+    <ProductProvider>
+      <CartProvider>
+        <Box
+          sx={{
+            minHeight: '100vh',
+            display: 'flex',
+            flexDirection: 'column',
+            bgcolor: 'background.default',
+          }}
+        >
+          <PublicNavbar />
+          <CartDrawer />
+
+          {/* El ancho y el ritmo de la vitrina viven acá, una sola vez: 1180px
+              con el gutter de publicStyles y el aire de la cara pública. Las
+              vistas ya no traen contenedor propio. */}
           <Box
-            sx={{
-              minHeight: '100vh',
-              display: 'flex',
-              flexDirection: 'column',
-              bgcolor: 'background.default',
-            }}
+            component="main"
+            sx={{ ...shell, flexGrow: 1, pt: '2.25rem', pb: 'clamp(5rem, 8vw, 7rem)' }}
           >
-            {/* Cabecera del catálogo */}
-            <Navbar />
-            <CartDrawer />
-
-            {/* Contenido dinámico (Aquí se inyectarán las páginas del catálogo) */}
-            <Box component="main" sx={{ flexGrow: 1 }}>
-              <Outlet />
-            </Box>
-
-            {/* Pie de página del catálogo */}
-            <Footer />
-            <WhatsappFloating />
+            <Outlet />
           </Box>
-        </CartProvider>
-      </ProductProvider>
-    </ThemeProvider>
+
+          <PublicFooter />
+          <WhatsappFloating />
+          <CatalogAssistantChat />
+        </Box>
+      </CartProvider>
+    </ProductProvider>
   );
 }

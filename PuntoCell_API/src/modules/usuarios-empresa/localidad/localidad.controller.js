@@ -14,7 +14,8 @@ export default class LocalidadController {
 
   getById = async (req, res, next) => {
     try {
-      const data = await this.service.getById(req.params.id);
+      const auditContext = { IdEmpleado: req.user?.id || null, IdSucursal: req.user?.sucursal || null, IpAddress: req.ip };
+      const data = await this.service.getById(req.params.id, auditContext);
       return res.status(200).json({ status: 'success', data });
     } catch (err) {
       next(err);
@@ -23,7 +24,8 @@ export default class LocalidadController {
 
   create = async (req, res, next) => {
     try {
-      const data = await this.service.create(req.body);
+      const auditContext = { IdEmpleado: req.user?.id || null, IdSucursal: req.user?.sucursal || null, IpAddress: req.ip };
+      const data = await this.service.create(req.body, auditContext);
       return res.status(201).json({ status: 'success', data });
     } catch (err) {
       next(err);
@@ -32,7 +34,8 @@ export default class LocalidadController {
 
   update = async (req, res, next) => {
     try {
-      const data = await this.service.update(req.params.id, req.body);
+      const auditContext = { IdEmpleado: req.user?.id || null, IdSucursal: req.user?.sucursal || null, IpAddress: req.ip };
+      const data = await this.service.update(req.params.id, req.body, auditContext);
       return res.status(200).json({ status: 'success', data });
     } catch (err) {
       next(err);
@@ -41,7 +44,8 @@ export default class LocalidadController {
 
   remove = async (req, res, next) => {
     try {
-      await this.service.remove(req.params.id);
+      const auditContext = { IdEmpleado: req.user?.id || null, IdSucursal: req.user?.sucursal || null, IpAddress: req.ip };
+      await this.service.remove(req.params.id, auditContext);
       return res.status(200).json({ status: 'success', data: { message: 'Localidad eliminada correctamente' } });
     } catch (err) {
       next(err);

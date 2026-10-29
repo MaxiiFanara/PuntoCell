@@ -1,22 +1,23 @@
 import { useState, useEffect } from 'react'
 import {
   Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, TableSortLabel, Typography,
-  Skeleton, Box, Paper, Pagination,
+  TableHead, TableRow, TableSortLabel,
+  Box, Paper, Skeleton,
 } from '@mui/material'
 import EstadoChip from './EstadoChip'
+import TablePager from '../ui/TablePager'
 
 const FILAS_POR_PAGINA = 10
 
 const COLS = [
-  { id: 'NumOrden',     label: 'N° Orden',       w: 100 },
+  { id: 'NumOrden',     label: 'N° Orden',        w: 90 },
   { id: 'FechaEmision', label: 'Emisión',         w: 100 },
-  { id: 'FechaEntrega', label: 'Entrega',          w: 100 },
-  { id: 'cliente',      label: 'Cliente',          w: 190 },
-  { id: 'dispositivo',  label: 'Dispositivo',      w: 220 },
-  { id: 'Falla',        label: 'Falla / Detalle',  w: 170 },
-  { id: 'Estado',       label: 'Estado',           w: 120 },
-  { id: 'empleado',     label: 'Empleado emisor',  w: 160 },
+  { id: 'FechaEntrega', label: 'Entrega',         w: 100 },
+  { id: 'cliente',      label: 'Cliente',         w: 190 },
+  { id: 'dispositivo',  label: 'Dispositivo',     w: 210 },
+  { id: 'Falla',        label: 'Falla / Detalle', w: 170 },
+  { id: 'Estado',       label: 'Estado',          w: 110 },
+  { id: 'empleado',     label: 'Empleado emisor', w: 150 },
 ]
 
 const fmt = (f) =>
@@ -24,9 +25,9 @@ const fmt = (f) =>
 
 const sortVal = (row, id) => {
   switch (id) {
-    case 'cliente':    return `${row.ApellidoCliente} ${row.NombreCliente}`
-    case 'dispositivo':return `${row.TipoDispositivo} ${row.MarcaDispositivo} ${row.ModeloDispositivo}`
-    case 'empleado':   return `${row.ApellidoEmpleado} ${row.NombreEmpleado}`
+    case 'cliente':     return `${row.ApellidoCliente} ${row.NombreCliente}`
+    case 'dispositivo': return `${row.TipoDispositivo} ${row.MarcaDispositivo} ${row.ModeloDispositivo}`
+    case 'empleado':    return `${row.ApellidoEmpleado} ${row.NombreEmpleado}`
     case 'FechaEmision': case 'FechaEntrega': return row[id] ? new Date(row[id]) : new Date(0)
     default: return row[id]
   }
@@ -55,37 +56,21 @@ const TablaReparaciones = ({ ordenes, loading, onRowClick, ordenSeleccionada }) 
   useEffect(() => { setPagina(1) }, [ordenes, sortCol, sortDir])
 
   const paginaSegura = Math.min(pagina, totalPaginas)
+  const desdeFila = sorted.length ? (paginaSegura - 1) * FILAS_POR_PAGINA + 1 : 0
+  const hastaFila = Math.min(paginaSegura * FILAS_POR_PAGINA, sorted.length)
   const paginado = sorted.slice((paginaSegura - 1) * FILAS_POR_PAGINA, paginaSegura * FILAS_POR_PAGINA)
 
   return (
     <Box>
-      {/* Table header info */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, px: 0.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Typography sx={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-            Órdenes de reparación
-          </Typography>
-          {!loading && (
-            <Box sx={{ px: 1.5, py: 0.3, borderRadius: 6, backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0' }}>
-              <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>
-                {sorted.length} {sorted.length === 1 ? 'resultado' : 'resultados'}
-              </Typography>
-            </Box>
-          )}
+      {ordenSeleccionada && (
+        <Box sx={{ fontSize: '.72rem', color: 'text.disabled', px: 0.5, mb: 1 }}>
+          Clic en la fila para deseleccionar
         </Box>
-        {ordenSeleccionada && (
-          <Typography sx={{ fontSize: '0.72rem', color: '#94a3b8' }}>
-            Clic en la fila para deseleccionar
-          </Typography>
-        )}
-      </Box>
+      )}
 
-      <Paper
-        elevation={0}
-        sx={{ border: '1.5px solid #e2e8f0', borderRadius: 3, overflow: 'hidden', mb: 4 }}
-      >
-        <TableContainer>
-          <Table size="small" stickyHeader>
+      <Paper sx={{ overflow: 'hidden' }}>
+        <TableContainer sx={{ overflowX: 'auto' }}>
+          <Table sx={{ minWidth: 900 }}>
             <TableHead>
               <TableRow>
                 {COLS.map((col) => (
@@ -94,12 +79,6 @@ const TablaReparaciones = ({ ordenes, loading, onRowClick, ordenSeleccionada }) 
                       active={sortCol === col.id}
                       direction={sortCol === col.id ? sortDir : 'asc'}
                       onClick={() => handleSort(col.id)}
-                      sx={{
-                        color: '#ffffff !important',
-                        '& .MuiTableSortLabel-icon': { color: '#94a3b8 !important', opacity: 0.6 },
-                        '&.Mui-active .MuiTableSortLabel-icon': { opacity: 1, color: '#ffffff !important' },
-                        '&:hover': { color: '#ffffff' },
-                      }}
                     >
                       {col.label}
                     </TableSortLabel>
@@ -114,94 +93,51 @@ const TablaReparaciones = ({ ordenes, loading, onRowClick, ordenSeleccionada }) 
                   <TableRow key={i}>
                     {COLS.map((col) => (
                       <TableCell key={col.id}>
-                        <Skeleton variant="rounded" height={16} sx={{ borderRadius: 1, opacity: 0.5 - i * 0.05 }} />
+                        <Skeleton variant="rounded" height={14} sx={{ borderRadius: 1, opacity: 0.5 - i * 0.05 }} />
                       </TableCell>
                     ))}
                   </TableRow>
                 ))
               ) : sorted.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={COLS.length} sx={{ textAlign: 'center', py: 8, border: 0 }}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                      <Typography sx={{ fontSize: '2rem' }}>🔍</Typography>
-                      <Typography variant="body2" sx={{ color: '#94a3b8', fontWeight: 600 }}>
-                        No se encontraron órdenes
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#cbd5e1' }}>
-                        Probá cambiando los filtros
-                      </Typography>
-                    </Box>
+                  <TableCell colSpan={COLS.length} sx={{ height: 120, textAlign: 'center', color: 'text.disabled' }}>
+                    No se encontraron órdenes con estos filtros.
                   </TableCell>
                 </TableRow>
               ) : (
                 paginado.map((orden) => {
                   const sel = ordenSeleccionada?.NumOrden === orden.NumOrden
                   return (
-                    <TableRow
-                      key={orden.NumOrden}
-                      hover
-                      selected={sel}
-                      onClick={() => onRowClick(orden)}
-                      sx={{ cursor: 'pointer' }}
-                    >
-                      {/* N° Orden */}
+                    <TableRow key={orden.NumOrden} hover selected={sel} onClick={() => onRowClick(orden)} sx={{ cursor: 'pointer' }}>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          {sel && <Box sx={{ width: 3, height: 22, borderRadius: 2, backgroundColor: '#2563eb', flexShrink: 0 }} />}
-                          <Typography sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.875rem', color: sel ? '#1d4ed8' : '#0f172a' }}>
+                          {sel && <Box sx={{ width: 3, height: 22, borderRadius: 2, bgcolor: 'primary.main', flexShrink: 0 }} />}
+                          <Box className="mono" sx={{ fontWeight: 700, color: sel ? 'primary.main' : 'text.primary' }}>
                             #{orden.NumOrden}
-                          </Typography>
+                          </Box>
                         </Box>
                       </TableCell>
 
-                      {/* Fechas */}
-                      <TableCell>
-                        <Typography sx={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 500 }}>{fmt(orden.FechaEmision)}</Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography sx={{ fontSize: '0.82rem', color: orden.FechaEntrega ? '#64748b' : '#cbd5e1', fontWeight: 500 }}>
-                          {fmt(orden.FechaEntrega)}
-                        </Typography>
+                      <TableCell className="mono" sx={{ color: 'text.secondary' }}>{fmt(orden.FechaEmision)}</TableCell>
+                      <TableCell className="mono" sx={{ color: orden.FechaEntrega ? 'text.secondary' : 'text.disabled' }}>
+                        {fmt(orden.FechaEntrega)}
                       </TableCell>
 
-                      {/* Cliente */}
                       <TableCell>
-                        <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', color: '#0f172a', lineHeight: 1.25 }}>
-                          {orden.ApellidoCliente}, {orden.NombreCliente}
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 500, mt: 0.25 }}>
-                          DNI {orden.DNICliente}
-                        </Typography>
+                        <Box sx={{ fontWeight: 700, lineHeight: 1.25 }}>{[orden.ApellidoCliente, orden.NombreCliente].filter(Boolean).join(', ') || 'Sin cliente'}</Box>
+                        <Box className="mono" sx={{ fontSize: '.72rem', color: 'text.disabled', mt: '1px' }}>DNI {orden.DNICliente || 'N/A'}</Box>
                       </TableCell>
 
-                      {/* Dispositivo */}
                       <TableCell>
-                        <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', color: '#0f172a', lineHeight: 1.25 }}>
-                          {orden.MarcaDispositivo} {orden.ModeloDispositivo}
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 500, mt: 0.25 }}>
-                          {orden.TipoDispositivo}
-                        </Typography>
+                        <Box sx={{ fontWeight: 700, lineHeight: 1.25 }}>{orden.MarcaDispositivo} {orden.ModeloDispositivo}</Box>
+                        <Box sx={{ fontSize: '.72rem', color: 'text.disabled', mt: '1px' }}>{orden.TipoDispositivo}</Box>
                       </TableCell>
 
-                      {/* Falla */}
-                      <TableCell>
-                        <Typography sx={{ fontSize: '0.85rem', color: '#374151', fontWeight: 500 }}>
-                          {orden.Falla}
-                        </Typography>
-                      </TableCell>
+                      <TableCell sx={{ color: 'text.secondary' }}>{orden.Falla}</TableCell>
 
-                      {/* Estado */}
-                      <TableCell>
-                        <EstadoChip estado={orden.Estado} />
-                      </TableCell>
+                      <TableCell><EstadoChip estado={orden.Estado} /></TableCell>
 
-                      {/* Empleado */}
-                      <TableCell>
-                        <Typography sx={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 500 }}>
-                          {orden.ApellidoEmpleado}, {orden.NombreEmpleado}
-                        </Typography>
-                      </TableCell>
+                      <TableCell sx={{ color: 'text.secondary' }}>{orden.ApellidoEmpleado}, {orden.NombreEmpleado}</TableCell>
                     </TableRow>
                   )
                 })
@@ -210,17 +146,16 @@ const TablaReparaciones = ({ ordenes, loading, onRowClick, ordenSeleccionada }) 
           </Table>
         </TableContainer>
 
-        {!loading && sorted.length > FILAS_POR_PAGINA && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2, borderTop: '1px solid #e2e8f0' }}>
-            <Pagination
-              count={totalPaginas}
-              page={paginaSegura}
-              onChange={(_, p) => setPagina(p)}
-              color="primary"
-              shape="rounded"
-              size="small"
-            />
-          </Box>
+        {!loading && totalPaginas > 1 && (
+          <TablePager
+            page={paginaSegura}
+            pageCount={totalPaginas}
+            from={desdeFila}
+            to={hastaFila}
+            total={sorted.length}
+            unidad={sorted.length === 1 ? 'orden' : 'órdenes'}
+            onChange={setPagina}
+          />
         )}
       </Paper>
     </Box>

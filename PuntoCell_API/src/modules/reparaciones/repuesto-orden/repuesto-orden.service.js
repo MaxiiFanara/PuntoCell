@@ -1,11 +1,15 @@
 
 
 import { sequelize } from '../../../models/index.js';
+import { auditar, nombresProductosDeInventario } from '../../../core/utils/audit.util.js';
+
+const round2 = (value) => Number(Number(value || 0).toFixed(2));
 
 export default class RepuestoOrdenService {
-  constructor(repuestoOrdenDAO, ordenReparacionDAO) {
+  constructor(repuestoOrdenDAO, ordenReparacionDAO, bitacoraService = null) {
     this.repuestoOrdenDAO = repuestoOrdenDAO;
     this.ordenReparacionDAO = ordenReparacionDAO;
+    this.bitacoraService = bitacoraService;
   }
 
   async getAll(query = {}) {
@@ -23,7 +27,7 @@ export default class RepuestoOrdenService {
     return repuesto;
   }
 
-  async create(data) {
+  async create(data, ctx = null) {
     const { IdOrdenReparacion, IdInventario, Cantidad } = data;
     const t = await sequelize.transaction();
 
@@ -56,7 +60,24 @@ export default class RepuestoOrdenService {
 
       await inventario.decrement('Stock', { by: Cantidad, transaction: t });
 
-      const precioCobrado = Number(inventario.PrecioMenor || 0);
+      // El precio de venta ya no vive en Inventario: se toma del PrecioArticulo vigente
+      // (FechaHasta IS NULL) de ese renglón de inventario. Un mismo inventario suele tener
+      // un vigente por lista (minorista + mayorista, creados casi al mismo instante), así
+      // que NO alcanza con "el más reciente por fecha" — hay que elegir explícitamente el
+      // de la lista minorista (regla de negocio: el repuesto se cobra a precio minorista
+      // por defecto; este flujo todavía no tiene selector de mayorista).
+      const vigentes = await sequelize.models.PrecioArticulo.findAll({
+        where: { IdInventario, FechaHasta: null },
+        include: [{ association: 'lista', attributes: ['Nombre'] }],
+        transaction: t
+      });
+      if (!vigentes.length) {
+        const err = new Error('El repuesto seleccionado no tiene un precio vigente cargado. Defina un PrecioArticulo antes de usarlo.');
+        err.statusCode = 400;
+        throw err;
+      }
+      const precioVigente = vigentes.find((p) => !/mayor/i.test(p.lista?.Nombre || '')) || vigentes[0];
+      const precioCobrado = Number(precioVigente.ValorFinal || 0);
       const nuevoRepuesto = await this.repuestoOrdenDAO.create({
         Cantidad,
         PrecioCobrado: precioCobrado,
@@ -64,10 +85,16 @@ export default class RepuestoOrdenService {
         IdInventario
       }, { transaction: t });
 
-      const nuevoCosto = Number(orden.CostoRepuestos) + (precioCobrado * Cantidad);
+      const nuevoCosto = round2(Number(orden.CostoRepuestos) + (precioCobrado * Cantidad));
       await orden.update({ CostoRepuestos: nuevoCosto }, { transaction: t });
 
       await t.commit();
+
+      const [repuestoAud] = await nombresProductosDeInventario(sequelize, [{ IdInventario, Cantidad: 1 }]);
+      await auditar(this.bitacoraService, ctx,
+        `Agregó ${Cantidad} repuesto(s) a una orden de reparación`,
+        `${repuestoAud ?? 'Repuesto'} · precio cobrado ${precioCobrado}`);
+
       return nuevoRepuesto;
 
     } catch (error) {
@@ -76,7 +103,7 @@ export default class RepuestoOrdenService {
     }
   }
 
-  async delete(id) {
+  async delete(id, ctx = null) {
     const t = await sequelize.transaction();
 
     try {
@@ -100,12 +127,17 @@ export default class RepuestoOrdenService {
       }
 
       const costoARestar = Number(repuesto.PrecioCobrado) * repuesto.Cantidad;
-      const nuevoCosto = Math.max(0, Number(orden.CostoRepuestos) - costoARestar);
+      const nuevoCosto = round2(Math.max(0, Number(orden.CostoRepuestos) - costoARestar));
       await orden.update({ CostoRepuestos: nuevoCosto }, { transaction: t });
 
       await this.repuestoOrdenDAO.remove(id, { transaction: t });
 
       await t.commit();
+
+      await auditar(this.bitacoraService, ctx,
+        'Quitó un repuesto de una orden de reparación',
+        `Se devolvieron ${repuesto.Cantidad} unidad(es) al stock`);
+
       return true;
 
     } catch (error) {

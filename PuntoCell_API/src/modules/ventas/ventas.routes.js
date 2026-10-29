@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { validateFields } from '../../core/middlewares/validateFields.middleware.js';
+import { requireCajaAbierta } from '../../core/middlewares/caja.middleware.js';
 import { cotizacionSchema, cotizacionUpdateSchema } from './cotizacion/cotizacion.dto.js';
 import { descuentoSchema, descuentoUpdateSchema } from './descuento/descuento.dto.js';
 import { estadoReclamoSchema, estadoReclamoUpdateSchema } from './estado-reclamo/estado-reclamo.dto.js';
@@ -77,7 +78,7 @@ export default (container) => {
   // Pagos de Venta
   router.get('/pagos', pagoVentaController.getAll);
   router.get('/pagos/:id', pagoVentaController.getById);
-  router.post('/pagos', validateFields(pagoVentaSchema), pagoVentaController.create);
+  router.post('/pagos', validateFields(pagoVentaSchema), requireCajaAbierta(), pagoVentaController.create);
   router.put('/pagos/:id', validateFields(pagoVentaUpdateSchema), pagoVentaController.update);
   router.delete('/pagos/:id', pagoVentaController.remove);
   
@@ -85,7 +86,7 @@ export default (container) => {
   router.get('/', ventaController.getAll);
   router.get('/historico', ventaController.historico);
   router.get('/:id', ventaController.getById);
-  router.post('/', validateFields(ventaSchema), ventaController.create);
+  router.post('/', validateFields(ventaSchema), requireCajaAbierta(), ventaController.create);
   router.put('/:id', validateFields(ventaUpdateSchema), ventaController.update);
   router.delete('/:id', ventaController.remove);
   return router;

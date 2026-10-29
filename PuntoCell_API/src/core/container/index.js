@@ -9,18 +9,35 @@ import { createAuthModule } from '../../modules/auth/auth.module.js';
 import { createEstadisticasModule } from '../../modules/estadisticas/estadisticas.module.js';
 import { createVentasModule } from '../../modules/ventas/ventas.module.js';
 import { createFinanzasModule } from '../../modules/finanzas/finanzas.module.js';
+import { createAuditoriaModule } from '../../modules/auditoria/auditoria.module.js';
+import { createPreciosModule } from '../../modules/precios/precios.module.js';
+import { createDashboardModule } from '../../modules/dashboard/dashboard.module.js';
+import { createReportesModule } from '../../modules/reportes/reportes.module.js';
+import { createCajaModule } from '../../modules/caja/caja.module.js';
+import { createAsistenteTecnicoModule } from '../../modules/asistente-tecnico/asistente-tecnico.module.js';
+import { createAsistenteUsuarioModule } from '../../modules/asistente-usuario/asistente-usuario.module.js';
 
 export function createContainer() {
   const usuarioDAO = new UsuarioDAO(models.Usuario);
+  // Crear módulo de auditoría primero para pasar su servicio a otros módulos
+  const auditoriaModule = createAuditoriaModule();
+  const cajaModule = createCajaModule();
 
   return {
-    usuariosEmpresa: createUsuariosEmpresaModule(usuarioDAO),
-    reparaciones: createReparacionesModule(usuarioDAO),
-    compras: createComprasModule(),
-    auth: createAuthModule(usuarioDAO),
-    inventario: createInventarioModule(),
+    usuariosEmpresa: createUsuariosEmpresaModule(usuarioDAO, auditoriaModule.bitacoraService),
+    reparaciones: createReparacionesModule(usuarioDAO, auditoriaModule.bitacoraService, cajaModule.cajaService),
+    compras: createComprasModule(auditoriaModule.bitacoraService, cajaModule.cajaService),
+    auth: createAuthModule(usuarioDAO, auditoriaModule.bitacoraService),
+    inventario: createInventarioModule(auditoriaModule.bitacoraService),
+    precios: createPreciosModule(auditoriaModule.bitacoraService),
     estadisticas: createEstadisticasModule(),
-    ventas: createVentasModule(),
-    finanzas: createFinanzasModule()
+    dashboard: createDashboardModule(auditoriaModule.bitacoraService),
+    reportes: createReportesModule(auditoriaModule.bitacoraService),
+    ventas: createVentasModule(auditoriaModule.bitacoraService, cajaModule.cajaService),
+    finanzas: createFinanzasModule(auditoriaModule.bitacoraService),
+    asistenteTecnico: createAsistenteTecnicoModule(),
+    asistenteUsuario: createAsistenteUsuarioModule(),
+    auditoria: auditoriaModule,
+    caja: cajaModule
   };
 }

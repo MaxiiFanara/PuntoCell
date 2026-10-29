@@ -1,43 +1,110 @@
+import { auditar } from '../../../core/utils/audit.util.js';
+import { esMetodoEfectivo, montoEfectivo } from '../../../core/utils/efectivo.util.js';
+
+const round2 = (value) => Number(Number(value || 0).toFixed(2));
+
+const bizError = (message, statusCode = 400) => {
+  const err = new Error(message);
+  err.statusCode = statusCode;
+  return err;
+};
+
 export default class PagoCompraService {
-  constructor(pagoCompraDAO) {
+  constructor(pagoCompraDAO, cuentaCorrienteProveedorService, bitacoraService = null, cajaService = null) {
     this.pagoCompraDAO = pagoCompraDAO;
+    this.cuentaCorrienteProveedorService = cuentaCorrienteProveedorService;
+    this.bitacoraService = bitacoraService;
+    this.cajaService = cajaService;
   }
 
   async getAll(query = {}) {
     const { page, limit } = query;
-    return await this.pagoCompraDAO.getAll({
-      page,
-      limit
-    });
+    return await this.pagoCompraDAO.getAll({ page, limit });
   }
 
   async getById(id) {
     const pago = await this.pagoCompraDAO.getById(id);
-    if (!pago) throw new Error('Pago de compra no encontrado');
+    if (!pago) throw bizError('Pago de compra no encontrado', 404);
     return pago;
   }
 
-  async create(data) {
-    const nuevoPago = {
-      ...data,
-      FechaPago: data.FechaPago ? new Date(data.FechaPago) : new Date()
-    };
-    return await this.pagoCompraDAO.create(nuevoPago);
-  }
+  // "Registrar pago posterior": paga (total o parcialmente) el saldo pendiente de una
+  // Compra ya existente, sin recrearla. Transaccional: PagoCompra + Haber en
+  // CuentaCorrienteProveedor + actualización de SaldoPendiente/EstadoPago de la Compra
+  // quedan todos adentro o todos afuera.
+  async create(data, ctx = null) {
+    const sequelize = this.pagoCompraDAO.model.sequelize;
+    const t = await sequelize.transaction();
 
-  async update(id, data) {
-    const pago = await this.pagoCompraDAO.getById(id);
-    if (!pago) throw new Error('Pago de compra no encontrado');
-    
-    return await this.pagoCompraDAO.update(id, data);
-  }
+    try {
+      const { Compra, MetodoPago, TurnoCaja } = sequelize.models;
 
-  async delete(id) {
-    const pago = await this.pagoCompraDAO.getById(id);
-    if (!pago) throw new Error('Pago de compra no encontrado');
-    
-    const eliminado = await this.pagoCompraDAO.remove(id);
-    if (!eliminado) throw new Error('No se pudo eliminar el pago de la compra');
-    return true;
+      const compra = await Compra.findByPk(data.IdCompra, { transaction: t, lock: t.LOCK.UPDATE });
+      if (!compra) throw bizError(`Compra no encontrada (Id=${data.IdCompra}).`, 404);
+
+      const metodo = await MetodoPago.findByPk(data.IdMetodoPago, { transaction: t });
+      if (!metodo) throw bizError(`Método de pago no encontrado (Id=${data.IdMetodoPago}).`, 404);
+
+      const turno = await TurnoCaja.findByPk(data.IdTurnoCaja, { transaction: t });
+      if (!turno) throw bizError(`Turno de caja no encontrado (Id=${data.IdTurnoCaja}).`, 404);
+
+      // En efectivo el pago es un importe entero; pagar el saldo redondeado salda la deuda
+      // aunque difiera unos centavos del saldo exacto.
+      const efectivo = await esMetodoEfectivo(sequelize.models, data.IdMetodoPago, t);
+      const monto = efectivo ? montoEfectivo(data.Monto) : round2(data.Monto);
+      const saldoActual = Number(compra.SaldoPendiente);
+      const saldaPorRedondeo = efectivo && monto !== saldoActual && monto === Math.round(saldoActual);
+      const montoAplicado = saldaPorRedondeo ? saldoActual : monto;
+      if (montoAplicado > saldoActual) {
+        throw bizError(`El pago (${monto}) supera el saldo pendiente de la Compra Id=${data.IdCompra} (${saldoActual}).`);
+      }
+
+      const pago = await this.pagoCompraDAO.create({
+        Monto: monto,
+        FechaPago: data.FechaPago ? new Date(data.FechaPago) : new Date(),
+        IdCompra: data.IdCompra,
+        IdMetodoPago: data.IdMetodoPago,
+        IdTurnoCaja: data.IdTurnoCaja
+      }, { transaction: t });
+
+      await this.cuentaCorrienteProveedorService.registrarPago(
+        { IdProveedor: compra.IdProveedor, IdCompra: compra.Id, IdPagoCompra: pago.Id, Monto: montoAplicado },
+        { transaction: t }
+      );
+
+      let nombreProveedor = 'Proveedor Desconocido';
+      if (compra && compra.IdProveedor) {
+        const prov = await sequelize.models.Proveedor.findByPk(compra.IdProveedor, { transaction: t });
+        if (prov) nombreProveedor = prov.Nombre;
+      }
+
+      if (this.cajaService) {
+        await this.cajaService.registrarEgreso({
+          IdTurnoCaja: data.IdTurnoCaja,
+          IdEmpleado: ctx?.IdEmpleado || compra.IdEmpleado,
+          Monto: monto,
+          IdMetodoPago: data.IdMetodoPago,
+          Descripcion: `Pago a Proveedor: ${nombreProveedor} - Compra #${data.IdCompra}`,
+          Fecha: pago.FechaPago
+        }, { transaction: t });
+      }
+
+      const nuevoSaldo = round2(saldoActual - montoAplicado);
+      const nuevoEstado = nuevoSaldo === 0 ? 3 : 2;
+      await compra.update({ SaldoPendiente: nuevoSaldo, EstadoPago: nuevoEstado }, { transaction: t });
+
+      await t.commit();
+
+      await auditar(this.bitacoraService, ctx,
+        `Registró un pago de ${monto} a la compra`,
+        `Saldo pendiente: ${nuevoSaldo} · estado ${nuevoEstado === 3 ? 'Pagado' : 'Parcial'}`);
+
+      return await this.pagoCompraDAO.getById(pago.Id);
+    } catch (err) {
+      await t.rollback();
+      if (err.statusCode) throw err;
+      const message = (err.original && (err.original.message || err.original.sqlMessage)) || err.message || 'Error al registrar el pago';
+      throw new Error(message);
+    }
   }
 }

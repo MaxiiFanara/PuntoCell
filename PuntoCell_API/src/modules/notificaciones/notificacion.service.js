@@ -1,12 +1,16 @@
 import nodemailer from 'nodemailer';
 import { env } from '../../core/config/env.js';
+import logger from '../../core/utils/logger.js';
 
 export default class NotificacionService {
   constructor() {
+    // Puerto 465 = SSL directo (secure:true); 587 = STARTTLS (secure:false). Antes se
+    // forzaba secure:true también con 587 (docker-compose), y el handshake TLS fallaba.
+    const port = env.SMTP.PORT || 465;
     this.transporter = nodemailer.createTransport({
-      service: 'gmail',
-      port: env.SMTP.PORT || 465,
-      secure: true,
+      host: 'smtp.gmail.com',
+      port,
+      secure: port === 465,
       auth: {
         user: env.SMTP.USER,
         pass: env.SMTP.PASS, 
@@ -38,7 +42,7 @@ export default class NotificacionService {
       await this.transporter.sendMail(mailOptions);
       return true;
     } catch (error) {
-      console.error('❌ Error al enviar el mail:', error);
+      logger.error('❌ Error al enviar el mail:', error);
       return false;
     }
   }
@@ -72,6 +76,13 @@ export default class NotificacionService {
         titulo: 'Tu orden fue cancelada',
         cuerpo: 'La orden de reparación fue anulada. Si creés que es un error o tenés dudas, comunicate con nosotros.',
         badge: '🚫 Anulado',
+      },
+      6: {
+        asunto: `Orden #${numOrden} — Orden abandonada`,
+        color: '#b45309',
+        titulo: 'Tu equipo fue marcado como abandonado',
+        cuerpo: 'Pasaron 60 días desde que la reparación quedó terminada sin retiro. La orden fue dada de baja y el equipo ingresó a inventario.',
+        badge: '⏳ Abandonado',
       },
     };
 
@@ -115,7 +126,7 @@ export default class NotificacionService {
       await this.transporter.sendMail(mailOptions);
       return true;
     } catch (error) {
-      console.error(`❌ Error al enviar notificación de estado ${nuevoEstado}:`, error.message);
+      logger.error(`❌ Error al enviar notificación de estado ${nuevoEstado}:`, error.message);
       return false;
     }
   }
@@ -154,17 +165,16 @@ export default class NotificacionService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Comprobante de orden #${numOrden} enviado a ${email}`);
+      logger.info(`✅ Comprobante de orden #${numOrden} enviado a ${email}`);
       return true;
     } catch (error) {
-      console.error(`❌ Error al enviar comprobante de orden #${numOrden}:`, error.message);
+      logger.error(`❌ Error al enviar comprobante de orden #${numOrden}:`, error.message);
       return false;
     }
   }
 
   async enviarEmailRecuperacion(email, nombre, token) {
-    // TODO: mover a env.APP.FRONTEND_URL en producción
-    const frontendUrl = 'http://localhost:5173';
+    const frontendUrl = env.APP.FRONTEND_URL;
     const resetLink = `${frontendUrl}/reset-password?token=${token}`;
 
     const mailOptions = {
@@ -199,10 +209,10 @@ export default class NotificacionService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Mail de recuperación enviado exitosamente a ${email}`);
+      logger.info(`✅ Mail de recuperación enviado exitosamente a ${email}`);
       return true;
     } catch (error) {
-      console.error('❌ Error al enviar el mail de recuperación:', error);
+      logger.error('❌ Error al enviar el mail de recuperación:', error);
       return false;
     }
   }

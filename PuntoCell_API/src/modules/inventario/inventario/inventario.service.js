@@ -1,8 +1,11 @@
 import { Op } from 'sequelize';
+import { registerAudit } from '../../../core/utils/audit.util.js';
+import { resolverListasPrecioCategoria, reprecificarInventario } from '../../../core/utils/precios.util.js';
 
 export default class InventarioService {
-  constructor(inventarioDAO) {
+  constructor(inventarioDAO, bitacoraService = null) {
     this.inventarioDAO = inventarioDAO;
+    this.bitacoraService = bitacoraService;
     // Sin exclude: React necesita el Id como key
     this.ATTRIBUTES = {};
   }
@@ -20,10 +23,11 @@ export default class InventarioService {
   // No hay columna "plan canje" en la BD: se identifica por este proveedor placeholder.
   static PROVEEDOR_CANJE = 'canje de clientes';
 
-  async getAll(query = {}) {
+  async getAll(query = {}, auditContext = null) {
     const { page, limit, IdSucursal, soloVendibles, soloRepuestos, soloCanje, IMEI } = query;
     const { Sucursal, Articulo, EstadoInventario, Proveedor } = this._getRelatedModels();
     const sequelize = this.inventarioDAO.model.sequelize;
+    const { Color, Memoria, Almacenamiento, Bateria, ModeloArticulo } = sequelize.models;
 
     const whereClause = {};
     if (IdSucursal) {
@@ -42,6 +46,9 @@ export default class InventarioService {
       : esTruthy(soloRepuestos)
         ? { model: Articulo, as: 'articulo', where: { EsRepuesto: true }, required: true }
         : { model: Articulo, as: 'articulo' };
+    // Nombre del modelo para la columna "Dispositivo" del listado. IdCategoriaArticulo viaja
+    // también: el Actualizador de Precio (precios.jsx) lo necesita para ordenar Categoría ASC.
+    articuloInclude.include = [{ model: ModeloArticulo, as: 'modelo', attributes: ['Nombre', 'IdCategoriaArticulo'] }];
 
     // Plan Canje: proveedor = placeholder de canje de clientes
     const proveedorInclude = esTruthy(soloCanje)
@@ -59,15 +66,21 @@ export default class InventarioService {
         { model: Sucursal, as: 'sucursal', attributes: ['Id', 'Nombre'] },
         articuloInclude,
         proveedorInclude,
-        { model: EstadoInventario, as: 'estado', attributes: ['Id', 'Nombre'] }
+        { model: EstadoInventario, as: 'estado', attributes: ['Id', 'Nombre'] },
+        // Características por renglón: LEFT JOIN, así los accesorios/repuestos que no las
+        // tienen igual vuelven con color/memoria/bateria en null.
+        { model: Color, as: 'color', attributes: ['Nombre'] },
+        { model: Memoria, as: 'memoria', attributes: ['Capacidad'] },
+        { model: Almacenamiento, as: 'almacenamiento', attributes: ['Capacidad'] },
+        { model: Bateria, as: 'bateria', attributes: ['Capacidad', 'Porcentaje'] }
       ]
     });
   }
 
-  async getById(id) {
+  async getById(id, auditContext = null) {
     const { Sucursal, Articulo, EstadoInventario } = this._getRelatedModels();
     const sequelize = this.inventarioDAO.model.sequelize;
-    const { Color, Memoria, ModeloArticulo } = sequelize.models;
+    const { Color, Memoria, Almacenamiento, ModeloArticulo } = sequelize.models;
 
     const item = await this.inventarioDAO.getById(id, {
       attributes: { exclude: [] }, // Aseguramos que traiga el Id
@@ -76,6 +89,7 @@ export default class InventarioService {
         { model: EstadoInventario, as: 'estado', attributes: ['Id', 'Nombre'] },
         { model: Color, as: 'color', attributes: ['Nombre'] },
         { model: Memoria, as: 'memoria', attributes: ['Capacidad'] },
+        { model: Almacenamiento, as: 'almacenamiento', attributes: ['Capacidad'] },
         {
           model: Articulo,
           as: 'articulo',
@@ -86,7 +100,17 @@ export default class InventarioService {
       ]
     });
 
-    if (!item) throw new Error('Inventario no encontrado');
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Inventario no encontrado`,
+        Accion: 'Obtener Inventario',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Inventario no encontrado');
+    }
     return item;
   }
 
@@ -121,38 +145,142 @@ export default class InventarioService {
     throw err;
   }
 
-  async create(data) {
+  async create(data, auditContext = null) {
     const { Sucursal, Articulo, EstadoInventario } = this._getRelatedModels();
     const suc = await Sucursal.findByPk(data.IdSucursal);
-    if (!suc) throw new Error('Sucursal no encontrada');
+    if (!suc) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Sucursal no encontrada`,
+        Accion: 'Crear Inventario',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Sucursal no encontrada');
+    }
     const art = await Articulo.findByPk(data.IdArticulo);
-    if (!art) throw new Error('Articulo no encontrado');
+    if (!art) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Articulo no encontrado`,
+        Accion: 'Crear Inventario',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Articulo no encontrado');
+    }
     const est = await EstadoInventario.findByPk(data.IdEstadoInventario);
-    if (!est) throw new Error('EstadoInventario no encontrado');
+    if (!est) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `EstadoInventario no encontrado`,
+        Accion: 'Crear Inventario',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('EstadoInventario no encontrado');
+    }
 
     await this._validarIMEI(data.IMEI);
     this._validarStockSerializado(art, data.Stock);
 
-    return await this.inventarioDAO.create(data);
+    // CostoBase no es columna de Inventario: si viene (alta por canje / ingreso manual con
+    // costo), se usa para generar automáticamente el PrecioArticulo en las listas de la
+    // categoría — igual que una compra. Se separa del payload que va al modelo.
+    const { CostoBase, ...invData } = data;
+
+    const sequelize = this.inventarioDAO.model.sequelize;
+    const t = await sequelize.transaction();
+    let created;
+    try {
+      created = await this.inventarioDAO.create(invData, { transaction: t });
+
+      if (Number(CostoBase) > 0) {
+        const modelo = await sequelize.models.ModeloArticulo.findByPk(art.IdModeloArticulo, { transaction: t });
+        const listas = await resolverListasPrecioCategoria(sequelize, modelo?.IdCategoriaArticulo, t);
+        await reprecificarInventario(sequelize, { IdInventario: created.Id, CostoBase, listas }, t);
+      }
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+
+
+    const nombreArt = art ? art.Nombre : 'Artículo';
+    const imeiStr = data.IMEI ? ` (IMEI: ${data.IMEI})` : '';
+    
+    await registerAudit(this.bitacoraService, {
+      detalle: `Ingresó al inventario: ${data.Stock || 1}x ${nombreArt}${imeiStr}${Number(CostoBase) > 0 ? ` [Costo: $${CostoBase}]` : ''}`,
+      Accion: 'Crear Inventario',
+      IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+      IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return created;
   }
 
-  async update(id, data) {
+  async update(id, data, auditContext = null) {
     const item = await this.inventarioDAO.getById(id);
-    if (!item) throw new Error('Inventario no encontrado');
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Inventario no encontrado`,
+        Accion: 'Actualizar Inventario',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Inventario no encontrado');
+    }
     const { Sucursal, Articulo, EstadoInventario } = this._getRelatedModels();
 
     if (data.IdSucursal !== undefined) {
       const suc = await Sucursal.findByPk(data.IdSucursal);
-      if (!suc) throw new Error('Sucursal no encontrada');
+      if (!suc) {
+        await registerAudit(this.bitacoraService, {
+          detalle: `Sucursal no encontrada`,
+          Accion: 'Actualizar Inventario',
+          IdEmpleado: auditContext?.IdEmpleado,
+          IdSucursal: auditContext?.IdSucursal,
+          IpAddress: auditContext?.Ip,
+          Fecha: new Date()
+        }).catch(() => {});
+        throw new Error('Sucursal no encontrada');
+      }
     }
     let art = null;
     if (data.IdArticulo !== undefined) {
       art = await Articulo.findByPk(data.IdArticulo);
-      if (!art) throw new Error('Articulo no encontrado');
+      if (!art) {
+        await registerAudit(this.bitacoraService, {
+          detalle: `Articulo no encontrado`,
+          Accion: 'Actualizar Inventario',
+          IdEmpleado: auditContext?.IdEmpleado,
+          IdSucursal: auditContext?.IdSucursal,
+          IpAddress: auditContext?.Ip,
+          Fecha: new Date()
+        }).catch(() => {});
+        throw new Error('Articulo no encontrado');
+      }
     }
     if (data.IdEstadoInventario !== undefined) {
       const est = await EstadoInventario.findByPk(data.IdEstadoInventario);
-      if (!est) throw new Error('EstadoInventario no encontrado');
+      if (!est) {
+        await registerAudit(this.bitacoraService, {
+          detalle: `EstadoInventario no encontrado`,
+          Accion: 'Actualizar Inventario',
+          IdEmpleado: auditContext?.IdEmpleado,
+          IdSucursal: auditContext?.IdSucursal,
+          IpAddress: auditContext?.Ip,
+          Fecha: new Date()
+        }).catch(() => {});
+        throw new Error('EstadoInventario no encontrado');
+      }
     }
 
     if (data.IMEI !== undefined) {
@@ -164,12 +292,40 @@ export default class InventarioService {
       this._validarStockSerializado(articuloActual, data.Stock);
     }
 
-    return await this.inventarioDAO.update(id, data);
+    const updated = await this.inventarioDAO.update(id, data);
+    await registerAudit(this.bitacoraService, {
+      detalle: `Modificó datos del inventario #${id} (Campos: ${Object.keys(data).join(', ')})`,
+      Accion: 'Actualizar Inventario',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return updated;
   }
 
-  async remove(id) {
+  async remove(id, auditContext = null) {
     const item = await this.inventarioDAO.getById(id);
-    if (!item) throw new Error('Inventario no encontrado');
-    return await this.inventarioDAO.remove(id);
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Inventario no encontrado`,
+        Accion: 'Eliminar Inventario',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Inventario no encontrado');
+    }
+    const removed = await this.inventarioDAO.remove(id);
+    await registerAudit(this.bitacoraService, {
+      detalle: `Inventario eliminado`,
+      Accion: 'Eliminar Inventario',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return removed;
   }
 }

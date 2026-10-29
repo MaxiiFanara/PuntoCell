@@ -4,7 +4,7 @@ export const validateFields = (schema) => (req, res, next) => {
     return res.status(400).json({ errors: ['Request body is missing or invalid JSON'] });
   }
 
-  const { error, value } = schema.validate(req.body, { abortEarly: false });
+  const { error, value } = schema.validate(req.body, { abortEarly: false, stripUnknown: true, convert: true });
 
   if (error) {
     return res.status(400).json({

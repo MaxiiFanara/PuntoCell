@@ -1,139 +1,259 @@
-import { useState, useEffect } from 'react'; 
-import {
-  Autocomplete, TextField, Button,
-  Box, Typography
-} from '@mui/material';
+import { useState, useEffect, useRef } from 'react';
+import { Autocomplete, Box, Button, TextField, Typography, InputAdornment, IconButton, Snackbar, Alert } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import { useVenta } from '../context/VentaContext';
+import ImeiScannerModal from '../../../components/modals/ImeiScannerModal';
 
 export const ProductoSearch = ({ inventario = [], onTerminoChange }) => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [inputValue, setInputValue] = useState('');
-  const { agregarAlCarrito, esMayorista } = useVenta();
+  const [scannerAbierto, setScannerAbierto] = useState(false);
+  
+  const [toast, setToast] = useState({ open: false, msg: '', severity: 'warning' });
+  
+  const { agregarAlCarrito, esMayorista, dolarGlobal, resolverPrecios, carrito } = useVenta();
+
+  const carritoRef = useRef(carrito);
+  const inventarioRef = useRef(inventario);
+  const procesandoRef = useRef(false);
+
+  useEffect(() => { carritoRef.current = carrito; }, [carrito]);
+  useEffect(() => { inventarioRef.current = inventario; }, [inventario]);
+
+  const precioDe = (item) => {
+    const { minorista, mayorista } = resolverPrecios(item?.Id ?? item?.id);
+    return esMayorista ? (mayorista || minorista || 0) : (minorista || 0);
+  };
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
-      if (inputValue.trim().length > 0) {
-        onTerminoChange(inputValue);
-      } else {
-        onTerminoChange(""); 
-      }
+      onTerminoChange(inputValue.trim().length > 0 ? inputValue : '');
     }, 300);
     return () => clearTimeout(delayDebounceFn);
   }, [inputValue]);
 
-  // Solo mostrar/permitir agregar productos con Stock > 0: una fila en 0 ya fue vendida (o no
-  // tiene stock) y no debería poder agregarse de nuevo al carrito, sobre todo tratándose de un
-  // producto serializado (IMEI) que es de a una sola unidad.
   const inventarioDisponible = (inventario || []).filter(item => Number(item.Stock ?? 0) > 0);
 
   const opciones = inventarioDisponible.map(item => {
     const nombre = item.articulo?.Nombre || 'Sin nombre';
-    const precio = esMayorista ? (item.PrecioMayor || item.PrecioMenor || 0) : (item.PrecioMenor || 0);
+    const precio = precioDe(item);
     const stock = item.Stock ?? 0;
-    const idUnico = item.Id || Math.random();
-
+    const serial = !!(item.articulo?.EsSerializado || item.IMEI);
+    const detalle = serial
+      ? [item.IMEI ? `IMEI ${item.IMEI}` : null, item.estado?.Nombre, item.color?.Nombre, item.almacenamiento?.Capacidad ?? item.memoria?.Capacidad].filter(Boolean).join(' · ')
+      : `stock ${stock}`;
     return {
-      label: `${nombre} - U$S ${precio} (Stock: ${stock})`,
-      value: nombre,
+      label: nombre,
       datos: item,
       nombreLimpio: nombre,
       precioLimpio: precio,
-      stockLimpio: stock,
-      id: idUnico
+      detalle,
+      serial,
+      id: item.Id || Math.random(),
     };
   });
 
-  const handleSelect = (event, option) => {
-    if (option) setSelectedProduct(option.datos);
+  const mostrarAlerta = (msg, severity = 'warning') => {
+    setToast({ open: true, msg, severity });
   };
 
-  const handleKeyDown = (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      const codigo = inputValue.trim();
-      if (!codigo) return;
+  const handleCerrarToast = (event, reason) => {
+    if (reason === 'clickaway') return;
+    setToast(prev => ({ ...prev, open: false }));
+  };
 
-      const encontrado = inventarioDisponible.find(item => {
-        const nombre = (item.articulo?.Nombre || "").toLowerCase();
-        const imei = (item.IMEI || "");
-        return nombre.includes(codigo.toLowerCase()) || imei === codigo;
+  const procesarIngresoDeCodigo = (codigo) => {
+    if (!codigo || procesandoRef.current) return;
+    procesandoRef.current = true;
+
+    const codigoLimpio = String(codigo).replace(/[^a-zA-Z0-9]/g, '').trim().toLowerCase();
+
+    setInputValue(codigoLimpio);
+    onTerminoChange(codigoLimpio);
+
+    let intentos = 0;
+    const intervalo = setInterval(() => {
+      intentos++;
+
+      const encontrado = (inventarioRef.current || []).find(item => {
+        const nombre = String(item.articulo?.Nombre || item.nombre || '').toLowerCase();
+        const imei = String(item.IMEI || item.imei || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        const barras = String(item.articulo?.CodigoBarras || item.articulo?.codigoBarras || item.codigoBarras || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+        return (
+          nombre.includes(codigoLimpio) || 
+          (imei === codigoLimpio && imei !== '') || 
+          (barras === codigoLimpio && barras !== '')
+        );
       });
 
       if (encontrado) {
-        agregarAlCarrito(encontrado);
+        clearInterval(intervalo);
+        procesandoRef.current = false;
+        
+        // 🔥 VALIDACIÓN INFALIBLE POR ID: Verificamos si el ID del producto ya está en el carrito
+        const idEncontrado = encontrado.Id || encontrado.id;
+        const yaEstaEnCarrito = (carritoRef.current || []).some(c => (c.Id || c.id) === idEncontrado);
+
+        if (yaEstaEnCarrito) {
+          mostrarAlerta('El equipo ya se encuentra cargado en el carrito de esta venta.', 'warning');
+        } else if (Number(encontrado.Stock ?? 0) <= 0) {
+          mostrarAlerta('El producto se encontró, pero figura sin stock disponible en esta sucursal.', 'error');
+        } else {
+          agregarAlCarrito(encontrado);
+        }
+        
         setInputValue('');
+        onTerminoChange('');
         setSelectedProduct(null);
-      } else {
-        alert("⚠️ El IMEI o producto no se encuentra en el stock de esta sucursal.");
+      } 
+      else if (intentos >= 10) {
+        clearInterval(intervalo);
+        procesandoRef.current = false;
+        mostrarAlerta(`El código "${codigoLimpio}" no se encuentra registrado en esta sucursal.`, 'error');
+        setInputValue('');
+        onTerminoChange('');
       }
-    }
+    }, 100);
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    procesarIngresoDeCodigo(inputValue.trim());
   };
 
   const handleAgregar = () => {
-    if (selectedProduct) {
+    if (!selectedProduct) return;
+
+    // Validamos también al agregar manualmente con el botón
+    const idSeleccionado = selectedProduct.Id || selectedProduct.id;
+    const yaEstaEnCarrito = (carrito || []).some(c => (c.Id || c.id) === idSeleccionado);
+
+    if (yaEstaEnCarrito) {
+      mostrarAlerta('El equipo ya se encuentra cargado en el carrito de esta venta.', 'warning');
+    } else {
       agregarAlCarrito(selectedProduct);
-      setSelectedProduct(null);
-      setInputValue('');
     }
+    
+    setSelectedProduct(null);
+    setInputValue('');
   };
 
-  const precioBase = selectedProduct?.PrecioMenor || 0;
-  const precioMayor = selectedProduct?.PrecioMayor || precioBase;
-  const precioMostrado = esMayorista ? precioMayor : precioBase;
+  const precioUsd = selectedProduct ? precioDe(selectedProduct) : 0;
+  const precioArs = precioUsd * (dolarGlobal || 0);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, alignItems: 'flex-end' }}>
-      <Box sx={{ flex: 1, width: '100%' }}>
-        <Autocomplete
-          freeSolo
-          options={opciones}
-          inputValue={inputValue}
-          onInputChange={(e, value) => setInputValue(value)}
-          onChange={handleSelect}
-          renderOption={(props, option) => (
-            <li {...props} key={option.id}>
-              <Box>
-                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                  {option.nombreLimpio}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  U$S {option.precioLimpio} | Stock: {option.stockLimpio}
-                </Typography>
-              </Box>
-            </li>
-          )}
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              label="Buscar Producto"
-              placeholder="Escribí nombre, modelo o escaneá IMEI..."
-              fullWidth
-              size="small"
-              onKeyDown={handleKeyDown}
-              sx={{ bgcolor: 'white' }}
-            />
-          )}
-        />
+    <>
+      <Box sx={{
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', md: 'minmax(0,1fr) 150px auto' },
+        gap: 1.25,
+        alignItems: 'end',
+      }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
+          <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>Producto o IMEI</Box>
+          <Autocomplete
+            freeSolo
+            options={opciones}
+            inputValue={inputValue}
+            onInputChange={(e, value) => setInputValue(value)}
+            onChange={(e, option) => option && setSelectedProduct(option.datos)}
+            renderOption={(props, option) => {
+              const { key: _key, ...rest } = props;
+              return (
+                <li key={option.id} {...rest}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 600, fontSize: '.8125rem' }}>
+                      {option.nombreLimpio}{option.serial && ' 📱'}
+                    </Typography>
+                    <Typography className="mono" sx={{ color: 'text.disabled', fontSize: '.69rem' }}>
+                      U$S {option.precioLimpio} · {option.detalle}
+                    </Typography>
+                  </Box>
+                </li>
+              );
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                placeholder="Escribí el nombre o escaneá el IMEI"
+                fullWidth
+                onKeyDown={handleKeyDown}
+                InputProps={{
+                  ...params.InputProps,
+                  endAdornment: (
+                    <>
+                      {params.InputProps.endAdornment}
+                      <InputAdornment position="end">
+                        <IconButton color="primary" onClick={() => setScannerAbierto(true)} sx={{ mr: 1 }}>
+                          <QrCodeScannerIcon />
+                        </IconButton>
+                      </InputAdornment>
+                    </>
+                  )
+                }}
+              />
+            )}
+          />
+        </Box>
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
+          <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>Precio unitario</Box>
+          <Box sx={{
+            height: 32, px: 1.25, display: 'flex', flexDirection: 'column', justifyContent: 'center',
+            border: 1, borderColor: 'divider', borderRadius: '7px', bgcolor: 'pc.surfaceMuted',
+          }}>
+            {precioUsd ? (
+              <>
+                <Box className="num" sx={{ fontSize: '.78rem', fontWeight: 600, lineHeight: 1.1 }}>
+                  U$S {precioUsd}
+                </Box>
+                <Box className="num" sx={{ fontSize: '.63rem', color: 'text.disabled', lineHeight: 1.1 }}>
+                  $ {Math.round(precioArs).toLocaleString('es-AR')}
+                </Box>
+              </>
+            ) : (
+              <Box sx={{ fontSize: '.78rem', color: 'text.disabled' }}>—</Box>
+            )}
+          </Box>
+        </Box>
+
+        <Button
+          variant="contained"
+          onClick={handleAgregar}
+          disabled={!selectedProduct}
+          startIcon={<AddIcon sx={{ fontSize: '16px !important' }} />}
+        >
+          Agregar
+        </Button>
       </Box>
 
-      <TextField 
-        label="Precio Unit." 
-        value={precioMostrado ? `U$S ${precioMostrado}` : ''} 
-        InputProps={{ readOnly: true }} 
-        size="small" 
-        sx={{ width: { xs: '100%', md: 160 }, bgcolor: 'white' }} 
+      <ImeiScannerModal
+        open={scannerAbierto}
+        onClose={() => setScannerAbierto(false)}
+        onScanSuccess={(codigoEscaneado) => {
+          procesarIngresoDeCodigo(codigoEscaneado);
+        }}
       />
 
-      <Button 
-        variant="contained" 
-        onClick={handleAgregar} 
-        disabled={!selectedProduct} 
-        startIcon={<AddIcon />} 
-        sx={{ bgcolor: '#1976d2', borderRadius: 2, height: 40 }}
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={4000}
+        onClose={handleCerrarToast}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ zIndex: (theme) => theme.zIndex.modal + 2 }} 
       >
-        AGREGAR
-      </Button>
-    </Box>
+        <Alert 
+          onClose={handleCerrarToast} 
+          severity={toast.severity} 
+          variant="filled" 
+          sx={{ width: '100%', boxShadow: 3, fontWeight: 500 }}
+        >
+          {toast.msg}
+        </Alert>
+      </Snackbar>
+    </>
   );
 };

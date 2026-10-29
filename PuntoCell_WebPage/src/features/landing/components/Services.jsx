@@ -1,101 +1,140 @@
-import { Box, Card, CardContent, Typography, Button } from '@mui/material';
-import SmartphoneIcon from '@mui/icons-material/Smartphone';
-import HandymanIcon from '@mui/icons-material/Handyman';
-import HeadphonesIcon from '@mui/icons-material/Headphones';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import { Box, Paper, Typography } from '@mui/material'
+import SmartphoneOutlinedIcon from '@mui/icons-material/SmartphoneOutlined'
+import BuildOutlinedIcon from '@mui/icons-material/BuildOutlined'
+import HeadphonesOutlinedIcon from '@mui/icons-material/HeadphonesOutlined'
+import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined'
+import SwapHorizOutlinedIcon from '@mui/icons-material/SwapHorizOutlined'
+import CreditCardOutlinedIcon from '@mui/icons-material/CreditCardOutlined'
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
+import { Link } from 'react-router-dom'
 
+import { STORE_CONFIG } from '../../catalogo/config/store'
+import { hoverLift, section, shell } from '../../../components/ui/publicStyles'
+
+const whatsappUrl = `https://wa.me/${STORE_CONFIG.business.whatsapp}`
+
+const SERVICIOS = [
+  {
+    title: 'Equipos',
+    Icon: SmartphoneOutlinedIcon,
+    description: 'Nuevos y seminuevos verificados, con garantía del local y batería declarada.',
+    cta: 'Ver equipos',
+    to: '/catalogo',
+  },
+  {
+    title: 'Servicio técnico',
+    Icon: BuildOutlinedIcon,
+    description: 'Reparaciones en el día. Cambio de batería, módulos y diagnóstico con repuestos de calidad.',
+    cta: 'Consultar por WhatsApp',
+    href: whatsappUrl,
+  },
+  {
+    title: 'Accesorios',
+    Icon: HeadphonesOutlinedIcon,
+    description: 'Fundas, vidrios templados, cargadores originales y auriculares para cuidar tu equipo.',
+    cta: 'Ver accesorios',
+    to: '/catalogo',
+  },
+  {
+    title: 'Garantía del local',
+    Icon: VerifiedUserOutlinedIcon,
+    description: 'En equipos nuevos y seminuevos.',
+  },
+  {
+    title: 'Tomamos tu usado',
+    Icon: SwapHorizOutlinedIcon,
+    description: 'Como parte de pago.',
+  },
+  {
+    title: 'Pagá online',
+    Icon: CreditCardOutlinedIcon,
+    description: 'Con Mercado Pago desde el catálogo.',
+  },
+]
+
+const enlace = {
+  mt: 'auto',
+  pt: 3,
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 0.5,
+  color: 'primary.main',
+  textDecoration: 'none',
+  fontWeight: 600,
+  fontSize: '.9375rem',
+  '& svg': { fontSize: 16, transition: 'transform 220ms cubic-bezier(.23,1,.32,1)' },
+  '@media (hover: hover) and (pointer: fine)': { '&:hover svg': { transform: 'translateX(3px)' } },
+}
+
+/** Lo que se hace en el local: tres tarjetas con ícono y un enlace de acción. */
 export default function Services() {
-  const services = [
-    {
-      title: 'Equipos Apple',
-      description: 'Encuentra el iPhone, iPad o Mac perfecto para ti. Equipos nuevos y seminuevos verificados con garantía.',
-      icon: <SmartphoneIcon sx={{ fontSize: 48, color: '#111827' }} />
-    },
-    {
-      title: 'Servicio Técnico',
-      description: 'Reparaciones en el día. Cambio de batería, módulos y diagnóstico especializado con repuestos de alta calidad.',
-      icon: <HandymanIcon sx={{ fontSize: 48, color: '#111827' }} />
-    },
-    {
-      title: 'Accesorios Premium',
-      description: 'Fundas, cargadores originales, AirPods y todo lo que necesitas para proteger y potenciar tu dispositivo.',
-      icon: <HeadphonesIcon sx={{ fontSize: 48, color: '#111827' }} />
-    }
-  ];
-
   return (
-    <Box component="section" sx={{ py: 10, bgcolor: 'background.paper' }}>
-      <Box sx={{ px: 2, mx: 'auto', maxWidth: '1280px' }}>
-        
-        {/* Encabezado de la sección */}
-        <Box sx={{ mb: 8, textAlign: 'center' }}>
-          <Typography 
-            variant="h2" 
-            sx={{ fontSize: { xs: '1.875rem', md: '2.25rem' }, fontWeight: 700, color: 'text.primary' }}
-          >
-            Todo para tu dispositivo en un solo lugar
-          </Typography>
-          <Typography 
-            sx={{ maxWidth: '42rem', mx: 'auto', mt: 2, fontSize: '1.125rem', color: 'text.secondary' }}
-          >
-            Calidad, confianza y atención personalizada para que disfrutes al máximo de tu tecnología.
-          </Typography>
-        </Box>
+    <Box
+      component="section"
+      sx={{
+        ...section(true),
+        bgcolor: 'color-mix(in srgb, var(--pc-palette-primary-main) 5%, var(--pc-palette-background-default))',
+      }}
+    >
+      <Box sx={shell}>
+        <Typography component="h2" sx={{ typography: 'd2' }}>
+          Lo que se hace en el local
+        </Typography>
+        <Typography sx={{ typography: 'publicBody', mt: 2, maxWidth: '46ch', color: 'text.secondary' }}>
+          Calidad, confianza y atención personalizada.
+        </Typography>
 
-        {/* Grilla de Servicios (3 columnas en PC, 1 en celular) */}
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 4 }}>
-          {services.map((service, index) => (
-            <Card 
-              key={index} 
-              sx={{ 
-                height: '100%', 
-                borderRadius: '16px', 
-                boxShadow: '0 4px 20px -2px rgb(0 0 0 / 0.05)',
-                border: '1px solid #f3f4f6',
-                transition: 'all 0.3s ease',
-                display: 'flex',
-                flexDirection: 'column',
-                '&:hover': { 
-                  transform: 'translateY(-8px)',
-                  boxShadow: '0 12px 24px -4px rgb(0 0 0 / 0.1)',
-                  borderColor: '#e5e7eb'
-                } 
-              }}
+        <Box
+          sx={{
+            mt: 'clamp(2.5rem, 5vw, 4rem)',
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' },
+            gridAutoRows: '1fr',
+            gap: 'clamp(1rem, 2vw, 1.75rem)',
+          }}
+        >
+          {SERVICIOS.map(({ title, Icon, description, cta, to, href }) => (
+            <Paper
+              key={title}
+              sx={{ p: 'clamp(1.75rem, 2.5vw, 2.25rem)', borderRadius: 2, display: 'flex', flexDirection: 'column', ...hoverLift }}
             >
-              <CardContent sx={{ p: 5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                <Box 
-                  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 64, height: 64, mb: 3, bgcolor: '#f3f4f6', borderRadius: 4 }}
-                >
-                  {service.icon}
+              <Box
+                aria-hidden
+                sx={{
+                  width: 52,
+                  height: 52,
+                  mb: 3,
+                  display: 'grid',
+                  placeItems: 'center',
+                  borderRadius: '14px',
+                  color: 'primary.main',
+                  bgcolor: 'color-mix(in srgb, var(--pc-palette-primary-main) 12%, transparent)',
+                }}
+              >
+                <Icon sx={{ fontSize: 26 }} />
+              </Box>
+              <Typography component="h3" sx={{ typography: 'd3' }}>
+                {title}
+              </Typography>
+              <Typography sx={{ typography: 'publicBody', mt: 1.5, color: 'text.secondary' }}>
+                {description}
+              </Typography>
+              {to && (
+                <Box component={Link} to={to} sx={enlace}>
+                  {cta}
+                  <ArrowForwardIcon />
                 </Box>
-                <Typography variant="h5" component="h3" sx={{ fontWeight: 'bold', mb: 2, color: '#111827' }}>
-                  {service.title}
-                </Typography>
-                <Typography variant="body1" color="text.secondary" sx={{ mb: 4, lineHeight: 1.6, flexGrow: 1 }}>
-                  {service.description}
-                </Typography>
-                
-                {/* Botón sutil para ver más */}
-                <Button 
-                  variant="text" 
-                  endIcon={<ArrowForwardIcon />}
-                  sx={{ 
-                    justifyContent: 'flex-start',
-                    padding: 0,
-                    color: 'primary.dark',
-                    fontWeight: 'bold',
-                    textTransform: 'none',
-                    '&:hover': { bgcolor: 'transparent', color: '#1d4ed8', textDecoration: 'underline' }
-                  }}
-                >
-                  Ver opciones
-                </Button>
-              </CardContent>
-            </Card>
+              )}
+              {href && (
+                <Box component="a" href={href} target="_blank" rel="noopener" sx={enlace}>
+                  {cta}
+                  <ArrowForwardIcon />
+                </Box>
+              )}
+            </Paper>
           ))}
         </Box>
-
       </Box>
     </Box>
-  );
+  )
 }

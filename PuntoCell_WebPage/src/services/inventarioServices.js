@@ -1,4 +1,5 @@
 import { fetchApi } from './api';
+import { preciosService, mapVigentePorInventario, idsListasMayoristas, resolverPrecioInventario } from './preciosServices';
 
 export const inventarioService = {
   getAll: async (params = {}) => {
@@ -6,6 +7,36 @@ export const inventarioService = {
     const response = await fetchApi(`/inventario/inventarios?${query}`);
     // El controlador envía { data: [...] }
     return response?.data || response || [];
+  },
+
+  // Inventario + precio de venta vigente ya resuelto. El modelo nuevo no trae el
+  // precio en /inventario/inventarios, así que hacemos requests extra a
+  // /precios/precios-articulos y /precios/lista-de-precios y mergeamos client-side.
+  // El precio se resuelve por CUALQUIER lista vigente (la compra lo carga en la lista
+  // de la categoría del producto, no siempre en la Id 1).
+  //   { ...fila, PrecioVenta, PrecioMinorista, PrecioMayorista, precios: {mapa por lista} }
+  getConPrecios: async (params = {}) => {
+    const [items, preciosArticulos, listas] = await Promise.all([
+      inventarioService.getAll(params),
+      preciosService.getPreciosArticulos(),
+      preciosService.getListas().catch(() => []),
+    ]);
+    const mapa = mapVigentePorInventario(preciosArticulos);
+    const listasMay = idsListasMayoristas(listas);
+    const lista = Array.isArray(items) ? items : (items?.data || []);
+    return lista.map((fila) => {
+      const id = fila.Id ?? fila.id;
+      const { minorista, mayorista, costoReal, costoBase } = resolverPrecioInventario(mapa, id, listasMay);
+      return {
+        ...fila,
+        precios: mapa[id] || {},
+        PrecioMinorista: minorista,
+        PrecioMayorista: mayorista,
+        PrecioVenta: minorista,
+        CostoRealVigente: costoReal,
+        CostoBaseVigente: costoBase,
+      };
+    });
   },
 
   getById: async (id) => {
@@ -85,6 +116,11 @@ export const inventarioService = {
     return response?.data || response || [];
   },
 
+  getAlmacenamientos: async () => {
+    const response = await fetchApi('/inventario/almacenamientos');
+    return response?.data || response || [];
+  },
+
   getBaterias: async () => {
     const response = await fetchApi('/inventario/baterias');
     return response?.data || response || [];
@@ -124,14 +160,17 @@ export const inventarioService = {
     return nuevo.Id || nuevo.id;
   },
 
-  // Alta completa: crea el Articulo (specs genéricas) y luego el Inventario (unidad física)
-  // que lo referencia. Compartido entre "Nuevo Ingreso" y el alta por canje en Punto de Venta.
+  // Alta de un equipo recibido en canje desde el Punto de Venta (ModalCobro).
+  // Crea el Articulo (specs genéricas) + el Inventario. El costo de toma (precioCosto) va
+  // como CostoBase: el backend le genera automáticamente el PrecioArticulo en las listas
+  // (minorista + mayorista) de la categoría del modelo. Entra siempre con Stock 1.
   crearIngresoCompleto: async (formData) => {
-    // Canje entra sin precio de venta: no es vendible hasta que se le fije precio manualmente
+    const esCanje = !!formData.modoCanje;
     const payloadArticulo = {
       Nombre: formData.nombreModelo || "Equipo genérico",
-      EsSerializado: formData.esSerializado,
-      EsVendible: !formData.modoCanje,
+      EsSerializado: !!formData.esSerializado,
+      // El equipo de canje se toma para revenderlo -> vendible (ya entra con precio cargado).
+      EsVendible: true,
       EsRepuesto: !formData.esSerializado,
       Activo: true,
       IdModeloArticulo: Number(formData.idModeloArticulo)
@@ -142,22 +181,27 @@ export const inventarioService = {
 
     if (!idArticuloNuevo) throw new Error("El backend no devolvió el ID del nuevo artículo creado.");
 
+    // IdProveedor es NOT NULL. En canje usamos el proveedor placeholder "Canje de Clientes".
+    const idProveedor = formData.idProveedor
+      ? Number(formData.idProveedor)
+      : await inventarioService.obtenerOCrearProveedorCanje();
+
+    const costoBase = Number(formData.precioCosto) || 0;
+
     const payloadInventario = {
       IdArticulo: idArticuloNuevo,
       IdSucursal: Number(formData.idSucursal) || 1,
-      IdProveedor: formData.idProveedor ? Number(formData.idProveedor) : null,
-      Stock: Number(formData.stock) || 1,
+      IdProveedor: idProveedor,
+      Stock: esCanje ? 1 : (Number(formData.stock) || 1),
       IdEstadoInventario: formData.idEstadoInventario ? Number(formData.idEstadoInventario) : 1,
-      PrecioCosto: formData.precioCosto !== "" ? Number(formData.precioCosto) : 0,
-      PrecioMayor: formData.precioMayor !== "" ? Number(formData.precioMayor) : null,
-      PrecioMenor: formData.precioMenor !== "" ? Number(formData.precioMenor) : null,
       IMEI: formData.esSerializado && formData.imei ? String(formData.imei).trim() : null,
       IdColor: formData.idColor ? Number(formData.idColor) : null,
-      IdMemoria: formData.idMemoria ? Number(formData.idMemoria) : null,
+      IdAlmacenamiento: formData.idAlmacenamiento ? Number(formData.idAlmacenamiento) : null,
       IdBateria: formData.idBateria ? Number(formData.idBateria) : null,
       Observaciones: formData.observaciones ? formData.observaciones : null,
       MesesGarantiaLocal: formData.mesesGarantiaLocal || new Date().toISOString(),
-      CreatedAt: new Date().toISOString()
+      CreatedAt: new Date().toISOString(),
+      ...(costoBase > 0 ? { CostoBase: Number(costoBase.toFixed(2)) } : {})
     };
 
     const resInventario = await inventarioService.create(payloadInventario);

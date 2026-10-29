@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { logoutUsuario } from '../services/api'
+import { logoutUsuario, getSesionActual, mapUsuario } from '../services/api'
 
 const STORAGE_KEY = 'pc_usuario'
 
@@ -11,15 +11,33 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
-  // Restaura el perfil desde localStorage (la cookie httpOnly se maneja sola)
+  // Restaura el perfil desde localStorage; si no está pero la cookie httpOnly sigue
+  // viva (GET /auth/me), recupera la sesión igual. Evita el "Ya tienes una sesión
+  // activa" del login cuando el localStorage se limpió pero la cookie no.
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY)
-      if (stored) setUsuario(JSON.parse(stored))
-    } catch {
-      localStorage.removeItem(STORAGE_KEY)
+    let cancelado = false
+    const restaurar = async () => {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY)
+        if (stored) {
+          if (!cancelado) setUsuario(JSON.parse(stored))
+          if (!cancelado) setLoading(false)
+          return
+        }
+      } catch {
+        localStorage.removeItem(STORAGE_KEY)
+      }
+      const u = await getSesionActual()
+      if (cancelado) return
+      if (u) {
+        const perfil = mapUsuario(u)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(perfil))
+        setUsuario(perfil)
+      }
+      setLoading(false)
     }
-    setLoading(false)
+    restaurar()
+    return () => { cancelado = true }
   }, [])
 
   const login = (userData) => {

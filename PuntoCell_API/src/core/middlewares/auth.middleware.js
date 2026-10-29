@@ -1,6 +1,7 @@
 import { verifyToken, generateToken } from '../utils/jwt.util.js';
 import { env } from '../config/env.js';
-import { models } from '../../models/index.js';
+import { ROL_ANALISTA } from '../constants/roles.js';
+import logger from '../../core/utils/logger.js';
 
 export const requireAuth = (req, res, next) => {
   try {
@@ -49,7 +50,7 @@ export const requireAuth = (req, res, next) => {
     next();
 
   } catch (error) {
-    console.error('Error en middleware de autenticación:', error);
+    logger.error('Error en middleware de autenticación:', error);
     return res.status(500).json({ 
       status: 'error', 
       message: 'Error interno de autenticación.' 
@@ -80,62 +81,6 @@ export const preventDoubleLogin = (req, res, next) => {
   }
 };
 
-export const verificarPermisoEstado = async (req, res, next) => {
-  try {
-    const idRol = req.user.IdRol; 
-    const { IdEstadoOrden } = req.body;
-
-    if (!idRol) {
-      const error = new Error('Acceso denegado. Usuario sin rol asignado.');
-      error.statusCode = 403;
-      throw error;
-    }
-
-    const mapaAcciones = {
-      2: 'CAMBIAR_A_REPARACION', 
-      3: 'CAMBIAR_A_TERMINADO',  
-      4: 'CAMBIAR_A_ENTREGADO',  
-      5: 'CAMBIAR_A_ANULADA'     
-    };
-
-    const nombreAccionRequerida = mapaAcciones[IdEstadoOrden];
-
-    if (!nombreAccionRequerida) {
-      const error = new Error('El estado solicitado no tiene una acción de seguridad configurada.');
-      error.statusCode = 400;
-      throw error;
-    }
-
-    const rolConPermiso = await models.Rol.findOne({
-      where: { Id: idRol },
-      include: [
-        {
-          model: models.Permiso,
-          required: true, // INNER JOIN
-          include: [
-            {
-              model: models.Accion,
-              required: true, // INNER JOIN
-              where: { Nombre: nombreAccionRequerida }
-            }
-          ]
-        }
-      ]
-    });
-
-    // null = la cadena Rol -> Permiso -> Accion se cortó: no tiene el permiso
-    if (!rolConPermiso) {
-      const error = new Error('Acceso denegado. Su rol actual no tiene los permisos para cambiar la orden a este estado.');
-      error.statusCode = 403;
-      throw error;
-    }
-
-    next();
-
-  } catch (error) {
-    next(error);
-  }
-};
 export const isAdmin = (req, res, next) => {
   const idRol = req.user?.rol;
 
@@ -145,6 +90,27 @@ export const isAdmin = (req, res, next) => {
     return next(error);
   }
 
+  next();
+};
+
+// Solo el rol analista (usuario técnico único): acceso exclusivo al informe operativo.
+export const isAnalista = (req, res, next) => {
+  if (req.user?.rol !== ROL_ANALISTA) {
+    const error = new Error('Acceso denegado. Esta sección es exclusiva del usuario analista.');
+    error.statusCode = 403;
+    return next(error);
+  }
+  next();
+};
+
+// Aislamiento del analista: tras requireAuth, su sesión solo puede llegar al informe operativo.
+// No afecta a ningún otro rol.
+export const restringirAnalista = (req, res, next) => {
+  if (req.user?.rol === ROL_ANALISTA && !req.path.startsWith('/auditoria/informe-operativo')) {
+    const error = new Error('Acceso denegado. Este usuario solo puede consultar el informe operativo.');
+    error.statusCode = 403;
+    return next(error);
+  }
   next();
 };
 

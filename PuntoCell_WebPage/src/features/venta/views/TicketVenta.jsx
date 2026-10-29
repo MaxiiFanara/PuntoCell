@@ -1,23 +1,14 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Button,
-  Card,
-  CardContent,
-  Typography,
-  Divider,
-  Chip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Box
+  Box, Button, Paper, Table, TableBody, TableCell,
+  TableContainer, TableHead, TableRow, Typography,
 } from '@mui/material';
-import { Print, ArrowBack } from '@mui/icons-material';
+import { Print, ArrowBack, VerifiedUser } from '@mui/icons-material';
 import { ventasService } from '../../../services/ventasServices';
+
+import StatusPill from '../../../components/ui/StatusPill';
+import Money from '../../../components/ui/Money';
 
 // Traduce la respuesta cruda del backend (Venta + asociaciones) a la forma plana
 // que espera este componente de ticket.
@@ -25,15 +16,17 @@ const mapearVenta = (raw) => {
   const sucursalNombre = raw.turnoCaja?.sucursal?.Nombre || '-';
   const cotizacionDolar = Number(raw.cotizacion?.Valor) || 0;
 
-  const pagos = (raw.pagos ?? []).map((p) => ({
-    monto: Number(p.Monto) || 0,
-    metodoNombre: p.metodoPago?.Nombre || 'Pago',
-    fecha: p.FechaPago ? new Date(p.FechaPago).toLocaleString('es-AR') : '-',
-    cotizacionDolar,
-    esPermuta: /permuta|canje/i.test(p.metodoPago?.Nombre || ''),
-    observacion: p.Observacion || '',
-    imeiDispositivo: p.Observacion?.match(/IMEI\s*[:]?\s*([A-Za-z0-9]+)/)?.[1] || null,
-  }));
+  const pagos = (raw.pagos ?? [])
+    .filter(p => !/cuota/i.test(p.metodoPago?.Nombre || ''))
+    .map((p) => ({
+      monto: Number(p.Monto) || 0,
+      metodoNombre: p.metodoPago?.Nombre || 'Pago',
+      fecha: p.FechaPago ? new Date(p.FechaPago).toLocaleString('es-AR') : '-',
+      cotizacionDolar,
+      esPermuta: /permuta|canje/i.test(p.metodoPago?.Nombre || ''),
+      observacion: p.Observacion || '',
+      imeiDispositivo: p.Observacion?.match(/IMEI\s*[:]?\s*([A-Za-z0-9]+)/)?.[1] || null,
+    }));
 
   const detalleVenta = (raw.detalles ?? []).map((d) => {
     const inv = d.inventario;
@@ -44,16 +37,32 @@ const mapearVenta = (raw) => {
       productoNombre: articulo?.Nombre || 'Producto',
       modelo: modelo?.Nombre ? `${marca?.Nombre ?? ''} ${modelo.Nombre}`.trim() : (articulo?.Nombre || ''),
       cantidad: d.Cantidad,
+      precioUnitario: Number(d.PrecioUnitario) || 0,
       subtotal: (Number(d.PrecioUnitario) || 0) * d.Cantidad,
       imei: inv?.IMEI || null,
       color: inv?.color?.Nombre || null,
-      memoria: inv?.memoria?.Capacidad || null,
+      memoria: inv?.almacenamiento?.Capacidad || inv?.memoria?.Capacidad || null,
       bateria: inv?.bateria?.Porcentaje ?? null,
     };
   });
 
+  // La bonificación viaja como primera línea de Observaciones: "[BONIF] monto|motivo"
+  const obsRaw = raw.Observaciones || '';
+  const bonifMatch = obsRaw.match(/^\[BONIF\]\s*([\d.]+)\|([^\n]*)\n?/);
+  const bonificacion = bonifMatch ? Number(bonifMatch[1]) || 0 : 0;
+  const motivoBonif = bonifMatch ? (bonifMatch[2] || '').trim() : '';
+  const observacionesLimpias = bonifMatch ? obsRaw.slice(bonifMatch[0].length).trim() : obsRaw;
+
+  const cuotas = (raw.cuotas ?? []).map((c) => ({
+    numeroCuota: c.NumeroCuota,
+    montoCuota: Number(c.MontoCuota) || 0,
+    fechaVencimiento: c.FechaVencimiento ? new Date(c.FechaVencimiento).toLocaleDateString('es-AR') : '-',
+    fechaPago: c.FechaPago ? new Date(c.FechaPago).toLocaleString('es-AR') : null,
+  }));
+
   return {
     id: raw.Id,
+    fechaISO: raw.Fecha || null,
     fecha: raw.Fecha ? new Date(raw.Fecha).toLocaleString('es-AR') : '-',
     sucursalNombre,
     clienteNombre: raw.cliente?.Nombre || '',
@@ -61,16 +70,57 @@ const mapearVenta = (raw) => {
     clienteDni: raw.cliente?.DNI || '-',
     vendedorNombre: `${raw.empleado?.Nombre ?? ''} ${raw.empleado?.Apellido ?? ''}`.trim() || 'Sistema',
     totalVenta: Number(raw.TotalVenta) || 0,
-    bonificacion: 0,
-    observaciones: raw.Observaciones || '',
+    estadoPago: raw.EstadoPago,
+    bonificacion,
+    motivoBonif,
+    observaciones: observacionesLimpias,
     pagos,
+    cuotas,
     detalleVenta,
   };
 };
 
+const fechaLarga = (iso) =>
+  iso
+    ? new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
+    : '—';
+const hora = (iso) =>
+  iso ? new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '';
+
+const Spec = ({ children, mono }) => (
+  <Box
+    component="span"
+    className={mono ? 'mono' : undefined}
+    sx={{
+      display: 'inline-flex', alignItems: 'center', height: 19, px: '7px',
+      borderRadius: '5px', bgcolor: 'pc.surfaceMuted',
+      border: 1, borderColor: 'pc.dividerSoft',
+      color: mono ? 'text.disabled' : 'text.secondary',
+      fontSize: '.65rem', fontWeight: 500, whiteSpace: 'nowrap',
+    }}
+  >
+    {children}
+  </Box>
+);
+
+const Tarjeta = ({ titulo, extra, children, sx }) => (
+  <Paper sx={{ overflow: 'hidden', ...sx }}>
+    {titulo && (
+      <Box sx={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5,
+        p: '12px 15px', borderBottom: 1, borderColor: 'pc.dividerSoft',
+      }}>
+        <Typography sx={{ fontWeight: 600, fontSize: '.84rem', letterSpacing: '-.01em' }}>{titulo}</Typography>
+        {extra}
+      </Box>
+    )}
+    {children}
+  </Paper>
+);
+
 const TicketDetalle = () => {
   const { id } = useParams();
-  const ticketRef = useRef();
+  const navigate = useNavigate();
   const [venta, setVenta] = useState(null);
   const [error, setError] = useState('');
 
@@ -82,212 +132,299 @@ const TicketDetalle = () => {
       .catch((err) => setError(err.message || 'No se pudo cargar la venta.'));
   }, [id]);
 
-  if (error) {
-    return <Box sx={{ p: 5, textAlign: 'center', color: 'error.main' }}>{error}</Box>;
-  }
-  if (!venta) {
-      return <Box sx={{ p: 5, textAlign: 'center' }}>Cargando datos del ticket...</Box>;
-  }
+  if (error) return <Box sx={{ p: 5, textAlign: 'center', color: 'error.main' }}>{error}</Box>;
+  if (!venta) return <Box sx={{ p: 5, textAlign: 'center', color: 'text.disabled' }}>Cargando datos del ticket…</Box>;
 
-  const cotizacionRef = venta.pagos?.[0]?.cotizacionDolar || 0;
+  // Cotización de la venta, no la del día: un comprobante histórico se lee al
+  // valor con el que se emitió.
+  const cotizacion = venta.pagos?.[0]?.cotizacionDolar || 0;
+  const ars = (usd) => (cotizacion > 0 ? usd * cotizacion : 0);
   const totalPagado = venta.pagos?.reduce((acc, p) => acc + p.monto, 0) || 0;
-  const isAdmin = true;
-
-  const handlePrint = () => {
-    window.print();
-  };
+  const saldada = totalPagado >= venta.totalVenta;
+  const unidades = venta.detalleVenta.reduce((a, d) => a + (d.cantidad || 0), 0);
 
   return (
-    <Box sx={{ maxWidth: 'sm', mx: 'auto', mt: 4, mb: 6, px: 2 }}>
-      {/* Tarjeta del Ticket */}
-      <Card 
-        id="ticketImprimible" 
-        ref={ticketRef}
-        elevation={6}
-        sx={{ borderRadius: 4, overflow: 'visible' }}
+    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+
+      <Button
+        onClick={() => navigate('/app/ventas/historial')}
+        startIcon={<ArrowBack sx={{ fontSize: '16px !important' }} />}
+        sx={{ alignSelf: 'flex-start', px: 0, '@media print': { display: 'none' } }}
       >
-        {/* Header */}
-        <Box sx={{ textAlign: 'center', py: 3 }}>
-          <Typography variant="h5" sx={{ fontWeight: 'bold' }}>PUNTO APPLE 🍎</Typography>
-          <Typography variant="body2" color="text.secondary">Venta de Dispositivos y Accesorios</Typography>
-          <Typography variant="body2" color="text.secondary">La Calera, Córdoba</Typography>
+        Historial de ventas
+      </Button>
+
+      <Box id="ticketImprimible" sx={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+
+        {/* ─── Encabezado ─────────────────────────────────────── */}
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 2.25, flexWrap: 'wrap' }}>
+          <Box>
+            <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>Venta</Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.375, mt: '2px' }}>
+              <Typography variant="h3" component="h1" className="mono">#{venta.id}</Typography>
+              <StatusPill tone={saldada ? 'ok' : 'due'} label={saldada ? 'Pagada' : 'Pendiente'} />
+            </Box>
+            <Typography sx={{ mt: '1px', fontSize: '.78rem', color: 'text.secondary' }}>
+              Registrada el {fechaLarga(venta.fechaISO)} a las {hora(venta.fechaISO)}
+            </Typography>
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<Print sx={{ fontSize: '16px !important' }} />}
+            onClick={() => window.print()}
+            sx={{ '@media print': { display: 'none' } }}
+          >
+            Imprimir
+          </Button>
         </Box>
 
-        <CardContent sx={{ pt: 0 }}>
-          {/* Badge de Ticket ID */}
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-            <Chip 
-              label={`Ticket Nº ${venta.id}`} 
-              variant="outlined" 
-              sx={{ fontWeight: 'bold', bgcolor: 'grey.50' }}
-            />
-          </Box>
-
-          {/* Info Principal */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2, fontSize: '0.875rem', color: 'text.secondary', mb: 2 }}>
-            <Box>
-              <Typography component="span" sx={{ fontWeight: 'bold' }}>Fecha:</Typography><br />
-              {venta.fecha}
-            </Box>
-            <Box sx={{ textAlign: 'right' }}>
-              <Typography component="span" sx={{ fontWeight: 'bold' }}>Sucursal:</Typography><br />
-              {venta.sucursalNombre}
-            </Box>
-          </Box>
-
-          {/* Info Cliente/Vendedor */}
-          <Box sx={{ bgcolor: 'grey.50', p: 2, borderRadius: 2, fontSize: '0.875rem', mb: 3, border: '1px solid', borderColor: 'grey.200' }}>
-            <Typography variant="body2"><strong>Cliente:</strong> {venta.clienteNombre} {venta.clienteApellido}</Typography>
-            <Typography variant="body2"><strong>DNI:</strong> {venta.clienteDni}</Typography>
-            {cotizacionRef > 0 && (
-              <Typography variant="body2"><strong>Cotización Dólar:</strong> ${cotizacionRef.toLocaleString('es-AR')}</Typography>
-            )}
-            <Typography variant="body2"><strong>Vendedor:</strong> {venta.vendedorNombre || "Sistema"}</Typography>
-          </Box>
-
-          {/* Tabla de Productos */}
-          <TableContainer component={Paper} elevation={0} sx={{ mb: 3, border: '1px solid', borderColor: 'grey.200' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Producto</TableCell>
-                  <TableCell align="center">Cant</TableCell>
-                  <TableCell align="right">Total</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {venta.detalleVenta.map((det, index) => (
-                  <TableRow key={index} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                    <TableCell>
-                      <Typography sx={{ fontWeight: 'bold', color: 'text.primary', fontSize: '0.875rem' }}>{det.productoNombre}</Typography>
-                      {det.modelo !== det.productoNombre && (
-                        <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>{det.modelo}</Typography>
-                      )}
-                      {det.imei && (
-                        <Box sx={{ mt: 1, p: 1, bgcolor: 'grey.100', borderRadius: 1, fontSize: '0.6875rem', border: '1px dashed', borderColor: 'grey.300' }}>
-                          <strong>IMEI:</strong> {det.imei} <br />
-                          <strong>Color:</strong> {det.color} | <strong>Cap:</strong> {det.memoria} | <strong>Bat:</strong> {det.bateria}%
-                        </Box>
-                      )}
-                    </TableCell>
-                    <TableCell align="center">{det.cantidad}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                      U$S {det.subtotal.toLocaleString('en-US')}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          {/* Totales */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 3 }}>
-            {venta.bonificacion > 0 && (
-              <>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', color: 'text.secondary', fontSize: '0.875rem' }}>
-                  <Typography variant="body2">Subtotal</Typography>
-                  <Typography variant="body2">U$S {(venta.totalVenta + venta.bonificacion).toLocaleString()}</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', color: 'error.main', fontSize: '0.875rem' }}>
-                  <Typography variant="body2">Bonificación (-)</Typography>
-                  <Typography variant="body2">- U$S {venta.bonificacion.toLocaleString()}</Typography>
-                </Box>
-              </>
-            )}
-            <Divider sx={{ my: 1, borderStyle: 'dashed' }} />
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h6" sx={{ fontWeight: 'bold' }}>TOTAL</Typography>
-              <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                U$S {venta.totalVenta.toLocaleString()}
+        {/* ─── Franja de datos ────────────────────────────────── */}
+        <Paper sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2,minmax(0,1fr))', md: 'repeat(4,minmax(0,1fr))' },
+          overflow: 'hidden',
+        }}>
+          {[
+            { label: 'Cliente',   val: `${venta.clienteNombre} ${venta.clienteApellido}`.trim() || '—', sub: `DNI ${venta.clienteDni}`, subMono: true },
+            { label: 'Vendedor',  val: venta.vendedorNombre, sub: `Sucursal ${venta.sucursalNombre}` },
+            { label: 'Cotización aplicada', val: cotizacion > 0 ? `$ ${cotizacion.toLocaleString('es-AR')}` : '—', sub: 'Al momento de la venta', valMono: true },
+            { label: 'Comprobante', val: `#${venta.id}`, sub: venta.fecha, valMono: true },
+          ].map((m, i) => (
+            <Box key={m.label} sx={{
+              p: '12px 15px',
+              borderLeft: { xs: i % 2 === 0 ? 0 : 1, md: i === 0 ? 0 : 1 },
+              borderColor: 'pc.dividerSoft',
+            }}>
+              <Box sx={{ typography: 'eyebrow', color: 'text.disabled' }}>{m.label}</Box>
+              <Typography className={m.valMono ? 'mono' : undefined}
+                sx={{ fontWeight: 600, fontSize: '.84rem', mt: '3px', letterSpacing: '-.01em' }}>
+                {m.val}
+              </Typography>
+              <Typography className={m.subMono ? 'mono' : undefined}
+                sx={{ color: 'text.disabled', fontSize: '.69rem' }}>
+                {m.sub}
               </Typography>
             </Box>
-            {cotizacionRef > 0 && (
-              <Typography sx={{ textAlign: 'right', fontSize: '0.75rem', color: 'text.secondary', fontStyle: 'italic' }}>
-                (Aprox. AR$ {(venta.totalVenta * cotizacionRef).toLocaleString('es-AR')})
-              </Typography>
-            )}
-          </Box>
+          ))}
+        </Paper>
 
-          {/* Historial de Pagos */}
-          <Box sx={{ mt: 4, borderTop: '1px dashed', borderColor: 'divider', pt: 2 }}>
-            <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.disabled', display: 'block', mb: 1.5, textTransform: 'uppercase', letterSpacing: 1 }}>
-              Historial de Pagos
-            </Typography>
-            {venta.pagos.map((pago, idx) => (
-              <Box key={idx} sx={{ mb: 1.5 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.875rem' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Typography component="span" sx={{ fontWeight: 'bold' }}>{pago.metodoNombre}</Typography>
-                    <Typography component="span" sx={{ ml: 1, fontSize: '0.75rem', color: 'text.disabled' }}>({pago.fecha})</Typography>
-                    {pago.esPermuta && (
-                      <Chip label="PERMUTA" size="small" sx={{ ml: 1, height: 20, fontSize: '0.625rem', bgcolor: 'grey.200' }} />
-                    )}
+        {/* ─── Cuerpo ─────────────────────────────────────────── */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0,1fr) 320px' }, gap: 2, alignItems: 'start' }}>
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.75, minWidth: 0 }}>
+
+            <Tarjeta
+              titulo="Productos"
+              extra={
+                <Typography sx={{ color: 'text.disabled', fontSize: '.72rem' }}>
+                  {venta.detalleVenta.length} {venta.detalleVenta.length === 1 ? 'ítem' : 'ítems'} · {unidades} {unidades === 1 ? 'unidad' : 'unidades'}
+                </Typography>
+              }
+            >
+              <TableContainer sx={{ overflowX: 'auto' }}>
+                <Table sx={{ minWidth: 520 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Producto</TableCell>
+                      <TableCell align="right" sx={{ width: 70 }}>Cant.</TableCell>
+                      <TableCell align="right" sx={{ width: 120 }}>P. unitario</TableCell>
+                      <TableCell align="right" sx={{ width: 130 }}>Subtotal</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {venta.detalleVenta.map((det, i) => (
+                      <TableRow key={i}>
+                        <TableCell sx={{ height: 'auto', py: 1.5 }}>
+                          <Typography sx={{ fontWeight: 600, fontSize: '.84rem', letterSpacing: '-.01em' }}>
+                            {det.productoNombre}
+                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.625, flexWrap: 'wrap', mt: 0.5 }}>
+                            {det.modelo && det.modelo !== det.productoNombre && <Spec>{det.modelo}</Spec>}
+                            {det.imei && <Spec mono>IMEI {det.imei}</Spec>}
+                            {det.color && <Spec>{det.color}</Spec>}
+                            {det.memoria && <Spec>{det.memoria}</Spec>}
+                            {det.bateria != null && <Spec>Batería {det.bateria}%</Spec>}
+                          </Box>
+                        </TableCell>
+                        <TableCell align="right" className="num" sx={{ height: 'auto', py: 1.5 }}>{det.cantidad}</TableCell>
+                        <TableCell align="right" sx={{ height: 'auto', py: 1.5 }}>
+                          <Money ars={ars(det.precioUnitario)} usd={det.precioUnitario} size="sm" />
+                        </TableCell>
+                        <TableCell align="right" sx={{ height: 'auto', py: 1.5 }}>
+                          <Money ars={ars(det.subtotal)} usd={det.subtotal} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Tarjeta>
+
+            <Tarjeta
+              titulo="Pagos recibidos"
+              extra={<StatusPill tone={saldada ? 'ok' : 'due'} label={saldada ? 'Saldado' : 'Con saldo'} />}
+            >
+              {venta.pagos.length === 0 && (
+                <Box sx={{ p: '16px 15px', color: 'text.disabled', fontSize: '.78rem' }}>Sin pagos registrados.</Box>
+              )}
+              {venta.pagos.map((pago, i) => (
+                <Box key={i} sx={{ borderTop: i === 0 ? 0 : 1, borderColor: 'pc.dividerSoft' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, p: '11px 15px' }}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.875 }}>
+                        <Typography sx={{ fontWeight: 600, fontSize: '.78rem' }}>{pago.metodoNombre}</Typography>
+                        {pago.esPermuta && <StatusPill tone="flat" label="Permuta" />}
+                      </Box>
+                      <Typography className="mono" sx={{ color: 'text.disabled', fontSize: '.69rem', mt: '-2px' }}>
+                        {pago.fecha}
+                      </Typography>
+                    </Box>
+                    <Money ars={ars(pago.monto)} usd={pago.monto} size="sm" />
                   </Box>
-                  <Typography component="span" sx={{ fontWeight: 'bold' }}>U$S {pago.monto.toLocaleString()}</Typography>
+                  {pago.esPermuta && (
+                    <Box sx={{
+                      mx: '15px', mb: 1.5, p: '9px 11px', borderRadius: '7px',
+                      bgcolor: 'pc.surfaceMuted', border: 1, borderColor: 'pc.dividerSoft',
+                      color: 'text.secondary', fontSize: '.69rem',
+                    }}>
+                      Recibido: {pago.observacion}
+                      {pago.imeiDispositivo && <><br />IMEI: <span className="mono">{pago.imeiDispositivo}</span></>}
+                    </Box>
+                  )}
                 </Box>
-                {pago.esPermuta && (
-                  <Box sx={{ ml: 2, mt: 0.5, p: 1, bgcolor: 'grey.50', border: '1px solid', borderColor: 'grey.200', borderRadius: 1, fontSize: '0.6875rem', fontStyle: 'italic', color: 'text.secondary' }}>
-                    Recibido: {pago.observacion} <br />
-                    IMEI: {pago.imeiDispositivo}
-                  </Box>
-                )}
+              ))}
+              <Box sx={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5,
+                p: '11px 15px', borderTop: 1, borderColor: 'pc.dividerSoft', bgcolor: 'pc.surfaceMuted',
+              }}>
+                <Typography sx={{ fontWeight: 600, fontSize: '.78rem' }}>Total pagado</Typography>
+                <Money ars={ars(totalPagado)} usd={totalPagado} size="sm" />
               </Box>
-            ))}
+            </Tarjeta>
+
+            {venta.cuotas && venta.cuotas.length > 0 && (
+              <Tarjeta titulo="Cuotas (Financiación)">
+                <TableContainer sx={{ overflowX: 'auto' }}>
+                  <Table sx={{ minWidth: 520 }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ pl: '15px' }}>Nº</TableCell>
+                        <TableCell>Vencimiento</TableCell>
+                        <TableCell>Estado</TableCell>
+                        <TableCell align="right" sx={{ pr: '15px' }}>Monto Restante</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {venta.cuotas.map((c) => (
+                        <TableRow key={c.numeroCuota}>
+                          <TableCell sx={{ pl: '15px', color: 'text.secondary' }}>Cuota {c.numeroCuota}</TableCell>
+                          <TableCell sx={{ color: 'text.secondary' }}>{c.fechaVencimiento}</TableCell>
+                          <TableCell>
+                            {c.fechaPago ? (
+                              <StatusPill tone="ok" label={`Saldada (${c.fechaPago.split(',')[0]})`} />
+                            ) : (
+                              <StatusPill tone="due" label="Pendiente" />
+                            )}
+                          </TableCell>
+                          <TableCell align="right" sx={{ pr: '15px' }}>
+                            <Money ars={ars(c.montoCuota)} usd={c.montoCuota} size="sm" />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Tarjeta>
+            )}
+
+            {venta.observaciones && (
+              <Tarjeta titulo="Observaciones">
+                <Typography sx={{ p: '12px 15px', color: 'text.secondary', fontSize: '.78rem', lineHeight: 1.55 }}>
+                  {venta.observaciones}
+                </Typography>
+              </Tarjeta>
+            )}
           </Box>
 
-          {/* Observaciones y Garantía */}
-          {venta.observaciones && (
-            <Box sx={{ mt: 2, p: 1.5, borderTop: '1px dashed', borderColor: 'grey.300' }}>
-              <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>OBSERVACIONES:</Typography>
-              <Typography variant="body2" sx={{ textTransform: 'uppercase', fontWeight: 500 }}>{venta.observaciones}</Typography>
-            </Box>
-          )}
+          {/* ─── Columna derecha ──────────────────────────────── */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.75, minWidth: 0 }}>
 
-          <Box sx={{ textAlign: 'center', mt: 5, pt: 2, borderTop: '1px solid', borderColor: 'grey.100' }}>
-            <Typography variant="body2" color="text.disabled">¡Gracias por tu compra!</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>Tiene garantía de 60 días.</Typography>
+            <Tarjeta titulo="Resumen">
+              <Box sx={{ py: 0.5 }}>
+                {venta.bonificacion > 0 && (
+                  <>
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.75, p: '8px 15px', fontSize: '.78rem' }}>
+                      <Box sx={{ color: 'text.secondary' }}>Subtotal</Box>
+                      <Box className="num" sx={{ fontWeight: 600 }}>
+                        U$S {(venta.totalVenta + venta.bonificacion).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.75, p: '8px 15px', fontSize: '.78rem' }}>
+                      <Box sx={{ color: 'text.secondary' }}>Bonificación{venta.motivoBonif ? ` · ${venta.motivoBonif}` : ''}</Box>
+                      <Box className="num" sx={{ fontWeight: 600, color: 'error.main' }}>
+                        − U$S {venta.bonificacion.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Box>
+                    </Box>
+                  </>
+                )}
+                <Box sx={{
+                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.75,
+                  p: '12px 15px 8px', mt: 0.5, borderTop: 1, borderColor: 'divider',
+                }}>
+                  <Box sx={{ fontWeight: 600, fontSize: '.8125rem' }}>Total</Box>
+                  <Box className="num" sx={{ fontSize: '1.44rem', fontWeight: 600, letterSpacing: '-.035em', color: 'primary.main' }}>
+                    U$S {venta.totalVenta.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Box>
+                </Box>
+              </Box>
+              <Typography className="num" sx={{ p: '0 15px 12px', textAlign: 'right', color: 'text.disabled', fontSize: '.72rem' }}>
+                $ {Math.round(ars(venta.totalVenta)).toLocaleString('es-AR')}
+                {cotizacion > 0 && ` a la cotización de la venta ($ ${cotizacion.toLocaleString('es-AR')})`}
+              </Typography>
+            </Tarjeta>
+
+            <Tarjeta titulo="Comprobante">
+              {[
+                ['Número', `#${venta.id}`, true],
+                ['Emitido', venta.fecha, true],
+                ['Sucursal', venta.sucursalNombre, false],
+              ].map(([k, v, mono], i) => (
+                <Box key={k} sx={{
+                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.5,
+                  p: '9px 15px', fontSize: '.78rem',
+                  borderTop: i === 0 ? 0 : 1, borderColor: 'pc.dividerSoft',
+                }}>
+                  <Box sx={{ color: 'text.disabled' }}>{k}</Box>
+                  <Box className={mono ? 'mono' : undefined} sx={{ fontWeight: 600 }}>{v}</Box>
+                </Box>
+              ))}
+              <Box sx={{
+                display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.5,
+                p: '9px 15px', fontSize: '.78rem', borderTop: 1, borderColor: 'pc.dividerSoft',
+              }}>
+                <Box sx={{ color: 'text.disabled' }}>Estado de pago</Box>
+                <Box sx={{ fontWeight: 600, color: saldada ? 'success.main' : 'warning.main' }}>
+                  {saldada ? 'Pagada' : 'Pendiente'}
+                </Box>
+              </Box>
+              <Box sx={{
+                display: 'flex', alignItems: 'center', gap: 1.125, p: '11px 15px',
+                bgcolor: 'pc.accentSoft', color: 'primary.main', fontSize: '.75rem', fontWeight: 600,
+              }}>
+                <VerifiedUser sx={{ fontSize: 16 }} />
+                Garantía del local: 60 días
+              </Box>
+            </Tarjeta>
           </Box>
-        </CardContent>
-      </Card>
-
-      {/* Botones de Acción (No se imprimen) */}
-      <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center', gap: 2, '@media print': { display: 'none' } }}>
-        <Button
-          variant="contained"
-          startIcon={<ArrowBack />}
-          sx={{
-            textTransform: 'none',
-            bgcolor: '#fff',
-            color: '#1e293b',
-            border: '1.5px solid #e2e8f0',
-            boxShadow: 'none',
-            '&:hover': { bgcolor: '#f1f5f9', boxShadow: 'none' },
-          }}
-          onClick={() => window.history.back()}
-        >
-          Volver
-        </Button>
-        <Button 
-          variant="contained" 
-          startIcon={<Print />}
-          onClick={handlePrint}
-          sx={{ bgcolor: 'grey.900', color: 'white', textTransform: 'none', px: 4, '&:hover': { bgcolor: 'grey.800' } }}
-        >
-          Imprimir Ticket
-        </Button>
+        </Box>
       </Box>
 
-      {/* CSS extra para limpiar imperfecciones al imprimir */}
+      {/* Al imprimir queda solo el comprobante */}
       <style>{`
         @media print {
           body * { visibility: hidden; }
           #ticketImprimible, #ticketImprimible * { visibility: visible; }
-          #ticketImprimible {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-          }
+          #ticketImprimible { position: absolute; left: 0; top: 0; width: 100%; }
         }
       `}</style>
     </Box>

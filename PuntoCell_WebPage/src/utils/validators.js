@@ -18,6 +18,12 @@ export const soloDecimalNoNegativo = (valor) => {
   return limpio;
 };
 
+// IMEI: siempre 15 dígitos (estándar GSMA), solo números. `soloImei` sanea lo tecleado
+// (útil en el propio onChange); `esImeiValido` exige el largo exacto para validar al guardar
+// — ni más ni menos de 15, en cualquier input de IMEI del sistema.
+export const soloImei = (valor) => (valor || '').replace(/\D/g, '').slice(0, 15);
+export const esImeiValido = (valor) => /^\d{15}$/.test(valor || '');
+
 // Entero positivo dentro de un rango (ej. "Número" de casa: 1-9999). Devuelve '' si el
 // valor tecleado todavía no es un número completo (para no trabarle el borrado al usuario).
 export const soloEnteroEnRango = (valor, min = 1, max = 9999) => {

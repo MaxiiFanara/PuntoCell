@@ -1,0 +1,361 @@
+import CatalogoService from './catalogo.service.js';
+import {
+  DEFAULT_TIMEOUT_MS,
+  MAX_ATTEMPT_TIMEOUT_MS,
+  buildModelCandidates,
+  formatContext,
+  formatHistory,
+  normalizeContext,
+  requestOpenRouterCompletion,
+  truncate,
+} from '../../core/utils/openrouter-chat.js';
+
+const SYSTEM_PROMPT = `
+Sos un asesor de catálogo de PuntoCell.
+Respondé siempre en español, con tono claro, breve y práctico.
+
+Objetivo:
+- Ayudar a elegir un celular o accesorio según presupuesto, uso y stock.
+- Comparar productos del catálogo cuando el usuario lo pida.
+- Explicar diferencias de forma simple: precio, stock, marca, modelo, memoria, color y sucursal.
+- Sugerir alternativas reales del catálogo, sin inventar productos ni precios.
+- También comparar cuestiones técnicas del modelo con criterio general: pantalla, chip/procesador, cámara, batería, tamaño, carga, conectividad, resistencia y soporte.
+
+Reglas:
+- Si el usuario pide ayuda para elegir, recomendá la opción más equilibrada para su caso.
+- Si el usuario pide comparar, contrastá hasta 3 opciones y resaltá pros y contras con más detalle.
+- Si faltan datos clave, hacé como máximo 3 preguntas breves antes de cerrar una recomendación.
+- No inventes modelos, stock ni sucursales: usá solamente la información del catálogo.
+- Si un producto no tiene stock suficiente, aclaralo y proponé alternativas.
+- Si el usuario quiere ese modelo y no hay stock, indicá claramente que puede convenir esperar el ingreso, sin prometer fecha.
+- Si el usuario no da presupuesto, preguntalo o sugerí una banda de precios según lo que esté viendo.
+- Si existe comparativaDeterminista, usala como base y no contradigas sus campos.
+- Para cada producto comparado, incluí precio, stock, marca, modelo, memoria, almacenamiento, batería, estado, garantías y sucursal cuando exista.
+- Cuando ayudes a elegir, explicá por qué conviene ese equipo y mencioná al menos 3 criterios concretos del catálogo.
+- Si un dato no está disponible, marcá N/D en vez de omitirlo.
+- Para las características técnicas que no estén explícitas en el catálogo, podés usar conocimiento general del modelo; si no estás seguro, decilo como aproximado o general.
+- Separá claramente lo que sale del catálogo de lo que es conocimiento técnico general del dispositivo.
+
+Formato de respuesta:
+1. Resumen breve de la situación.
+2. Comparación por producto con detalles concretos.
+3. Diferencias técnicas relevantes y trade-offs.
+4. Recomendación final o próximos pasos.
+`;
+
+const STOPWORDS = new Set([
+  'de', 'la', 'el', 'los', 'las', 'para', 'por', 'con', 'sin', 'una', 'uno', 'unos', 'unas', 'que', 'como', 'cual',
+  'cuál', 'cuales', 'cuáles', 'quiero', 'busco', 'necesito', 'me', 'mi', 'del', 'al', 'y', 'o', 'a', 'en', 'un', 'es',
+  'ayuda', 'elegir', 'comparar', 'comparame', 'compará', 'opcion', 'opción', 'modelo', 'celular', 'celu', 'telefono',
+  'teléfono', 'smartphone'
+]);
+
+const normalizeText = (value) => String(value || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/[^\p{L}\p{N}\s.-]/gu, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const tokenize = (value) => normalizeText(value)
+  .split(' ')
+  .map((token) => token.trim())
+  .filter((token) => token.length >= 3 && !STOPWORDS.has(token));
+
+const mencionaComparacion = (mensaje) => /\b(compara|comparar|comparame|vs\.?|versus|diferencia|diferencias)\b/i.test(String(mensaje || ''));
+
+const uniqueById = (items = []) => {
+  const seen = new Set();
+  const result = [];
+
+  for (const item of items) {
+    const key = String(item?.id ?? '');
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+
+  return result;
+};
+
+const mapProducto = (producto) => ({
+  id: producto.id,
+  name: producto.name,
+  category: producto.categoria || 'otros',
+  brand: producto.marca || null,
+  model: producto.modelo || null,
+  price: Number(producto.priceUsd) || 0,
+  stock: Number(producto.stock) || 0,
+  sucursal: producto.sucursal || null,
+  memory: producto.memoria || null,
+  storage: producto.almacenamiento || null,
+  battery: producto.bateria || null,
+  estado: producto.estado || null,
+  garantiaMarca: producto.garantiaMarca || null,
+  garantiaLocal: producto.garantiaLocal || null,
+  observaciones: producto.observaciones || null,
+  color: producto.color || null,
+  unique: !!producto.esSerializado,
+});
+
+const getNormalizedName = (producto) => normalizeText([
+  producto.name,
+  producto.brand,
+  producto.model,
+].filter(Boolean).join(' '));
+
+const buildFichaProducto = (producto) => ({
+  id: producto.id,
+  nombre: producto.name,
+  categoria: producto.category,
+  marca: producto.brand,
+  modelo: producto.model,
+  precio: producto.price,
+  stock: producto.stock,
+  sucursal: producto.sucursal,
+  color: producto.color,
+  memoria: producto.memory,
+  almacenamiento: producto.storage,
+  bateria: producto.battery,
+  estado: producto.estado,
+  garantiaMarca: producto.garantiaMarca,
+  garantiaLocal: producto.garantiaLocal,
+  observaciones: producto.observaciones,
+  serializado: producto.unique,
+});
+
+const scoreProducto = (producto, tokens) => {
+  if (!tokens.length) return 0;
+
+  const haystack = normalizeText([
+    producto.name,
+    producto.category,
+    producto.brand,
+    producto.model,
+    producto.memory,
+    producto.color,
+    producto.sucursal,
+  ].filter(Boolean).join(' '));
+
+  let score = 0;
+
+  for (const token of tokens) {
+    if (haystack.includes(token)) {
+      score += token.length >= 6 ? 4 : 2;
+    }
+  }
+
+  if (producto.stock > 0) score += 1;
+  if (producto.unique) score += 0.5;
+
+  return score;
+};
+
+const seleccionarProductosRelevantes = (productos, mensaje) => {
+  const tokens = tokenize(mensaje);
+  const mensajeNormalizado = normalizeText(mensaje);
+  const ponderados = productos
+    .map((producto) => {
+      const normalizedName = getNormalizedName(producto);
+      const exactMention = normalizedName && mensajeNormalizado.includes(normalizedName);
+      const score = scoreProducto(producto, tokens) + (exactMention ? 12 : 0);
+
+      return { producto, score, exactMention };
+    })
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score || b.producto.stock - a.producto.stock || a.producto.price - b.producto.price)
+    .map(({ producto }) => producto);
+
+  const stockAlto = [...productos]
+    .sort((a, b) => b.stock - a.stock || a.price - b.price)
+    .slice(0, 8);
+
+  const mejoresPrecios = [...productos]
+    .filter((producto) => producto.price > 0)
+    .sort((a, b) => a.price - b.price || b.stock - a.stock)
+    .slice(0, 6);
+
+  return uniqueById([...ponderados.slice(0, 12), ...stockAlto, ...mejoresPrecios]).slice(0, 12);
+};
+
+const detectarProductosMencionados = (productos, mensaje) => {
+  const mensajeNormalizado = normalizeText(mensaje);
+  const tokens = tokenize(mensaje);
+
+  return productos
+    .map((producto) => {
+      const normalizedName = getNormalizedName(producto);
+      if (!normalizedName) return null;
+
+      const matchesExact = mensajeNormalizado.includes(normalizedName);
+      const matchesPartial = !matchesExact && tokens.some((token) => normalizedName.includes(token));
+
+      if (!matchesExact && !matchesPartial) return null;
+
+      const exactBoost = matchesExact ? 100 : 0;
+      const tokenScore = tokens.reduce((total, token) => total + (normalizedName.includes(token) ? token.length : 0), 0);
+
+      return {
+        producto,
+        score: exactBoost + tokenScore,
+        matchesExact,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score || b.producto.stock - a.producto.stock || a.producto.price - b.producto.price)
+    .map(({ producto, matchesExact }) => ({
+      ...buildFichaProducto(producto),
+      exacto: matchesExact,
+    }))
+    .slice(0, 6);
+};
+
+const construirComparativaDeterminista = (productosMencionados) => {
+  if (!Array.isArray(productosMencionados) || productosMencionados.length < 2) return null;
+
+  return {
+    productos: productosMencionados.slice(0, 3).map((producto) => ({
+      ...producto,
+      disponibilidad: producto.stock > 0 ? 'disponible' : 'sin_stock',
+    })),
+    diferenciasClave: productosMencionados.slice(0, 3).map((producto) => ({
+      nombre: producto.nombre,
+      precio: producto.precio,
+      stock: producto.stock,
+      sucursal: producto.sucursal,
+      memoria: producto.memoria,
+      almacenamiento: producto.almacenamiento,
+      bateria: producto.bateria,
+      estado: producto.estado,
+      observaciones: producto.observaciones,
+    })),
+  };
+};
+
+const resumirCatalogo = (productos, mensaje) => {
+  const porCategoria = new Map();
+  const productosMencionados = detectarProductosMencionados(productos, mensaje);
+
+  for (const producto of productos) {
+    const categoria = producto.category || 'otros';
+    const actual = porCategoria.get(categoria) || { categoria, total: 0, disponibles: 0 };
+    actual.total += 1;
+    if (producto.stock > 0) actual.disponibles += 1;
+    porCategoria.set(categoria, actual);
+  }
+
+  return {
+    totalProductos: productos.length,
+    categorias: [...porCategoria.values()].sort((a, b) => b.total - a.total || a.categoria.localeCompare(b.categoria, 'es')).slice(0, 12),
+    productosRelevantes: seleccionarProductosRelevantes(productos, mensaje),
+    productosMencionados,
+    comparativaDeterminista: construirComparativaDeterminista(productosMencionados),
+  };
+};
+
+const buildPrompt = ({ mensaje, contexto, historial, catalogo }) => [
+  'Contexto de la consulta:',
+  formatContext(contexto),
+  '',
+  'Resumen del catalogo vigente:',
+  formatContext(catalogo),
+  '',
+  'Historial breve de la conversacion:',
+  formatHistory(historial),
+  '',
+  'Pregunta del usuario:',
+  truncate(String(mensaje || '').trim(), 4000),
+  '',
+  'Instrucciones criticas:',
+  '- Si el usuario menciono productos concretos, comparalos solo a ellos.',
+  '- No reemplaces los productos solicitados por otros similares.',
+  '- Si hay productos mencionados con coincidencia exacta, priorizalos siempre.',
+  '- Si un producto pedido no aparece, decilo explicitamente y proponé el más cercano.',
+  '- Si existe comparativaDeterminista, usala como fuente principal y no contradigas sus campos.',
+].join('\n');
+
+export default class AsistenteCatalogoService {
+  constructor(catalogoService = new CatalogoService()) {
+    this.catalogoService = catalogoService;
+  }
+
+  async consultar({ mensaje, historial = [], contexto = null, modelo = null } = {}) {
+    const textoMensaje = String(mensaje || '').trim();
+    if (!textoMensaje) {
+      const err = new Error('El mensaje es obligatorio.');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const normalizedContext = normalizeContext(contexto);
+    const apiKey = process.env.OPENROUTER_API_KEY || '';
+
+    if (!apiKey) {
+      const err = new Error('No está configurada la API key de OpenRouter.');
+      err.statusCode = 503;
+      throw err;
+    }
+
+    const { productos = [], cotizacionDolar = 0 } = await this.catalogoService.getProductosVendibles();
+    const productosNormalizados = productos.map(mapProducto);
+    const catalogo = resumirCatalogo(productosNormalizados, textoMensaje);
+
+    const prompt = buildPrompt({
+      mensaje: textoMensaje,
+      contexto: normalizedContext,
+      historial,
+      catalogo: {
+        totalProductos: catalogo.totalProductos,
+        cotizacionDolar,
+        categorias: catalogo.categorias,
+        productosRelevantes: catalogo.productosRelevantes,
+        productosMencionados: catalogo.productosMencionados,
+        comparativaDeterminista: catalogo.comparativaDeterminista,
+        modoComparacion: mencionaComparacion(textoMensaje),
+      },
+    });
+
+    const candidateModels = buildModelCandidates(modelo);
+    const deadline = Date.now() + DEFAULT_TIMEOUT_MS;
+    let lastError = null;
+
+    for (const selectedModel of candidateModels) {
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) break;
+
+      const attemptTimeoutMs = Math.min(remainingMs, MAX_ATTEMPT_TIMEOUT_MS);
+
+      try {
+        const { respuesta } = await requestOpenRouterCompletion({
+          apiKey,
+          model: selectedModel,
+          prompt,
+          systemPrompt: SYSTEM_PROMPT,
+          timeoutMs: attemptTimeoutMs,
+          maxTokens: 1200,
+        });
+
+        return {
+          respuesta,
+          modelo: selectedModel,
+          contextoUsado: normalizedContext ? formatContext(normalizedContext) : null,
+        };
+      } catch (err) {
+        lastError = err;
+
+        if (err.statusCode === 401 || err.statusCode === 403 || err.statusCode === 422 || err.retryable === false) {
+          throw err;
+        }
+      }
+    }
+
+    const error = lastError || new Error('No se pudo obtener una respuesta de OpenRouter.');
+    if (!error.statusCode) {
+      error.statusCode = 502;
+    }
+
+    error.message = `No se pudo obtener una respuesta con los modelos gratuitos de OpenRouter. ${error.message}`;
+    throw error;
+  }
+}

@@ -14,7 +14,8 @@ export default class UsuarioController {
 
   getById = async (req, res, next) => {
     try {
-      const data = await this.service.getById(req.params.id);
+      const auditContext = { IdEmpleado: req.user?.id || null, IdSucursal: req.user?.sucursal || null, IpAddress: req.ip };
+      const data = await this.service.getById(req.params.id, auditContext);
       return res.status(200).json({ status: 'success', data });
     } catch (err) {
       next(err);
@@ -23,7 +24,8 @@ export default class UsuarioController {
 
  create = async (req, res, next) => {
     try {
-      const data = await this.service.create(req.body);
+      const auditContext = { IdEmpleado: req.user?.id || null, IdSucursal: req.user?.sucursal || null, IpAddress: req.ip };
+      const data = await this.service.create(req.body, auditContext);
       return res.status(201).json({ status: 'success', data });
     } catch (error) {
       // Respetamos el statusCode que ya haya seteado el service (ej. 404 "no encontrado")
@@ -49,7 +51,8 @@ export default class UsuarioController {
   update = async (req, res, next) => {
     try {
       const { id } = req.params;
-      const data = await this.service.update(id, req.body);
+      const auditContext = { IdEmpleado: req.user?.id || null, IdSucursal: req.user?.sucursal || null, IpAddress: req.ip };
+      const data = await this.service.update(id, req.body, auditContext);
       return res.status(200).json({ status: 'success', data });
     } catch (error) {
       // Respetamos el statusCode que ya haya seteado el service (ej. 404 "no encontrado")
@@ -66,14 +69,14 @@ export default class UsuarioController {
           message: error.message
         });
       }
-
       next(error);
     }
   };
 
   delete = async (req, res, next) => {
     try {
-      await this.service.delete(req.params.id);
+      const auditContext = { IdEmpleado: req.user?.id || null, IdSucursal: req.user?.sucursal || null, IpAddress: req.ip };
+      await this.service.delete(req.params.id, auditContext);
       return res.status(200).json({ status: 'success', data: { message: 'Usuario dado de baja exitosamente' } });
     } catch (err) {
       next(err);

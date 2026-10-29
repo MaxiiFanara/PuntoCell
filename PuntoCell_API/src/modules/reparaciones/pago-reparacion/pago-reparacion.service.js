@@ -1,55 +1,75 @@
+import { auditar } from '../../../core/utils/audit.util.js';
+import { esMetodoEfectivo, montoEfectivo } from '../../../core/utils/efectivo.util.js';
+
+const noEncontrado = () => { const e = new Error('Pago de reparación no encontrado'); e.statusCode = 404; return e; };
+
 export default class PagoReparacionService {
-  constructor(pagoReparacionDAO) {
+  constructor(pagoReparacionDAO, bitacoraService = null, cajaService = null) {
     this.pagoReparacionDAO = pagoReparacionDAO;
+    this.bitacoraService = bitacoraService;
+    this.cajaService = cajaService;
   }
 
   async getAll(query = {}) {
     const { page, limit } = query;
-    return await this.pagoReparacionDAO.getAll({
-      page,
-      limit
-    });
+    return await this.pagoReparacionDAO.getAll({ page, limit });
   }
 
   async getById(id) {
     const pago = await this.pagoReparacionDAO.getById(id);
-    if (!pago) {
-      const err = new Error('Pago de reparación no encontrado');
-      err.statusCode = 404;
-      throw err;
-    }
+    if (!pago) throw noEncontrado();
     return pago;
   }
 
-  async create(data) {
-    const nuevoPago = {
-      ...data,
-      FechaPago: data.FechaPago ? new Date(data.FechaPago) : new Date()
-    };
-    return await this.pagoReparacionDAO.create(nuevoPago);
-  }
+  async create(data, ctx = null) {
+    const sequelize = this.pagoReparacionDAO.model.sequelize;
+    const t = await sequelize.transaction();
 
-  async update(id, data) {
-    const pago = await this.pagoReparacionDAO.getById(id);
-    if (!pago) {
-      const err = new Error('Pago de reparación no encontrado');
-      err.statusCode = 404;
+    try {
+      // En efectivo el cobro es siempre un importe entero.
+      if (await esMetodoEfectivo(sequelize.models, data.IdMetodoPago, t)) data = { ...data, Monto: montoEfectivo(data.Monto) };
+
+      const creado = await this.pagoReparacionDAO.create({
+        ...data,
+        FechaPago: data.FechaPago ? new Date(data.FechaPago) : new Date()
+      }, { transaction: t });
+
+      if (this.cajaService) {
+        await this.cajaService.registrarIngreso({
+          IdTurnoCaja: data.IdTurnoCaja,
+          IdEmpleado: ctx?.IdEmpleado,
+          Monto: data.Monto,
+          IdMetodoPago: data.IdMetodoPago,
+          Descripcion: 'Pago de reparación',
+          Fecha: creado.FechaPago
+        }, { transaction: t });
+      }
+
+      await t.commit();
+
+      await auditar(this.bitacoraService, ctx, `Registró un pago de ${data.Monto} en la orden de reparación`,
+        `Método ${data.IdMetodoPago ?? '-'} · turno ${data.IdTurnoCaja ?? '-'}`);
+      return creado;
+    } catch (err) {
+      await t.rollback();
       throw err;
     }
-
-    return await this.pagoReparacionDAO.update(id, data);
   }
 
-  async delete(id) {
+  async update(id, data, ctx = null) {
     const pago = await this.pagoReparacionDAO.getById(id);
-    if (!pago) {
-      const err = new Error('Pago de reparación no encontrado');
-      err.statusCode = 404;
-      throw err;
-    }
-    
+    if (!pago) throw noEncontrado();
+    const actualizado = await this.pagoReparacionDAO.update(id, data);
+    await auditar(this.bitacoraService, ctx, `Modificó el pago de reparación`, `Campos: ${Object.keys(data).join(', ')}`);
+    return actualizado;
+  }
+
+  async delete(id, ctx = null) {
+    const pago = await this.pagoReparacionDAO.getById(id);
+    if (!pago) throw noEncontrado();
     const eliminado = await this.pagoReparacionDAO.remove(id);
     if (!eliminado) throw new Error('No se pudo eliminar el pago de reparación');
+    await auditar(this.bitacoraService, ctx, `Eliminó el pago de reparación`, `Baja de pago de reparación`);
     return true;
   }
 }

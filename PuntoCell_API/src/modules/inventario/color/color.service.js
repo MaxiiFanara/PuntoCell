@@ -1,39 +1,119 @@
+import { registerAudit } from '../../../core/utils/audit.util.js';
+
 export default class ColorService {
-  constructor(colorDAO) {
+  constructor(colorDAO, bitacoraService = null) {
     this.colorDAO = colorDAO;
+    this.bitacoraService = bitacoraService;
     this.ATTRIBUTES = {};
   }
 
   async getAll(query = {}) {
     const { page, limit } = query;
-    return await this.colorDAO.getAll({ page, limit, attributes: this.ATTRIBUTES });
+    return await this.colorDAO.getAll({ page, limit, attributes: this.ATTRIBUTES, order: [['Nombre', 'ASC']] });
   }
 
-  async getById(id) {
+  async getById(id, auditContext = null) {
     const item = await this.colorDAO.getById(id, { attributes: this.ATTRIBUTES });
-    if (!item) throw new Error('Color no encontrado');
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Color no encontrado`,
+        Accion: 'Obtener Color',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Color no encontrado');
+    }
     return item;
   }
 
-  async create(data) {
+  async create(data, auditContext = null) {
     const existe = await this.colorDAO.findOne({ where: { Nombre: data.Nombre } });
-    if (existe) throw new Error('El color ya existe');
-    return await this.colorDAO.create(data);
+    if (existe) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Intento crear Color duplicado Nombre=${data.Nombre}`,
+        Accion: 'Crear Color',
+        IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+        IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('El color ya existe');
+    }
+    const created = await this.colorDAO.create(data);
+    await registerAudit(this.bitacoraService, {
+      detalle: `Color creado`,
+      Accion: 'Crear Color',
+      IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+      IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return created;
   }
 
-  async update(id, data) {
+  async update(id, data, auditContext = null) {
     const item = await this.colorDAO.getById(id);
-    if (!item) throw new Error('Color no encontrado');
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Color no encontrado`,
+        Accion: 'Actualizar Color',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Color no encontrado');
+    }
     if (data.Nombre !== undefined) {
       const existe = await this.colorDAO.findOne({ where: { Nombre: data.Nombre } });
-      if (existe && existe.Id !== parseInt(id)) throw new Error('Ya existe un color con ese nombre');
+      if (existe && existe.Id !== parseInt(id)) {
+        await registerAudit(this.bitacoraService, {
+          detalle: `Intento actualizar Color a Nombre duplicado=${data.Nombre}`,
+          Accion: 'Actualizar Color',
+          IdEmpleado: auditContext?.IdEmpleado,
+          IdSucursal: auditContext?.IdSucursal,
+          IpAddress: auditContext?.Ip,
+          Fecha: new Date()
+        }).catch(() => {});
+        throw new Error('Ya existe un color con ese nombre');
+      }
     }
-    return await this.colorDAO.update(id, data);
+    const updated = await this.colorDAO.update(id, data);
+    await registerAudit(this.bitacoraService, {
+      detalle: `Color actualizado`,
+      Accion: 'Actualizar Color',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return updated;
   }
 
-  async remove(id) {
+  async remove(id, auditContext = null) {
     const item = await this.colorDAO.getById(id);
-    if (!item) throw new Error('Color no encontrado');
-    return await this.colorDAO.remove(id);
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `Color no encontrado`,
+        Accion: 'Eliminar Color',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('Color no encontrado');
+    }
+    const removed = await this.colorDAO.remove(id);
+    await registerAudit(this.bitacoraService, {
+      detalle: `Color eliminado`,
+      Accion: 'Eliminar Color',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return removed;
   }
 }

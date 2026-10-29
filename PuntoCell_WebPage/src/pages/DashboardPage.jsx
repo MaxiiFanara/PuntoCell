@@ -1,238 +1,146 @@
-import { Box, Container, Typography, Alert, IconButton, Tooltip } from '@mui/material'
-import RefreshIcon from '@mui/icons-material/Refresh'
-import SmartphoneIcon from '@mui/icons-material/Smartphone'
-import DevicesIcon from '@mui/icons-material/Devices'
-import BuildIcon from '@mui/icons-material/Build'
-import WarningAmberIcon from '@mui/icons-material/WarningAmber'
-import Navbar from '../components/layout/Navbar'
-import KpiCard from '../components/dashboard/KpiCard'
-import RankingChartCard from '../components/dashboard/RankingChartCard'
-import FinanzasPanel from '../components/dashboard/FinanzasPanel'
-import { useEstadisticas } from '../hooks/useEstadisticas'
+import { useNavigate } from 'react-router-dom';
+import { Box, Typography, CardActionArea, Paper } from '@mui/material';
+import {
+  PointOfSale,
+  ShoppingCartCheckout,
+  Inventory2,
+  Build,
+  FactCheck,
+  AccountBalanceWallet
+} from '@mui/icons-material';
 
-const COLORES = {
-  marca:      ['#0369a1', '#0ea5e9'],
-  dispositivo: ['#6d28d9', '#8b5cf6'],
-  repuesto:   ['#0f766e', '#14b8a6'],
-  falla:      ['#b45309', '#f59e0b'],
-}
+import PageHeader from '../components/ui/PageHeader'; // Ajustá el path según donde esté tu DashboardPage
 
-const KPI_CONFIG = [
+const DASHBOARD_MODULES = [
   {
-    id: 'marca',
-    label: 'Marca más reparada',
-    icon: SmartphoneIcon,
-    g: COLORES.marca,
-    text: '#0c4a6e',
-    border: '#7dd3fc',
-    getNombre: (d) => d?.marcas?.[0]?.Marca,
-    getDato: (d) => d?.marcas?.[0]?.CantidadReparaciones,
-    datoSuffix: 'reparaciones',
+    id: 'ventas',
+    title: 'Módulo de Ventas',
+    desc: 'Evolución, Ticket promedio, Pareto y Proyecciones.',
+    path: '/app/dashboard/ventas',
+    icon: PointOfSale,
+    color: 'primary.main',
+    bgIcon: 'pc.accentSoft'
   },
   {
-    id: 'dispositivo',
-    label: 'Dispositivo más reparado',
-    icon: DevicesIcon,
-    g: COLORES.dispositivo,
-    text: '#4c1d95',
-    border: '#c4b5fd',
-    getNombre: (d) => d?.dispositivos?.[0]?.Dispositivo,
-    getDato: (d) => d?.dispositivos?.[0]?.CantidadReparaciones,
-    datoSuffix: 'reparaciones',
+    id: 'compras',
+    title: 'Módulo de Compras',
+    desc: 'Costos, Proveedores, Punto de reposición y EOQ.',
+    path: '/app/dashboard/compras',
+    icon: ShoppingCartCheckout,
+    color: 'warning.main', // Usamos los tonos de tu tema
+    bgIcon: 'warning.light'
   },
   {
-    id: 'repuesto',
-    label: 'Repuesto más usado',
-    icon: BuildIcon,
-    g: COLORES.repuesto,
-    text: '#134e4a',
-    border: '#5eead4',
-    getNombre: (d) => d?.repuestos?.[0]?.Repuesto,
-    getDato: (d) => d?.repuestos?.[0]?.CantidadUsada,
-    datoSuffix: 'unidades',
+    id: 'inventario',
+    title: 'Módulo de Inventario',
+    desc: 'Productos sin movimiento y análisis de rotación.',
+    path: '/app/dashboard/inventario',
+    icon: Inventory2,
+    color: 'info.main',
+    bgIcon: 'info.light'
   },
   {
-    id: 'falla',
-    label: 'Falla más frecuente',
-    icon: WarningAmberIcon,
-    g: COLORES.falla,
-    text: '#78350f',
-    border: '#fde68a',
-    getNombre: (d) => d?.fallas?.[0]?.Falla,
-    getDato: (d) => d?.fallas?.[0]?.CantidadReportada,
-    datoSuffix: 'veces',
+    id: 'reparaciones',
+    title: 'Módulo de Reparaciones',
+    desc: 'Rentabilidad, Tiempos de servicio, Fallas y Dispositivos.',
+    path: '/app/dashboard/reparaciones',
+    icon: Build,
+    color: 'secondary.main',
+    bgIcon: 'pc.surfaceMuted'
   },
-]
+  {
+    id: 'control',
+    title: 'Control / Auditoría',
+    desc: 'Matriz empleado por operación.',
+    path: '/app/dashboard/control',
+    icon: FactCheck,
+    color: 'error.main',
+    bgIcon: 'error.light'
+  },
+  {
+    id: 'financiero',
+    title: 'Financiero',
+    desc: 'Ingresos, Egresos y Márgenes por producto o marca.',
+    path: '/app/dashboard/financiero',
+    icon: AccountBalanceWallet,
+    color: 'success.main',
+    bgIcon: 'success.light'
+  },
+  {
+    id: 'caja',
+    title: 'Caja',
+    desc: 'Control de caja y transacciones financieras.',
+    path: '/app/dashboard/caja',
+    icon: AccountBalanceWallet,
+    color: 'info.main',
+    bgIcon: 'info.light'
+  }
+];
 
-const SectionHeader = ({ children }) => (
-  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5 }}>
-    <Typography
-      sx={{
-        fontSize: '0.7rem',
-        fontWeight: 800,
-        color: '#94a3b8',
-        textTransform: 'uppercase',
-        letterSpacing: '0.1em',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {children}
-    </Typography>
-    <Box
-      sx={{ flex: 1, height: '1.5px', background: 'linear-gradient(90deg, #e2e8f0, transparent)' }}
-    />
-  </Box>
-)
-
-const DashboardPage = () => {
-  const { data, loading, error, recargar } = useEstadisticas()
+export default function DashboardPage() {
+  const navigate = useNavigate();
 
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: '#eef2f7' }}>
-      
+    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
+      <PageHeader 
+        eyebrow="Análisis" 
+        title="Dashboards" 
+        meta="Seleccioná el módulo que deseás analizar para ver sus métricas detalladas." 
+      />
 
-      <Container maxWidth="xl" sx={{ py: 4, px: { xs: 2, sm: 3 } }}>
-
-        {/* Encabezado */}
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: { xs: 'flex-start', sm: 'center' },
-            flexDirection: { xs: 'column', sm: 'row' },
-            justifyContent: 'space-between',
-            gap: 2,
-            mb: 4,
-          }}
-        >
-          <Box>
-            <Typography
-              sx={{
-                fontWeight: 800,
-                fontSize: { xs: '1.35rem', sm: '1.6rem' },
-                color: '#0f172a',
-                letterSpacing: '-0.02em',
-                lineHeight: 1.1,
+      <Box sx={{ 
+        display: 'grid', 
+        gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, 
+        gap: 2.5 
+      }}>
+        {DASHBOARD_MODULES.map((mod) => {
+          const Icon = mod.icon;
+          
+          return (
+            <Paper 
+              key={mod.id}
+              sx={{ 
+                overflow: 'hidden',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: (t) => t.vars.palette.pc.liftPop,
+                  borderColor: 'primary.main'
+                }
               }}
             >
-              Dashboard de Estadísticas
-            </Typography>
-            <Typography sx={{ fontSize: '0.85rem', color: '#64748b', mt: 0.5 }}>
-              Métricas del taller — solo órdenes entregadas
-            </Typography>
-          </Box>
-
-          <Tooltip title="Actualizar datos">
-            <span>
-              <IconButton
-                onClick={recargar}
-                disabled={loading}
-                sx={{
-                  backgroundColor: '#fff',
-                  border: '1.5px solid #e2e8f0',
-                  borderRadius: 2,
-                  color: '#475569',
-                  '&:hover': { backgroundColor: '#f8fafc', borderColor: '#cbd5e1' },
-                }}
+              <CardActionArea 
+                onClick={() => navigate(mod.path)}
+                sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start' }}
               >
-                <RefreshIcon
-                  sx={{
-                    transition: 'transform 0.4s',
-                    ...(loading && { animation: 'spin 1s linear infinite' }),
-                    '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } },
+                <Box 
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    width: 42, 
+                    height: 42, 
+                    borderRadius: '10px',
+                    bgcolor: mod.bgIcon,
+                    color: mod.color,
+                    mb: 2
                   }}
-                />
-              </IconButton>
-            </span>
-          </Tooltip>
-        </Box>
-
-        {/* Error */}
-        {error && (
-          <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
-            {error}
-          </Alert>
-        )}
-
-        {/* Sección: Métricas principales */}
-        <Box sx={{ mb: 4 }}>
-          <SectionHeader>Métricas principales</SectionHeader>
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(2,1fr)', md: 'repeat(4,1fr)' },
-              gap: 2,
-            }}
-          >
-            {KPI_CONFIG.map(({ id, label, icon, g, text, border, getNombre, getDato, datoSuffix }) => (
-              <KpiCard
-                key={id}
-                label={label}
-                nombre={getNombre(data)}
-                dato={getDato(data)}
-                datoSuffix={datoSuffix}
-                icon={icon}
-                g={g}
-                text={text}
-                border={border}
-                loading={loading}
-              />
-            ))}
-          </Box>
-        </Box>
-
-        {/* Sección: Finanzas */}
-        {(loading || data?.finanzas) && (
-          <FinanzasPanel finanzas={data?.finanzas ?? null} loading={loading} />
-        )}
-
-        {/* Sección: Rankings */}
-        <Box sx={{ mb: 4 }}>
-          <SectionHeader>Rankings — Top 5</SectionHeader>
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: { xs: '1fr', md: 'repeat(2,1fr)' },
-              gap: 2,
-            }}
-          >
-            <RankingChartCard
-              titulo="Marcas más reparadas"
-              items={data?.marcas ?? []}
-              color={COLORES.marca}
-              loading={loading}
-              labelKey="Marca"
-              valueKey="CantidadReparaciones"
-            />
-            <RankingChartCard
-              titulo="Dispositivos más reparados"
-              items={data?.dispositivos ?? []}
-              color={COLORES.dispositivo}
-              loading={loading}
-              labelKey="Dispositivo"
-              valueKey="CantidadReparaciones"
-            />
-            <RankingChartCard
-              titulo="Repuestos más usados"
-              items={data?.repuestos ?? []}
-              color={COLORES.repuesto}
-              loading={loading}
-              labelKey="Repuesto"
-              valueKey="CantidadUsada"
-            />
-            <RankingChartCard
-              titulo="Fallas más frecuentes"
-              items={data?.fallas ?? []}
-              color={COLORES.falla}
-              loading={loading}
-              labelKey="Falla"
-              valueKey="CantidadReportada"
-            />
-          </Box>
-        </Box>
-
-      </Container>
+                >
+                  <Icon fontSize="small" />
+                </Box>
+                
+                <Typography sx={{ fontWeight: 600, fontSize: '.95rem', letterSpacing: '-.01em', mb: 0.5 }}>
+                  {mod.title}
+                </Typography>
+                
+                <Typography sx={{ color: 'text.secondary', fontSize: '.78rem', lineHeight: 1.45 }}>
+                  {mod.desc}
+                </Typography>
+              </CardActionArea>
+            </Paper>
+          );
+        })}
+      </Box>
     </Box>
-  )
+  );
 }
-
-export default DashboardPage

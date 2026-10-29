@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { validateFields } from '../../core/middlewares/validateFields.middleware.js';
+import { requireCajaAbierta } from '../../core/middlewares/caja.middleware.js';
 import { isAdmin, verificarTransicionEstado } from '../../core/middlewares/auth.middleware.js';
 import { nuevaReparacionSchema, cambiarEstadoSchema } from './orden-reparacion/orden-reparacion.dto.js';
 import { estadoOrdenSchema, estadoOrdenUpdateSchema } from './estado-orden/estado-orden.dto.js';
@@ -23,12 +24,13 @@ export default (container) => {
     pagoReparacionController,
     repuestoOrdenController
   } = container.reparaciones;
+  const { reparacionesDashboardController } = container.dashboard;
 
   // ÓRDENES DE REPARACIÓN
   router.get('/ordenes-reparacion', ordenReparacionController.getAll);
   router.get('/ordenes-reparacion/:id', ordenReparacionController.getById);
-  router.post('/ordenes-reparacion', validateFields(nuevaReparacionSchema), ordenReparacionController.create);
-  router.patch('/ordenes-reparacion/:id/estado', verificarTransicionEstado, validateFields(cambiarEstadoSchema), ordenReparacionController.updateStatus);
+  router.post('/ordenes-reparacion', validateFields(nuevaReparacionSchema), requireCajaAbierta(), ordenReparacionController.create);
+  router.patch('/ordenes-reparacion/:id/estado', verificarTransicionEstado, validateFields(cambiarEstadoSchema), requireCajaAbierta((req) => !!req.body?.pagoFinal), ordenReparacionController.updateStatus);
   router.post('/ordenes-reparacion/:id/testemail', ordenReparacionController.enviarComprobante);
 
   // REPUESTOS
@@ -72,7 +74,16 @@ export default (container) => {
 
   router.get('/pagos-reparacion', pagoReparacionController.getAll);
   router.get('/pagos-reparacion/:id', pagoReparacionController.getById);
-  router.post('/pagos-reparacion', validateFields(pagoReparacionSchema), pagoReparacionController.create);
+  router.post('/pagos-reparacion', validateFields(pagoReparacionSchema), requireCajaAbierta(), pagoReparacionController.create);
+
+  // Analíticas / Dashboard - Reparaciones
+  router.get('/analitica/reparaciones-periodo', reparacionesDashboardController.reparacionesPorPeriodo);
+  router.get('/analitica/reparaciones-tipo', reparacionesDashboardController.reparacionesPorTipo);
+  router.get('/analitica/reparaciones-marca', reparacionesDashboardController.reparacionesPorMarca);
+  router.get('/analitica/heatmap-marca-falla', reparacionesDashboardController.heatmapMarcaFalla);
+  router.get('/analitica/pareto-fallas', reparacionesDashboardController.paretoFallas);
+  router.get('/analitica/tiempos-reparacion', reparacionesDashboardController.tiemposReparacion);
+  router.get('/analitica/rentabilidad-falla', reparacionesDashboardController.rentabilidadPorFalla);
   router.put('/pagos-reparacion/:id', validateFields(pagoReparacionUpdateSchema), pagoReparacionController.update);
   router.delete('/pagos-reparacion/:id', pagoReparacionController.delete);
 

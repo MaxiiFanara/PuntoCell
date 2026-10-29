@@ -34,8 +34,8 @@ export default class OrdenReparacionController {
 
   create = async (req, res, next) => {
     try {
-      const idEmpleado = req.user.id;
-      const data = await this.service.create(req.body, idEmpleado);
+      const ctx = { IdEmpleado: req.user?.id, IdSucursal: req.user?.sucursal, Ip: req.ip };
+      const data = await this.service.create(req.body, req.user.id, ctx);
       return res.status(201).json({ status: 'success', data });
     } catch (err) {
       next(err);
@@ -46,7 +46,8 @@ export default class OrdenReparacionController {
     try {
       const data = await this.service.updateStatus(req.params.id, {
         ...req.body,
-        idEmpleadoSesion: req.user.id
+        idEmpleadoSesion: req.user.id,
+        ctx: { IdEmpleado: req.user?.id, IdSucursal: req.user?.sucursal, Ip: req.ip }
       });
       return res.status(200).json({ status: 'success', data });
     } catch (err) {

@@ -1,4 +1,16 @@
-export const errorMiddleware = (err, req, res, next) => {
+import { registerAudit } from '../utils/audit.util.js';
+import logger from '../utils/logger.js';
+import { ROL_ANALISTA } from '../constants/roles.js';
+import { sanitizarIds } from '../utils/sanitizar-ids.util.js';
+
+// Status que representan un "fallo de permisos/negocio" y que sí se auditan:
+// 401 (sin sesión), 403 (sin permiso), 404 (recurso inexistente), 409 (conflicto).
+// Se dejan afuera: 400 (validación de formato, puro ruido) y 5xx (bug del server,
+// ya los loguea el propio middleware por consola).
+const AUDIT_STATUS = new Set([401, 403, 404, 409]);
+const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+export const createErrorMiddleware = (bitacoraService = null) => (err, req, res, next) => {
   let statusCode = err.statusCode || 500;
   let message = err.message || 'Error interno del servidor';
   let detalles = null;
@@ -20,12 +32,37 @@ export const errorMiddleware = (err, req, res, next) => {
 
   if (err.name === 'SequelizeForeignKeyConstraintError') {
     statusCode = 400;
-    message = 'Error de integridad referencial. Está intentando usar un ID que no existe o borrar un registro que está en uso.';
+    message = 'Error de integridad referencial. Está intentando usar un dato que no existe o borrar un registro que está en uso.';
   }
 
   // Solo se loguea si es un 500 no esperado, para no ensuciar la consola con 404/400
   if (statusCode === 500) {
-    console.error('🔥 [ERROR CRÍTICO DEL SERVIDOR]:', err);
+    logger.error(`[ERROR CRÍTICO] ${req.method} ${req.originalUrl}: ${err.message}`, {
+      stack: err.stack,
+      sqlMessage: err.original?.message,
+      IdEmpleado: req.user?.id,
+      IdSucursal: req.user?.sucursal,
+      Ip: req.ip
+    });
+  }
+
+  // Auditoría centralizada de fallos de permisos/negocio (los éxitos los audita
+  // cada service). Solo para requests que mutan datos o para 401/403 (acceso denegado).
+  if (bitacoraService && AUDIT_STATUS.has(statusCode) && (MUTATING.has(req.method) || statusCode === 401 || statusCode === 403)) {
+    registerAudit(bitacoraService, {
+      Accion: `Intento rechazado (${statusCode}): ${req.method} ${req.originalUrl}`.slice(0, 150),
+      detalle: message,
+      Nivel: 'warn',
+      IdEmpleado: req.user?.id ?? null,
+      IdSucursal: req.user?.sucursal ?? null,
+      IpAddress: req.ip
+    }).catch(() => {});
+  }
+
+  // Solo el analista puede ver identificadores internos en los mensajes de error.
+  if (req.user?.rol !== ROL_ANALISTA) {
+    message = sanitizarIds(message);
+    if (detalles) detalles = detalles.map(sanitizarIds);
   }
 
   const errorResponse = {
@@ -46,3 +83,6 @@ export const errorMiddleware = (err, req, res, next) => {
 
   return res.status(statusCode).json(errorResponse);
 };
+
+// Compat: algunos imports usan `errorMiddleware` directo (sin bitácora).
+export const errorMiddleware = createErrorMiddleware(null);

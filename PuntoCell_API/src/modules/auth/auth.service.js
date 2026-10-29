@@ -1,34 +1,53 @@
 import { Op } from 'sequelize';
 import { comparePassword, hashPassword } from '../../core/utils/bcrypt.js';
 import { generateToken, verifyToken } from '../../core/utils/jwt.util.js';
+import { registerAudit } from '../../core/utils/audit.util.js';
+import logger from '../../core/utils/logger.js';
 
 export default class AuthService {
-  constructor(usuarioDAO, notificacionService) {
+  constructor(usuarioDAO, notificacionService, bitacoraService = null) {
     this.usuarioDAO = usuarioDAO;
     this.notificacionService = notificacionService;
+    this.bitacoraService = bitacoraService;
   }
 
+  _nombreCompleto(user) {
+    return `${user.Nombre ?? ''} ${user.Apellido ?? ''}`.trim() || user.UsuarioEmpleado || `Id ${user.Id}`;
+  }
 
-
-  async login(identificador, password) {
+  async login(identificador, password, ctx = {}) {
     const user = await this.usuarioDAO.findOne({
       where: {
         [Op.or]: [
           { Email: identificador },
           { UsuarioEmpleado: identificador }
         ],
-        EsCliente: false, 
-        Activo: true      
+        EsCliente: false,
+        Activo: true
       }
     });
 
     if (!user) {
+      await registerAudit(this.bitacoraService, {
+        Accion: `Login fallido: identificador "${identificador}" inexistente o inactivo`,
+        detalle: `Intento de inicio de sesión rechazado (usuario no encontrado)`,
+        Nivel: 'warn',
+        IpAddress: ctx.Ip
+      });
       throw new Error('Credenciales inválidas');
     }
 
     const isValidPassword = await comparePassword(password, user.Pwd);
-    
+
     if (!isValidPassword) {
+      await registerAudit(this.bitacoraService, {
+        Accion: `Login fallido: contraseña incorrecta para ${this._nombreCompleto(user)}`,
+        detalle: `Intento de inicio de sesión rechazado (contraseña incorrecta)`,
+        Nivel: 'warn',
+        IdEmpleado: user.Id,
+        IdSucursal: user.IdSucursal,
+        IpAddress: ctx.Ip
+      });
       throw new Error('Credenciales inválidas');
     }
 
@@ -36,7 +55,36 @@ export default class AuthService {
     const token = generateToken(payload, '8h');
     const { Pwd, ...userResponse } = user.toJSON();
 
+    await registerAudit(this.bitacoraService, {
+      Accion: `Usuario ${this._nombreCompleto(user)} inició sesión`,
+      detalle: `Inicio de sesión exitoso`,
+      IdEmpleado: user.Id,
+      IdSucursal: user.IdSucursal,
+      IpAddress: ctx.Ip
+    });
+
     return { user: userResponse, token };
+  }
+
+  // Devuelve el usuario logueado a partir del id del token (para GET /auth/me).
+  async getUsuarioActual(id) {
+    const user = await this.usuarioDAO.getById(id);
+    if (!user || !user.Activo || user.EsCliente) return null;
+    const { Pwd, ...userResponse } = user.toJSON ? user.toJSON() : user;
+    return userResponse;
+  }
+
+  // El cierre de sesión llega sin req.user (la ruta es pública); el controller
+  // resuelve al usuario desde la cookie firmada y lo pasa por ctx.
+  async logout(ctx = {}) {
+    if (!ctx.IdEmpleado) return;
+    await registerAudit(this.bitacoraService, {
+      Accion: `Usuario Id ${ctx.IdEmpleado} cerró sesión`,
+      detalle: `Cierre de sesión`,
+      IdEmpleado: ctx.IdEmpleado,
+      IdSucursal: ctx.IdSucursal ?? null,
+      IpAddress: ctx.Ip
+    });
   }
 
   async forgotPassword(email) {
@@ -45,6 +93,8 @@ export default class AuthService {
     
     // Por seguridad, no revelamos si el email existe o no (evita escaneo de correos)
     if (!user) {
+      // Solo log de servidor: al cliente se le responde igual para no revelar qué emails existen.
+      logger.warn(`ℹ️ Recuperación de contraseña: no hay un usuario activo con el email "${email}"`);
       return { message: 'Si el email existe, recibirás un correo de recuperación' };
     }
 
@@ -52,7 +102,8 @@ export default class AuthService {
     const resetToken = generateToken({ id: user.Id, type: 'reset' }, '15m');
 
     // 3. INTEGRACIÓN: Llamamos a la función de Nodemailer que acabas de crear
-    await this.notificacionService.enviarEmailRecuperacion(user.Email, user.Nombre, resetToken);
+    const enviado = await this.notificacionService.enviarEmailRecuperacion(user.Email, user.Nombre, resetToken);
+    if (!enviado) logger.error(`❌ Recuperación de contraseña: no se pudo enviar el mail a "${user.Email}" (ver error de SMTP arriba)`);
 
     return {
       message: 'Se ha enviado un email con instrucciones para restablecer tu contraseña'

@@ -1,88 +1,88 @@
-import {
-  Box,
-  Chip,
-  Stack,
-} from '@mui/material';
+import { useMemo } from 'react'
+import { Box, ToggleButton, ToggleButtonGroup } from '@mui/material'
 
-import { useTheme } from '@mui/material/styles';
+import { useProducts } from '../context/ProductContext'
+import { formatCategoria } from '../utils/categorias'
 
-export default function CategoryFilter({
-  categories,
-  selected,
-  onChange,
-}) {
+/**
+ * Píldoras de categoría.
+ *
+ * Sigue siendo un ToggleButtonGroup exclusivo: es el control correcto para "una
+ * de varias" y ya trae el rol, el estado presionado y el manejo de teclado. Lo
+ * que cambia es la escala y el relleno de la activa, que acá se llena con la
+ * tinta del texto y NO con el verde: el verde es del precio, la acción primaria
+ * y el anillo de foco, y una fila de píldoras verdes le saca el trabajo al
+ * precio de la card.
+ */
+const pildora = (t) => ({
+  height: 36,
+  px: 1.875,
+  gap: 0.75,
+  fontSize: '.875rem',
+  fontWeight: 500,
+  color: t.vars.palette.text.secondary,
+  background: t.vars.palette.background.paper,
+  transition: 'background-color 180ms ease, border-color 180ms ease, color 180ms ease, transform 160ms cubic-bezier(.23,1,.32,1)',
+  '&:active': { transform: 'scale(.97)' },
+  // El tema estila el hover sin condición; acá queda neutralizado y se vuelve a
+  // declarar sólo donde hay puntero fino.
+  '&:hover': { background: t.vars.palette.background.paper, color: t.vars.palette.text.secondary },
+  '@media (hover: hover) and (pointer: fine)': {
+    '&:hover': {
+      borderColor: `${t.vars.palette.text.disabled} !important`,
+      color: t.vars.palette.text.primary,
+      background: t.vars.palette.background.paper,
+    },
+  },
+  '&.Mui-selected': {
+    background: t.vars.palette.text.primary,
+    color: t.vars.palette.background.default,
+    borderColor: `${t.vars.palette.text.primary} !important`,
+    // La activa no reacciona al hover: ya está en su estado final.
+    '&:hover': {
+      background: t.vars.palette.text.primary,
+      color: t.vars.palette.background.default,
+      borderColor: `${t.vars.palette.text.primary} !important`,
+    },
+  },
+})
 
-  const theme = useTheme();
+export default function CategoryFilter({ categories, products: productos, selected, onChange }) {
+  const { products: todos } = useProducts()
+  // El catálogo pasa solo los productos con stock; sin esa prop se usa el catálogo completo.
+  const products = productos ?? todos
+
+  // La cuenta sale del catálogo completo, no del listado ya filtrado: si saliera
+  // de ahí, elegir una categoría dejaría a todas las demás en cero.
+  const cuentas = useMemo(() => {
+    const acumulado = { Todos: products.length }
+    for (const p of products) acumulado[p.category] = (acumulado[p.category] || 0) + 1
+    return acumulado
+  }, [products])
 
   return (
-    <Box
-      sx={{
-        overflowX: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        pb: 1,
-        pt: 1,
-        px: { xs: 2, md: 0 }, 
-        mx: { xs: -2, md: 0 },
-
-        '&::-webkit-scrollbar': {
-          display: 'none',
-        },
-
-        scrollbarWidth: 'none',
-      }}
+    // En pantallas angostas las píldoras se deslizan en una sola fila en vez de apilarse.
+    <Box sx={{ overflowX: { xs: 'auto', md: 'visible' }, pb: { xs: 0.5, md: 0 }, mx: { xs: -1, md: 0 }, px: { xs: 1, md: 0 } }}>
+    <ToggleButtonGroup
+      exclusive
+      value={selected}
+      // `null` llega al deseleccionar la activa: se ignora para que siempre
+      // haya exactamente una categoría vigente.
+      onChange={(_, valor) => valor !== null && onChange(valor)}
+      aria-label="Filtrar por categoría"
+      sx={{ gap: 1, flexWrap: { xs: 'nowrap', md: 'wrap' }, '& .MuiToggleButton-root': { flex: 'none' } }}
     >
-      <Stack
-        direction="row"
-        spacing={1.5}
-        sx={{
-          minWidth: 'max-content',
-        }}
-      >
-        {categories.map((cat) => {
-
-          const isSelected =
-            selected === cat;
-
-          return (
-            <Chip
-              key={cat}
-              label={cat}
-              clickable
-              onClick={() => onChange(cat)}
-              variant="filled"
-              sx={{
-                height: 42,
-
-                px: 1,
-
-                borderRadius: '999px',
-
-                fontWeight: 500,
-
-                fontSize: '0.9rem',
-
-                transition: 'all 0.25s ease',
-
-                backgroundColor: isSelected
-                  ? theme.custom.chips.activeBg
-                  : theme.custom.chips.defaultBg,
-
-                color: isSelected
-                  ? theme.custom.chips.activeColor
-                  : theme.custom.chips.defaultColor,
-
-                border: `1px solid ${theme.palette.divider}`,
-
-                '&:hover': {
-                  backgroundColor: isSelected
-                    ? theme.custom.chips.activeBg
-                    : theme.custom.chips.hoverBg,
-                },
-              }}
-            />
-          );
-        })}
-      </Stack>
+      {categories.map((cat) => (
+        <ToggleButton key={cat} value={cat} sx={pildora}>
+          {cat === 'Todos' ? cat : formatCategoria(cat)}
+          {cuentas[cat] > 0 && (
+            <Box component="span" className="mono" sx={{ fontSize: '.75rem', opacity: 0.65 }}>
+              {cuentas[cat]}
+            </Box>
+          )}
+        </ToggleButton>
+      ))}
+    </ToggleButtonGroup>
     </Box>
-  );
+  )
 }

@@ -1,6 +1,10 @@
+import { registerAudit } from '../../../core/utils/audit.util.js';
+import logger from '../../../core/utils/logger.js';
+
 export default class ReclamoGarantiaService {
-  constructor(dao) {
+  constructor(dao, bitacoraService = null) {
     this.dao = dao;
+    this.bitacoraService = bitacoraService;
     this.ATTRIBUTES = {};
   }
 
@@ -9,13 +13,23 @@ export default class ReclamoGarantiaService {
     return await this.dao.getAll({ page, limit, attributes: this.ATTRIBUTES });
   }
 
-  async getById(id) {
+  async getById(id, auditContext = null) {
     const item = await this.dao.getById(id, { attributes: this.ATTRIBUTES });
-    if (!item) throw new Error('ReclamoGarantia no encontrado');
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `ReclamoGarantia no encontrado`,
+        Accion: 'Obtener ReclamoGarantia',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('ReclamoGarantia no encontrado');
+    }
     return item;
   }
 
-  async create(data) {
+  async create(data, auditContext = null) {
     const sequelize = this.dao.model.sequelize;
     const t = await sequelize.transaction();
     try {
@@ -35,25 +49,79 @@ export default class ReclamoGarantiaService {
 
       const created = await this.dao.create(data, { transaction: t });
       await t.commit();
+      await registerAudit(this.bitacoraService, {
+        detalle: `ReclamoGarantia creado`,
+        Accion: 'Crear ReclamoGarantia',
+        IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+        IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
       return created;
     } catch (err) {
       await t.rollback();
-      console.error('Error creando ReclamoGarantia:', err && (err.stack || err.message || err));
-      if (err.original) console.error('SQL Error detail:', err.original);
+      logger.error('Error creando ReclamoGarantia:', err && (err.stack || err.message || err));
+      if (err.original) logger.error('SQL Error detail:', err.original);
       const message = (err.original && (err.original.message || err.original.sqlMessage)) || err.message || 'Error al crear reclamo';
+      await registerAudit(this.bitacoraService, {
+        detalle: `Error creando ReclamoGarantia - ${message}`,
+        Accion: 'Crear ReclamoGarantia',
+        IdEmpleado: data?.IdEmpleado || auditContext?.IdEmpleado,
+        IdSucursal: data?.IdSucursal || auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
       throw new Error(message);
     }
   }
 
-  async update(id, data) {
+  async update(id, data, auditContext = null) {
     const item = await this.dao.getById(id);
-    if (!item) throw new Error('ReclamoGarantia no encontrado');
-    return await this.dao.update(id, data);
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `ReclamoGarantia no encontrado`,
+        Accion: 'Actualizar ReclamoGarantia',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('ReclamoGarantia no encontrado');
+    }
+    const updated = await this.dao.update(id, data);
+    await registerAudit(this.bitacoraService, {
+      detalle: `ReclamoGarantia actualizado`,
+      Accion: 'Actualizar ReclamoGarantia',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return updated;
   }
 
-  async remove(id) {
+  async remove(id, auditContext = null) {
     const item = await this.dao.getById(id);
-    if (!item) throw new Error('ReclamoGarantia no encontrado');
-    return await this.dao.remove(id);
+    if (!item) {
+      await registerAudit(this.bitacoraService, {
+        detalle: `ReclamoGarantia no encontrado`,
+        Accion: 'Eliminar ReclamoGarantia',
+        IdEmpleado: auditContext?.IdEmpleado,
+        IdSucursal: auditContext?.IdSucursal,
+        IpAddress: auditContext?.Ip,
+        Fecha: new Date()
+      }).catch(() => {});
+      throw new Error('ReclamoGarantia no encontrado');
+    }
+    const removed = await this.dao.remove(id);
+    await registerAudit(this.bitacoraService, {
+      detalle: `ReclamoGarantia eliminado`,
+      Accion: 'Eliminar ReclamoGarantia',
+      IdEmpleado: auditContext?.IdEmpleado,
+      IdSucursal: auditContext?.IdSucursal,
+      IpAddress: auditContext?.Ip,
+      Fecha: new Date()
+    }).catch(() => {});
+    return removed;
   }
 }
