@@ -71,6 +71,12 @@ export const env = {
     OPENROUTER_SITE_URL: process.env.OPENROUTER_SITE_URL || 'http://localhost:5173',
     OPENROUTER_APP_NAME: process.env.OPENROUTER_APP_NAME || 'PuntoCell'
   },
+  SPECS: {
+    // mobileapi.dev: fuente de las especificaciones técnicas del comparador.
+    // El plan gratuito da 50 créditos/mes y 5 pedidos/min (ver especificaciones.service.js).
+    MOBILEAPI_KEY: process.env.MOBILEAPI_KEY || '',
+    MOBILEAPI_MONTHLY_LIMIT: Number(process.env.MOBILEAPI_MONTHLY_LIMIT) || 45
+  },
   MP: {
     ACCESS_TOKEN: process.env.MP_ACCESS_TOKEN,
     // Base del frontend para las back_urls a las que MP devuelve al comprador.

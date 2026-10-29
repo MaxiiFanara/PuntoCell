@@ -14,6 +14,12 @@ export const catalogoService = {
     return response?.data || response || { productos: [], cotizacionDolar: 0 };
   },
 
+  // Productos del catálogo (2 o 3 ids) con la ficha técnica de cada modelo.
+  comparar: async (ids) => {
+    const response = await fetchApi(`/catalogo/comparar?ids=${ids.join(',')}`);
+    return response?.data || response;
+  },
+
   getCotizaciones: async () => {
     const response = await fetchApi('/catalogo/cotizaciones');
     return response?.data || response;

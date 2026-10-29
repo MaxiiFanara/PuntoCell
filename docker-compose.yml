@@ -40,6 +40,7 @@ services:
     build:
       context: ./PuntoCell_API
     container_name: puntocell_api_v2
+    restart: unless-stopped
     environment:
       PORT: 3000
       PUBLIC_FRONT_URL: ${PUBLIC_FRONT_URL:-http://localhost:5176}
@@ -74,6 +75,7 @@ services:
       OPENROUTER_MODELS: ${OPENROUTER_MODELS}
       OPENROUTER_SITE_URL: ${OPENROUTER_SITE_URL}
       OPENROUTER_APP_NAME: ${OPENROUTER_APP_NAME}
+      MOBILEAPI_KEY: ${MOBILEAPI_KEY:-}
       RECAPTCHA_ENABLED: ${RECAPTCHA_ENABLED:-true}
     ports:
       - "3003:3000"
@@ -93,6 +95,7 @@ services:
       PUBLIC_FRONT_URL: ${PUBLIC_FRONT_URL:-http://localhost:5176}
       API_PROXY_TARGET: ${API_PROXY_TARGET:-http://api-v2:3000}
       VITE_API_URL: ${VITE_API_URL:-}
+      VITE_CATALOGO_IMAGES_URL: ${VITE_CATALOGO_IMAGES_URL:-}
     ports:
       - "5176:5173"
     volumes:

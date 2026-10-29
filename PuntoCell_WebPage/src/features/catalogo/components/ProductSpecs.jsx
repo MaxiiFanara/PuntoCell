@@ -12,7 +12,7 @@ import { muted } from '../../../components/ui/publicStyles'
  * Un solo filete arriba del grupo y aire entre las filas: un filete por fila
  * convierte tres datos en una planilla.
  */
-export default function ProductSpecs({ product, denso = false }) {
+export default function ProductSpecs({ product, denso = false, compacto = false }) {
   const memoria = product.dimensions ? product.dimensions.replace(/^Memoria:\s*/, '') : null
 
   // Un accesorio o un repuesto no tienen memoria: ahí "No aplica" es la verdad.
@@ -28,6 +28,18 @@ export default function ProductSpecs({ product, denso = false }) {
     { label: 'Color', value: product.material || 'Estándar', vacio: !product.material, vacioTexto: 'Sin especificar' },
     { label: 'Sucursal', value: product.sucursal, vacio: !product.sucursal, vacioTexto: 'Sin especificar' },
   ]
+
+  // Versión de la tarjeta del catálogo: una sola línea con lo que sí se sabe. Lo que no
+  // aplica o no está registrado se omite (el detalle del producto sigue mostrando las tres filas).
+  if (compacto) {
+    const datos = filas.filter((f) => !f.vacio).map((f) => f.value)
+    if (datos.length === 0) return null
+    return (
+      <Typography sx={{ ...muted, mt: 1.25, fontSize: '.8125rem', lineHeight: 1.45 }}>
+        {datos.join(' · ')}
+      </Typography>
+    )
+  }
 
   return (
     <Box

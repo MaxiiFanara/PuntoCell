@@ -140,3 +140,8 @@ RECAPTCHA_API_KEY=AIzaSyAvzWCSPBUtW5prMnkEhWkVQU-73CI1xEA
 RECAPTCHA_PROJECT_ID=puntocelll
 RECAPTCHA_MIN_SCORE=0.5
 RECAPTCHA_ENABLED=true
+# --- Comparador de dispositivos (mobileapi.dev) ---
+MOBILEAPI_KEY=e8dcb50f3ecfb0426e24dd92e94d43b154bd3d03
+
+
+VITE_CATALOGO_IMAGES_URL=https://puntocell-catalogo-imagenes-2.s3.us-east-2.amazonaws.com/

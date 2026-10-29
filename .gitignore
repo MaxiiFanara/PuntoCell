@@ -1,2 +1,4 @@
 .env
 .DS_Store
+# Caché de especificaciones del comparador (se regenera sola)
+PuntoCell_API/data/

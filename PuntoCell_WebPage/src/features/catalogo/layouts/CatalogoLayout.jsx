@@ -4,9 +4,11 @@ import { Box } from '@mui/material';
 
 import { ProductProvider } from '../context/ProductContext';
 import { CartProvider } from '../context/CartContext';
+import { CompareProvider } from '../context/CompareContext';
 
 import PublicNavbar from '../../../components/ui/PublicNavbar';
 import CartDrawer from '../components/CartDrawer';
+import CompareBar from '../components/CompareBar';
 import PublicFooter from '../../../components/ui/PublicFooter';
 import WhatsappFloating from '../components/WhatsappFloating';
 import CatalogAssistantChat from '../components/CatalogAssistantChat';
@@ -27,12 +29,18 @@ export default function CatalogoLayout() {
   return (
     <ProductProvider>
       <CartProvider>
+        <CompareProvider>
         <Box
           sx={{
             minHeight: '100vh',
             display: 'flex',
             flexDirection: 'column',
             bgcolor: 'background.default',
+            // Un lavado verde suave arriba a la derecha: le da atmósfera al catálogo sin
+            // pelearse con las tarjetas. Usa el verde del tema, así sigue al modo claro/oscuro.
+            backgroundImage:
+              'radial-gradient(60% 520px at 88% -80px, color-mix(in srgb, var(--pc-palette-primary-main) 17%, transparent), transparent 70%), radial-gradient(40% 420px at 0% 340px, color-mix(in srgb, var(--pc-palette-primary-main) 7%, transparent), transparent 70%)',
+            backgroundRepeat: 'no-repeat',
           }}
         >
           <PublicNavbar />
@@ -51,7 +59,9 @@ export default function CatalogoLayout() {
           <PublicFooter />
           <WhatsappFloating />
           <CatalogAssistantChat />
+          <CompareBar />
         </Box>
+        </CompareProvider>
       </CartProvider>
     </ProductProvider>
   );

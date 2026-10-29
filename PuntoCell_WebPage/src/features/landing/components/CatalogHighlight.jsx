@@ -1,24 +1,24 @@
-import { Box, Typography } from '@mui/material'
+import { Box } from '@mui/material'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import { Link } from 'react-router-dom'
 
-import ProductCard from '../../catalogo/components/ProductCard'
-import ProductCardSkeleton from '../../catalogo/components/ProductCardSkeleton'
-import { useProducts } from '../../catalogo/context/ProductContext'
 import { section, shell } from '../../../components/ui/publicStyles'
+import { ESQUEMA_OSCURO } from '../landingTokens'
+import Reveal from './Reveal'
+import { Acento, Eyebrow, Titulo } from './Tipografia'
+import VitrinaModelos from './VitrinaModelos'
 
 export default function CatalogHighlight() {
-  const { products, loading } = useProducts()
-  // Lo que se muestra acá es "lo que hay en el local ahora", no una selección
-  // editorial: el flag `featured` del contexto era literalmente stock > 0.
-  const disponibles = products.filter((p) => p.stock > 0).slice(0, 4)
-
-  if (!loading && disponibles.length === 0) return null
-
   return (
-    <Box component="section" id="disponibles" sx={section(true)}>
+    <Box
+      component="section"
+      id="disponibles"
+      aria-labelledby="disponibles-titulo"
+      {...ESQUEMA_OSCURO}
+      sx={{ ...section(false), color: '#fff' }}
+    >
       <Box sx={shell}>
-        <Box
+        <Reveal
           sx={{
             display: 'flex',
             alignItems: 'baseline',
@@ -27,9 +27,14 @@ export default function CatalogHighlight() {
             flexWrap: 'wrap',
           }}
         >
-          <Typography component="h2" sx={{ typography: 'd2' }}>
-            Disponibles ahora
-          </Typography>
+          <Box>
+            <Eyebrow n="02">
+              En el mostrador
+            </Eyebrow>
+            <Titulo id="disponibles-titulo" sx={{ fontSize: 'clamp(2.25rem, 5vw, 3.75rem)' }}>
+              Disponibles <Acento>ahora</Acento>
+            </Titulo>
+          </Box>
 
           {/* La flecha que avanza 3px es la única coquetería de la página, y
               sólo donde hay puntero fino. */}
@@ -57,21 +62,11 @@ export default function CatalogHighlight() {
             Ver todo el catálogo
             <ArrowForwardIcon />
           </Box>
-        </Box>
+        </Reveal>
 
-        <Box
-          sx={{
-            mt: 'clamp(2.5rem, 4.5vw, 3.5rem)',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-            gap: 'clamp(1rem, 1.8vw, 1.5rem)',
-            alignItems: 'stretch',
-          }}
-        >
-          {loading
-            ? [...Array(4)].map((_, i) => <ProductCardSkeleton key={i} />)
-            : disponibles.map((p) => <ProductCard key={p.id} product={p} />)}
-        </Box>
+        <Reveal delay={120} sx={{ mt: 'clamp(2.5rem, 4.5vw, 3.5rem)' }}>
+          <VitrinaModelos />
+        </Reveal>
       </Box>
     </Box>
   )
